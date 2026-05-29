@@ -3,6 +3,7 @@
 const CHANNEL_CONFIGS = {
   think: {
     profile: "reasoning",
+    model: "deepseek-v4-pro",
     thinking: { type: "enabled" },
     reasoning_effort: "high",
     temperature: undefined,
@@ -12,6 +13,7 @@ const CHANNEL_CONFIGS = {
   },
   act: {
     profile: "fast",
+    model: "deepseek-v4-flash",
     thinking: { type: "disabled" },
     reasoning_effort: undefined,
     temperature: 0.1,
@@ -45,9 +47,10 @@ export function createModelProvider(config) {
     if (!channelCfg) throw new Error(`Unknown channel: ${channel}`);
 
     const profile = profiles[channelCfg.profile];
-    const model = (config.model && config.model !== "deepseek-v4-flash")
+    // Priority: user explicit override > profile.resolve() > channel default
+    const model = config.model
       ? config.model
-      : profile?.resolve() || channelCfg.model;
+      : (profile?.resolve() || channelCfg.model);
 
     return removeUndefined({
       model,
@@ -84,7 +87,7 @@ export function createModelProvider(config) {
 
   function fimParams(prefix, suffix) {
     if (!supportsFIM()) throw new Error("FIM not supported by current config");
-    const model = profiles.fim.resolve();
+    const model = config.model || profiles.fim.resolve();
     return removeUndefined({
       model,
       prompt: prefix,
