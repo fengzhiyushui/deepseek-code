@@ -64,6 +64,26 @@ test("events carry timestamp and event_id", () => {
   bus.publish("typed", { x: 1 });
   assert.equal(events.length, 1);
   assert.ok(typeof events[0].timestamp === "string");
+  assert.ok(Date.parse(events[0].timestamp) > 0);
   assert.ok(events[0].event_id.startsWith("evt_"));
   assert.ok(events[0].event_type === "typed");
+});
+
+test("handler error does not prevent other subscribers", () => {
+  const bus = createEventBus();
+  const received = [];
+  bus.subscribe("e", () => { throw new Error("boom"); });
+  bus.subscribe("e", (data) => received.push(data));
+  assert.doesNotThrow(() => bus.publish("e", { x: 1 }));
+  assert.equal(received.length, 1);
+  assert.equal(received[0].x, 1);
+});
+
+test("once unsubscribe before event prevents handler", () => {
+  const bus = createEventBus();
+  let called = false;
+  const sub = bus.once("e", () => { called = true; });
+  sub.unsubscribe();
+  bus.publish("e", {});
+  assert.equal(called, false);
 });
