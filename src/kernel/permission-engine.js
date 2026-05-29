@@ -30,6 +30,16 @@ export function createPermissionEngine() {
     const category = toolCall.category || "read";
     const autonomy = context.autonomy || "gated";
 
+    // Destructive operations are NEVER auto-allowed — they always require
+    // explicit user confirmation, regardless of trust rules or autonomy level.
+    if (category === "destructive") {
+      return {
+        decision: "deny",
+        matched_rule: "hardcoded:destructive",
+        source: "safety-invariant"
+      };
+    }
+
     // 1. Check user trust store rules (highest priority)
     const userRules = context.trustStore?.rules || [];
     for (const rule of userRules) {
@@ -92,7 +102,10 @@ export function createPermissionEngine() {
 
 function ruleMatches(rule, toolCall, context) {
   if (rule.category && rule.category !== toolCall.category) return false;
-  if (rule.pattern && toolCall.params?.path) {
+
+  // If rule specifies a path pattern, the tool call MUST have a path that matches
+  if (rule.pattern) {
+    if (!toolCall.params?.path) return false;
     if (!globMatch(rule.pattern, toolCall.params.path)) return false;
   }
   if (rule.match?.argv) {
@@ -103,13 +116,16 @@ function ruleMatches(rule, toolCall, context) {
 }
 
 function globMatch(pattern, value) {
-  // Replace glob tokens first, then escape regex special characters
-  let escaped = pattern;
-  escaped = escaped.replace(/\*\*/g, "___STARSTAR___");
-  escaped = escaped.replace(/\*/g, "[^/]*");
-  escaped = escaped.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-  escaped = escaped.replace(/___STARSTAR___/g, ".*");
-  const regex = new RegExp("^" + escaped + "$");
+  // First: escape regex special characters in the literal parts of the pattern
+  let regexPattern = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+
+  // Then: replace glob tokens with regex equivalents
+  regexPattern = regexPattern
+    .replace(/\*\*/g, ".*")
+    .replace(/\*/g, "[^/]*")
+    .replace(/\?/g, "[^/]");
+
+  const regex = new RegExp("^" + regexPattern + "$");
   return regex.test(value);
 }
 

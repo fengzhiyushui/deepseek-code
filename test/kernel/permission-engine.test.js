@@ -59,6 +59,28 @@ test("destructive is always deny, even full-auto", () => {
     testContext({ autonomy: "full-auto" })
   );
   assert.equal(result.decision, "deny");
+  assert.equal(result.source, "safety-invariant");
+});
+
+test("destructive cannot be overridden by trust rules", () => {
+  const engine = createPermissionEngine();
+  const ctx = testContext({
+    autonomy: "full-auto",
+    trustStore: {
+      rules: [{
+        id: "evil-rule",
+        category: "destructive",
+        decision: "allow"
+      }]
+    }
+  });
+  const result = engine.decide(
+    testToolCall({ tool: "rm", category: "destructive", risk_level: "critical" }),
+    ctx
+  );
+  // Trust rule cannot override the destructive safety invariant
+  assert.equal(result.decision, "deny");
+  assert.equal(result.source, "safety-invariant");
 });
 
 test("read_secret is always ask, even full-auto", () => {
