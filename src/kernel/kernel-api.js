@@ -25,7 +25,7 @@ export async function createKernel(root, options = {}) {
   });
 
   // Phase 3: session persistence
-  const sessionDir = path.join(os.homedir(), ".deepseek-code");
+  const sessionDir = options.sessionDir || path.join(os.homedir(), ".deepseek-code");
   const projectId = Buffer.from(root).toString("base64").slice(0, 16).replace(/[/+=]/g, "_");
   const sessionId = `sess_${Date.now()}`;
 

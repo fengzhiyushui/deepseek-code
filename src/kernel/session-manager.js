@@ -1,6 +1,7 @@
 // src/kernel/session-manager.js
 
 export function createSessionManager({ eventBus, sessionLog }) {
+  const bridges = [];  // track all active bridges
 
   function bridge(eventTypes) {
     if (!sessionLog) return { unsubscribe() {}, flush: async () => {} };
@@ -26,7 +27,7 @@ export function createSessionManager({ eventBus, sessionLog }) {
       handlers.push(sub);
     }
 
-    return {
+    const bridgeHandle = {
       unsubscribe() {
         for (const h of handlers) h.unsubscribe();
       },
@@ -35,6 +36,14 @@ export function createSessionManager({ eventBus, sessionLog }) {
         await idlePromise;
       }
     };
+    bridges.push(bridgeHandle);
+    return bridgeHandle;
+  }
+
+  async function flush() {
+    for (const b of bridges) {
+      await b.flush();
+    }
   }
 
   async function getTimeline(count = 20) {
@@ -43,5 +52,5 @@ export function createSessionManager({ eventBus, sessionLog }) {
     return events;
   }
 
-  return { bridge, getTimeline };
+  return { bridge, getTimeline, flush };
 }

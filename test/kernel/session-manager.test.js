@@ -169,3 +169,41 @@ test("session.subscribe receives orchestrator state events", async () => {
 
   await fs.rm(kernelTmpDir, { recursive: true, force: true });
 });
+
+test("session.getTimeline returns persisted events from session log", async () => {
+  const tmpDir = path.join(os.tmpdir(), `dsc-kernel-persist-${Date.now()}`);
+  await fs.mkdir(tmpDir, { recursive: true });
+  await fs.writeFile(path.join(tmpDir, "package.json"), "{}", "utf8");
+
+  const kernel = await createKernel(tmpDir, {
+    config: { allowMissingKey: true },
+    sessionDir: tmpDir
+  });
+
+  // Send a message (fire and forget — orchestrator may hang without real model)
+  kernel.agent.send("test message").catch(() => {});
+  // Let microtasks flush so events are published and persisted
+  await new Promise(r => setTimeout(r, 100));
+
+  // Flush all pending writes to disk
+  await kernel.sessionManager.flush();
+
+  // Read timeline — should have events
+  const timeline = await kernel.session.getTimeline(20);
+
+  // Should contain at least session:start, user:message, and some orchestrator events
+  assert.ok(timeline.length >= 2, `Expected >= 2 events, got ${timeline.length}`);
+
+  const types = timeline.map(e => e.type);
+  assert.ok(types.includes("session:start"), "should have session:start");
+  assert.ok(types.includes("user:message"), "should have user:message");
+
+  // The user:message content should match
+  const userMsg = timeline.find(e => e.type === "user:message");
+  assert.equal(userMsg.content, "test message");
+
+  // Clean up the hung orchestrator
+  kernel.agent.interrupt();
+
+  await fs.rm(tmpDir, { recursive: true, force: true });
+});
