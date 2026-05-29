@@ -116,3 +116,61 @@ test("thinking=enabled is normalized correctly", async () => {
   assert.equal(config.thinking.type, "enabled");
   assert.equal(config.reasoningEffort, "max");
 });
+
+test("reasoningEffort preserves low/medium/high without coercion", async () => {
+  await fs.writeFile(
+    path.join(localConfigDir, "config.json"),
+    JSON.stringify({ thinking: { type: "enabled" }, reasoningEffort: "low" })
+  );
+  const config = await loadConfig(tmpDir, { allowMissingKey: true });
+  assert.equal(config.reasoningEffort, "low");
+});
+
+test("home and local profiles are deep-merged without losing either", async () => {
+  // Write home config with reasoning override
+  const homeDir = path.join(os.homedir(), ".deepseek-code");
+  const homeConfigPath = path.join(homeDir, "config.json");
+  await fs.mkdir(homeDir, { recursive: true });
+  await fs.writeFile(
+    homeConfigPath,
+    JSON.stringify({
+      profiles: {
+        reasoning: { models: ["home-custom-model"], reasoning_effort: "max" }
+      }
+    })
+  );
+
+  // Write local config with fast override
+  await fs.writeFile(
+    path.join(localConfigDir, "config.json"),
+    JSON.stringify({
+      profiles: {
+        fast: { models: ["local-fast-model"] }
+      }
+    })
+  );
+
+  try {
+    const config = await loadConfig(tmpDir, { allowMissingKey: true });
+
+    // Home reasoning override should be preserved
+    assert.ok(config.profiles.reasoning);
+    assert.deepEqual(config.profiles.reasoning.models, ["home-custom-model"]);
+    assert.equal(config.profiles.reasoning.reasoning_effort, "max");
+    // Other reasoning defaults still present (deep-merged, not replaced)
+    assert.equal(config.profiles.reasoning.thinking.type, "enabled");
+
+    // Local fast override should be preserved
+    assert.ok(config.profiles.fast);
+    assert.deepEqual(config.profiles.fast.models, ["local-fast-model"]);
+    // Other fast defaults still present
+    assert.equal(config.profiles.fast.thinking.type, "disabled");
+
+    // FIM should still be at defaults (untouched by either)
+    assert.ok(config.profiles.fim);
+    assert.deepEqual(config.profiles.fim.models, ["deepseek-v4-pro", "deepseek-v4-flash"]);
+  } finally {
+    // Cleanup: remove home config
+    await fs.rm(homeConfigPath, { force: true });
+  }
+});

@@ -50,27 +50,40 @@ export const DEFAULT_CONFIG = {
 export async function loadConfig(root, options = {}) {
   const localPath = path.join(root, ".deepseek-code", "config.json");
   const homePath = path.join(os.homedir(), ".deepseek-code", "config.json");
-  const fileConfig = {
-    ...(await readJsonIfExists(homePath)),
-    ...(await readJsonIfExists(localPath))
-  };
+  const homeConfig = await readJsonIfExists(homePath);
+  const localConfig = await readJsonIfExists(localPath);
 
-  if (fileConfig.profiles !== undefined && (typeof fileConfig.profiles !== "object" || Array.isArray(fileConfig.profiles))) {
-    delete fileConfig.profiles;
+  // Deep-merge: defaults < home < local
+  const merged = deepMergeConfig(
+    deepMergeConfig(DEFAULT_CONFIG, homeConfig),
+    localConfig
+  );
+
+  // Clean up invalid profiles on merged (defensive)
+  if (merged.profiles !== undefined && (typeof merged.profiles !== "object" || Array.isArray(merged.profiles))) {
+    delete merged.profiles;
   }
 
-  const profiles = deepMergeProfiles(DEFAULT_MODEL_PROFILES, fileConfig.profiles);
+  // Merge profiles in sequence: DEFAULT -> home -> local (each level deep-merges)
+  let profiles = { ...DEFAULT_MODEL_PROFILES };
+  if (homeConfig.profiles && typeof homeConfig.profiles === "object" && !Array.isArray(homeConfig.profiles)) {
+    profiles = deepMergeProfiles(profiles, homeConfig.profiles);
+  }
+  if (localConfig.profiles && typeof localConfig.profiles === "object" && !Array.isArray(localConfig.profiles)) {
+    profiles = deepMergeProfiles(profiles, localConfig.profiles);
+  }
+
+  const { profiles: _, ...mergedWithoutProfiles } = merged;
 
   const config = {
-    ...DEFAULT_CONFIG,
-    ...fileConfig,
+    ...mergedWithoutProfiles,
     profiles,
-    apiKey: process.env.DEEPSEEK_API_KEY || fileConfig.apiKey || "",
-    baseUrl: process.env.DEEPSEEK_BASE_URL || fileConfig.baseUrl || DEFAULT_CONFIG.baseUrl,
-    model: process.env.DEEPSEEK_MODEL || fileConfig.model || DEFAULT_CONFIG.model,
-    thinking: normalizeThinking(fileConfig.thinking ?? DEFAULT_CONFIG.thinking),
+    apiKey: process.env.DEEPSEEK_API_KEY || merged.apiKey || "",
+    baseUrl: process.env.DEEPSEEK_BASE_URL || merged.baseUrl || DEFAULT_CONFIG.baseUrl,
+    model: process.env.DEEPSEEK_MODEL || merged.model || DEFAULT_CONFIG.model,
+    thinking: normalizeThinking(merged.thinking ?? DEFAULT_CONFIG.thinking),
     reasoningEffort: normalizeReasoningEffort(
-      process.env.DEEPSEEK_REASONING_EFFORT || fileConfig.reasoningEffort || DEFAULT_CONFIG.reasoningEffort
+      process.env.DEEPSEEK_REASONING_EFFORT || merged.reasoningEffort || DEFAULT_CONFIG.reasoningEffort
     )
   };
 
@@ -86,6 +99,14 @@ export async function saveLocalConfig(root, config) {
   await fs.mkdir(dir, { recursive: true });
   const target = path.join(dir, "config.json");
   const { profiles, ...persisted } = config;
+
+  // Never persist the API key if it was sourced from an environment variable.
+  // Check: if an env key exists and matches the current config value,
+  // remove it from persisted config so the env var remains the source of truth.
+  if (process.env.DEEPSEEK_API_KEY && persisted.apiKey === process.env.DEEPSEEK_API_KEY) {
+    delete persisted.apiKey;
+  }
+
   await fs.writeFile(target, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
   return target;
 }
@@ -117,6 +138,27 @@ export function normalizeConfig(config) {
 
 // -- internal helpers --
 
+function deepMergeConfig(base, override) {
+  if (!override || typeof override !== "object" || Array.isArray(override)) {
+    return { ...base };
+  }
+  const result = { ...base };
+  for (const key of Object.keys(override)) {
+    const baseVal = result[key];
+    const overrideVal = override[key];
+    if (
+      baseVal && typeof baseVal === "object" && !Array.isArray(baseVal) &&
+      overrideVal && typeof overrideVal === "object" && !Array.isArray(overrideVal) &&
+      key !== "profiles"  // profiles use deepMergeProfiles separately
+    ) {
+      result[key] = { ...baseVal, ...overrideVal };
+    } else {
+      result[key] = overrideVal;
+    }
+  }
+  return result;
+}
+
 async function readJsonIfExists(file) {
   try {
     return JSON.parse(await fs.readFile(file, "utf8"));
@@ -138,9 +180,10 @@ function normalizeThinking(value) {
 }
 
 function normalizeReasoningEffort(value) {
-  if (value === "max" || value === "xhigh") return "max";
-  if (value === "minimal") return "minimal";
-  if (["low", "medium", "high"].includes(value)) return "high";
+  if (!value) return DEFAULT_CONFIG.reasoningEffort;
+  if (value === "xhigh") return "max";
+  const valid = new Set(["minimal", "low", "medium", "high", "max"]);
+  if (valid.has(value)) return value;
   return DEFAULT_CONFIG.reasoningEffort;
 }
 
@@ -158,11 +201,19 @@ function deepMergeProfiles(defaults, overrides) {
     return { ...defaults };
   }
   const merged = {};
-  for (const key of Object.keys(defaults)) {
-    if (overrides[key] && typeof overrides[key] === "object" && !Array.isArray(overrides[key]) && typeof overrides[key].resolve !== "function") {
-      merged[key] = { ...defaults[key], ...overrides[key] };
+  const allKeys = new Set([...Object.keys(defaults), ...Object.keys(overrides)]);
+  for (const key of allKeys) {
+    const defVal = defaults[key];
+    const ovrVal = overrides[key];
+    if (ovrVal && typeof ovrVal === "object" && !Array.isArray(ovrVal) && typeof ovrVal.resolve !== "function") {
+      // Deep-merge: overlay override properties onto defaults (or onto {} if no default)
+      merged[key] = { ...(defVal || {}), ...ovrVal };
+    } else if (ovrVal !== undefined) {
+      // Override replaces entirely (e.g., a string or array value)
+      merged[key] = ovrVal;
     } else {
-      merged[key] = overrides[key] !== undefined ? overrides[key] : defaults[key];
+      // No override — keep default
+      merged[key] = defVal;
     }
   }
   return merged;
