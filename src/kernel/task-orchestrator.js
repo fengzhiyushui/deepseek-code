@@ -104,12 +104,7 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
         if (interrupted) throw new InterruptedError();
         let result = null;
         if (modelProvider.invoke) {
-          try {
-            result = await modelProvider.invoke(messages, "think");
-          } catch (err) {
-            transition(STATE.TERMINAL, `think reply error: ${err.message}`, { channel: "think" });
-            throw err;
-          }
+          result = await modelProvider.invoke(messages, "think");
         }
         transition(STATE.COMPLETE, "reply delivered");
         transition(STATE.IDLE, "task complete");
@@ -182,12 +177,7 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
     ];
 
     if (modelProvider.invoke) {
-      try {
-        const planResult = await modelProvider.invoke(thinkMessages, "think");
-        if (planResult.usage) {
-          modelProvider.trackUsage({ usage: planResult.usage, channel: "think", model: "think-model", latency_ms: planResult.latency_ms || 0 });
-        }
-      } catch (err) { throw err; }
+      await modelProvider.invoke(thinkMessages, "think");
     }
 
     if (interrupted) throw new InterruptedError();
@@ -200,12 +190,7 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
     ];
 
     if (modelProvider.invoke) {
-      try {
-        const actResult = await modelProvider.invoke(actMessages, "act");
-        if (actResult.usage) {
-          modelProvider.trackUsage({ usage: actResult.usage, channel: "act", model: "act-model", latency_ms: actResult.latency_ms || 0 });
-        }
-      } catch (err) { throw err; }
+      await modelProvider.invoke(actMessages, "act");
     }
 
     if (interrupted) throw new InterruptedError();
@@ -222,7 +207,6 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
       if (err instanceof InterruptedError) {
         throw err;
       }
-      transition(STATE.TERMINAL, `error: ${err.message}`, { channel: currentChannel });
       if (_pendingReject) {
         _pendingReject(err);
         _clearPending();
