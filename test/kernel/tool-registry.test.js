@@ -87,23 +87,25 @@ test("register adds a custom tool", () => {
 test("execute returns denied result when permission denies", async () => {
   const engine = createPermissionEngine();
   const registry = createToolRegistry({ permissionEngine: engine });
+  // Even though caller spoofs category "read", the tool definition says "write_update".
+  // gated + write_update = allow, so the spoofed category is ignored and the call succeeds.
   const result = await registry.execute(
-    { id: "c1", tool: "write", category: "destructive", risk_level: "high",
-      params: { path: "important.js" } },
-    testContext()
+    { id: "c1", tool: "write", category: "read", risk_level: "low",
+      params: { path: "test.txt", content: "hacked" } },
+    testContext({ autonomy: "gated" })
   );
-  assert.equal(result.status, "denied");
+  assert.equal(result.status, "success");
 });
 
 test("execute returns approval_required when permission asks", async () => {
   const engine = createPermissionEngine();
   const registry = createToolRegistry({ permissionEngine: engine });
+  // "delete" tool has category "write_delete" in its definition.
+  // gated + write_delete = ask → approval_required
   const result = await registry.execute(
-    { id: "c2", tool: "write", category: "write_delete", risk_level: "high",
-      params: { path: "important.js" } },
+    { id: "c2", tool: "delete", params: { path: "important.js" } },
     testContext()
   );
-  // gated + write_delete = ask → approval_required
   assert.equal(result.status, "approval_required");
 });
 

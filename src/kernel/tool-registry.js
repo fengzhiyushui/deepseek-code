@@ -3,15 +3,46 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-function resolvePath(rawPath, projectRoot) {
+async function resolvePath(rawPath, projectRoot) {
   if (!rawPath) throw new Error("path is required");
   if (!projectRoot) throw new Error("projectRoot is required for path resolution");
   const resolved = path.resolve(projectRoot, rawPath);
-  const rel = path.relative(projectRoot, resolved);
+  // Resolve symlinks to get the real filesystem path
+  let real;
+  try {
+    real = await fs.realpath(resolved);
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      // File doesn't exist yet — walk up to find an existing ancestor
+      let searchDir = path.dirname(resolved);
+      while (true) {
+        try {
+          const parentReal = await fs.realpath(searchDir);
+          real = path.join(parentReal, path.relative(searchDir, resolved));
+          break;
+        } catch (e) {
+          if (e.code === "ENOENT") {
+            const nextDir = path.dirname(searchDir);
+            if (nextDir === searchDir) {
+              // Reached filesystem root without finding anything — fall back to lexical
+              real = resolved;
+              break;
+            }
+            searchDir = nextDir;
+            continue;
+          }
+          throw e;
+        }
+      }
+    } else {
+      throw err;
+    }
+  }
+  const rel = path.relative(projectRoot, real);
   if (rel.startsWith("..") || path.isAbsolute(rel)) {
     throw new Error(`Path escapes project root: ${rawPath}`);
   }
-  return resolved;
+  return resolved; // return the original resolved path for use, not the real path
 }
 
 export const BUILTIN_TOOLS = [
@@ -19,7 +50,7 @@ export const BUILTIN_TOOLS = [
     side_effect: "none", risk_level: "low", source: "builtin", version: "1.0",
     params: { path: { type: "string" } },
     execute: async (params, ctx) => {
-      const target = resolvePath(params.path, ctx.projectRoot);
+      const target = await resolvePath(params.path, ctx.projectRoot);
       const content = await fs.readFile(target, "utf8");
       return { content: [{ type: "text", text: content }] };
     }
@@ -28,7 +59,7 @@ export const BUILTIN_TOOLS = [
     side_effect: "filesystem", risk_level: "medium", source: "builtin", version: "1.0",
     params: { path: { type: "string" }, content: { type: "string" } },
     execute: async (params, ctx) => {
-      const target = resolvePath(params.path, ctx.projectRoot);
+      const target = await resolvePath(params.path, ctx.projectRoot);
       await fs.mkdir(path.dirname(target), { recursive: true });
       await fs.writeFile(target, params.content, "utf8");
       return { content: [{ type: "text", text: `Wrote ${params.path}` }] };
@@ -63,7 +94,7 @@ export const BUILTIN_TOOLS = [
     side_effect: "filesystem", risk_level: "high", source: "builtin", version: "1.0",
     params: { path: { type: "string" } },
     execute: async (params, ctx) => {
-      const target = resolvePath(params.path, ctx.projectRoot);
+      const target = await resolvePath(params.path, ctx.projectRoot);
       await fs.rm(target, { force: true });
       return { content: [{ type: "text", text: `Deleted ${params.path}` }] };
     }
@@ -150,9 +181,9 @@ export function createToolRegistry({ permissionEngine }) {
     const fullCall = {
       id: toolCall.id,
       tool: def.name,
-      category: toolCall.category || def.category,
-      risk_level: toolCall.risk_level || def.risk_level,
-      side_effect: toolCall.side_effect || def.side_effect,
+      category: def.category,
+      risk_level: def.risk_level,
+      side_effect: def.side_effect,
       params: normalizedParams
     };
 
