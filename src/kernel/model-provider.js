@@ -25,7 +25,6 @@ const CHANNEL_CONFIGS = {
 
 const FIM_CHANNEL_CONFIG = {
   profile: "fim",
-  thinking: { type: "disabled" },
   max_tokens: 128
 };
 
@@ -42,15 +41,15 @@ export function createModelProvider(config) {
     by_channel: {}
   };
 
-  function channelParams(channel) {
+  function channelParams(channel, explicitModel) {
     const channelCfg = CHANNEL_CONFIGS[channel];
     if (!channelCfg) throw new Error(`Unknown channel: ${channel}`);
 
     const profile = profiles[channelCfg.profile];
-    // Priority: user explicit override > profile.resolve() > channel default
-    const model = config.model
-      ? config.model
-      : (profile?.resolve() || channelCfg.model);
+    // Priority: per-call explicit model > profile.resolve() > channel default
+    const model = explicitModel
+      || profile?.resolve()
+      || channelCfg.model;
 
     return removeUndefined({
       model,
@@ -65,8 +64,8 @@ export function createModelProvider(config) {
     });
   }
 
-  function buildRequestBody(messages, channel) {
-    const base = channelParams(channel);
+  function buildRequestBody(messages, channel, explicitModel) {
+    const base = channelParams(channel, explicitModel);
     const body = {
       model: base.model,
       messages,
@@ -85,15 +84,14 @@ export function createModelProvider(config) {
     return !!profiles.fim;
   }
 
-  function fimParams(prefix, suffix) {
+  function fimParams(prefix, suffix, explicitModel) {
     if (!supportsFIM()) throw new Error("FIM not supported by current config");
-    const model = config.model || profiles.fim.resolve();
+    const model = explicitModel || profiles.fim.resolve();
     return removeUndefined({
       model,
       prompt: prefix,
       suffix: suffix,
       max_tokens: FIM_CHANNEL_CONFIG.max_tokens,
-      thinking: FIM_CHANNEL_CONFIG.thinking,
     });
   }
 
@@ -148,6 +146,156 @@ export function createModelProvider(config) {
     };
   }
 
+  async function invoke(messages, channel, explicitModel) {
+    const body = buildRequestBody(messages, channel, explicitModel);
+    const url = `${config.baseUrl}/chat/completions`;
+
+    const startTime = Date.now();
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${config.apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+
+    const latencyMs = Date.now() - startTime;
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      const err = new Error(formatApiError(response.status, text));
+      err.status = response.status;
+      throw err;
+    }
+
+    const payload = await response.json();
+    const processed = processResponse(payload, channel);
+    processed.latency_ms = latencyMs;
+    processed.model = body.model;
+
+    if (processed.usage) {
+      trackUsage({ usage: processed.usage, channel, model: body.model, latency_ms: latencyMs });
+    }
+
+    return processed;
+  }
+
+  async function streamDelta(messages, channel, onDelta, explicitModel) {
+    const body = buildRequestBody(messages, channel, explicitModel);
+    // Force stream:true
+    body.stream = true;
+    body.stream_options = { include_usage: true };
+
+    const url = `${config.baseUrl}/chat/completions`;
+    const startTime = Date.now();
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${config.apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      const err = new Error(formatApiError(response.status, text));
+      err.status = response.status;
+      throw err;
+    }
+
+    // Parse SSE stream
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let content = "";
+    let usage = null;
+    let reasoningContent = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (!data || data === "[DONE]") continue;
+
+        const event = JSON.parse(data);
+        if (event.usage) usage = event.usage;
+
+        const delta = event.choices?.[0]?.delta;
+        if (delta?.content) {
+          content += delta.content;
+          if (onDelta) onDelta(delta.content);
+        }
+        if (delta?.reasoning_content) {
+          reasoningContent = (reasoningContent || "") + delta.reasoning_content;
+        }
+      }
+    }
+
+    const latencyMs = Date.now() - startTime;
+
+    // Build response from streamed content
+    const result = {
+      content,
+      reasoning_content: reasoningContent,
+      _reasoning_hidden: true,
+      usage,
+      channel,
+      model: body.model,
+      latency_ms: latencyMs
+    };
+
+    if (usage) {
+      trackUsage({ usage, channel, model: body.model, latency_ms: latencyMs });
+    }
+
+    return result;
+  }
+
+  async function fimComplete(prefix, suffix, explicitModel) {
+    if (!supportsFIM()) throw new Error("FIM not supported by current config");
+
+    const body = fimParams(prefix, suffix, explicitModel);
+    const url = `${config.baseUrl}/completions`;
+    const startTime = Date.now();
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${config.apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+
+    const latencyMs = Date.now() - startTime;
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      const err = new Error(formatApiError(response.status, text));
+      err.status = response.status;
+      throw err;
+    }
+
+    const payload = await response.json();
+    const completion = payload.choices?.[0]?.text || "";
+
+    if (payload.usage) {
+      trackUsage({ usage: payload.usage, channel: "fim", model: body.model, latency_ms: latencyMs });
+    }
+
+    return completion;
+  }
+
   return {
     channelParams,
     buildRequestBody,
@@ -155,7 +303,10 @@ export function createModelProvider(config) {
     fimParams,
     trackUsage,
     getUsageStats,
-    processResponse
+    processResponse,
+    invoke,
+    streamDelta,
+    fimComplete
   };
 }
 
@@ -163,4 +314,13 @@ function removeUndefined(obj) {
   return Object.fromEntries(
     Object.entries(obj).filter(([, v]) => v !== undefined)
   );
+}
+
+function formatApiError(status, text) {
+  try {
+    const payload = JSON.parse(text);
+    return payload.error?.message || payload.message || `HTTP ${status}`;
+  } catch {
+    return `HTTP ${status}: ${text.slice(0, 200)}`;
+  }
 }
