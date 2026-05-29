@@ -55,10 +55,11 @@ export async function loadConfig(root, options = {}) {
     ...(await readJsonIfExists(localPath))
   };
 
-  const profiles = {
-    ...DEFAULT_MODEL_PROFILES,
-    ...(fileConfig.profiles || {})
-  };
+  if (fileConfig.profiles !== undefined && (typeof fileConfig.profiles !== "object" || Array.isArray(fileConfig.profiles))) {
+    delete fileConfig.profiles;
+  }
+
+  const profiles = deepMergeProfiles(DEFAULT_MODEL_PROFILES, fileConfig.profiles);
 
   const config = {
     ...DEFAULT_CONFIG,
@@ -68,7 +69,9 @@ export async function loadConfig(root, options = {}) {
     baseUrl: process.env.DEEPSEEK_BASE_URL || fileConfig.baseUrl || DEFAULT_CONFIG.baseUrl,
     model: process.env.DEEPSEEK_MODEL || fileConfig.model || DEFAULT_CONFIG.model,
     thinking: normalizeThinking(fileConfig.thinking ?? DEFAULT_CONFIG.thinking),
-    reasoningEffort: process.env.DEEPSEEK_REASONING_EFFORT || fileConfig.reasoningEffort || DEFAULT_CONFIG.reasoningEffort
+    reasoningEffort: normalizeReasoningEffort(
+      process.env.DEEPSEEK_REASONING_EFFORT || fileConfig.reasoningEffort || DEFAULT_CONFIG.reasoningEffort
+    )
   };
 
   if (!config.apiKey && !options.allowMissingKey) {
@@ -108,7 +111,7 @@ export function normalizeConfig(config) {
     maxTokens: Math.trunc(toNumber(config.maxTokens, DEFAULT_CONFIG.maxTokens)),
     thinking: normalizeThinking(config.thinking ?? DEFAULT_CONFIG.thinking),
     reasoningEffort: normalizeReasoningEffort(config.reasoningEffort),
-    profiles: { ...DEFAULT_MODEL_PROFILES, ...(config.profiles || {}) }
+    profiles: deepMergeProfiles(DEFAULT_MODEL_PROFILES, config.profiles)
   };
 }
 
@@ -148,4 +151,19 @@ function toNumber(value, fallback) {
 
 function stripTrailingSlash(value) {
   return value.replace(/\/+$/, "");
+}
+
+function deepMergeProfiles(defaults, overrides) {
+  if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) {
+    return { ...defaults };
+  }
+  const merged = {};
+  for (const key of Object.keys(defaults)) {
+    if (overrides[key] && typeof overrides[key] === "object" && !Array.isArray(overrides[key]) && typeof overrides[key].resolve !== "function") {
+      merged[key] = { ...defaults[key], ...overrides[key] };
+    } else {
+      merged[key] = overrides[key] !== undefined ? overrides[key] : defaults[key];
+    }
+  }
+  return merged;
 }
