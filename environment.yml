@@ -1,0 +1,6 @@
+name: deepseek-code
+channels:
+  - defaults
+dependencies:
+  - python=3.12
+  - nodejs
