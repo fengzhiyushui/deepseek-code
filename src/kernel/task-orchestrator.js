@@ -102,9 +102,18 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
         ];
         modelProvider.buildRequestBody(messages, "think");
         if (interrupted) throw new InterruptedError();
+        let result = null;
+        if (modelProvider.invoke) {
+          try {
+            result = await modelProvider.invoke(messages, "think");
+          } catch (err) {
+            transition(STATE.TERMINAL, `think reply error: ${err.message}`, { channel: "think" });
+            throw err;
+          }
+        }
         transition(STATE.COMPLETE, "reply delivered");
         transition(STATE.IDLE, "task complete");
-        _pendingResolve({ status: "complete", state: "idle" });
+        _pendingResolve({ status: "complete", state: "idle", content: result?.content || "" });
         _clearPending();
         return;
       }
@@ -114,13 +123,17 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
     } catch (error) {
       if (error instanceof InterruptedError) {
         transition(STATE.IDLE, "interrupted by user");
-        _pendingReject(error);
-        _clearPending();
+        if (_pendingReject) {
+          _pendingReject(error);
+          _clearPending();
+        }
         return;
       }
       transition(STATE.TERMINAL, `error: ${error.message}`, { channel: currentChannel });
-      _pendingReject(error);
-      _clearPending();
+      if (_pendingReject) {
+        _pendingReject(error);
+        _clearPending();
+      }
     }
   }
 
@@ -147,8 +160,8 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
     return outerPromise;
   }
 
-  async function _runStandardLoop(message, classification, options) {
-    const needsApproval = currentAutonomy === "supervised" || currentAutonomy === "gated";
+  async function _runStandardLoop(message, classification, options, skipApproval = false) {
+    const needsApproval = !skipApproval && (currentAutonomy === "supervised" || currentAutonomy === "gated");
     if (needsApproval) {
       pendingApproval = { type: "plan", message, classification };
       returnState = STATE.THINKPLAN;
@@ -158,6 +171,7 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
       return;
     }
 
+    try {
     transition(STATE.THINKPLAN, classification.reason, { channel: "think" });
     if (interrupted) throw new InterruptedError();
 
@@ -204,6 +218,17 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
     transition(STATE.IDLE, "task complete");
     _pendingResolve({ status: "complete", state: "idle" });
     _clearPending();
+    } catch (err) {
+      if (err instanceof InterruptedError) {
+        throw err;
+      }
+      transition(STATE.TERMINAL, `error: ${err.message}`, { channel: currentChannel });
+      if (_pendingReject) {
+        _pendingReject(err);
+        _clearPending();
+      }
+      throw err;
+    }
   }
 
   function approve(id, decision) {
@@ -233,23 +258,12 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
           trace: { id: `trace_${randomUUID().replace(/-/g, "").slice(0, 12)}`, timestamp: new Date().toISOString() }
         });
       }
-      // Resume execution with full-auto so the approval gate is skipped
+      // Resume execution, skip the approval gate
       const savedAutonomy = currentAutonomy;
-      currentAutonomy = "full-auto";
-      _runStandardLoop(task.message, task.classification, task.options).then(() => {
+      _runStandardLoop(task.message, task.classification, task.options, true).then(() => {
         currentAutonomy = savedAutonomy;
-        _pendingResolve({ status: "complete", state: "idle" });
       }).catch((err) => {
         currentAutonomy = savedAutonomy;
-        if (err instanceof InterruptedError) {
-          // interrupt() already handled the rejection
-          return;
-        }
-        transition(STATE.TERMINAL, `error: ${err.message}`, { channel: currentChannel });
-        if (_pendingReject) {
-          _pendingReject(err);
-          _clearPending();
-        }
       });
     }
   }

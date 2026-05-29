@@ -49,7 +49,8 @@ export const DEFAULT_CONFIG = {
 
 export async function loadConfig(root, options = {}) {
   const localPath = path.join(root, ".deepseek-code", "config.json");
-  const homePath = path.join(os.homedir(), ".deepseek-code", "config.json");
+  const homeDir = options.homeDir || os.homedir();
+  const homePath = path.join(homeDir, ".deepseek-code", "config.json");
   const homeConfig = await readJsonIfExists(homePath);
   const localConfig = await readJsonIfExists(localPath);
 

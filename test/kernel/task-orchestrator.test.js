@@ -16,7 +16,10 @@ function mockModelProvider() {
     trackUsage() {},
     getUsageStats() { return { requests: 0 }; },
     supportsFIM() { return false; },
-    fimParams() { throw new Error("not supported"); }
+    fimParams() { throw new Error("not supported"); },
+    invoke(messages, channel) {
+      return Promise.resolve({ content: "mock response", usage: null, channel, latency_ms: 5, model: "mock" });
+    },
   };
 }
 

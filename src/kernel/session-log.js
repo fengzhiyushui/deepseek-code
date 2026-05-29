@@ -5,6 +5,22 @@ import { createHash, randomUUID } from "node:crypto";
 
 const SCHEMA_VERSION = 1;
 
+const RESERVED_KEYS = new Set([
+  "schema_version", "event_id", "prev_hash", "event_hash",
+  "type", "timestamp", "seq", "session_id"
+]);
+
+function stripReservedKeys(data) {
+  if (!data || typeof data !== "object") return {};
+  const cleaned = {};
+  for (const key of Object.keys(data)) {
+    if (!RESERVED_KEYS.has(key)) {
+      cleaned[key] = data[key];
+    }
+  }
+  return cleaned;
+}
+
 export async function createSessionLog(baseDir, projectId, sessionId, meta) {
   const dir = sessionDir(baseDir, projectId);
   await fs.mkdir(dir, { recursive: true });
@@ -12,6 +28,7 @@ export async function createSessionLog(baseDir, projectId, sessionId, meta) {
 
   const log = new SessionLogWriter(filePath, sessionId);
 
+  const safeMeta = stripReservedKeys(meta);
   const startEvent = {
     schema_version: SCHEMA_VERSION,
     event_id: makeEventId(),
@@ -20,8 +37,8 @@ export async function createSessionLog(baseDir, projectId, sessionId, meta) {
     type: "session:start",
     timestamp: new Date().toISOString(),
     seq: 1,
-    ...meta,
-    session_id: sessionId    // Moved after ...meta — explicit always wins
+    session_id: sessionId,
+    ...safeMeta
   };
   startEvent.event_hash = hashEvent(startEvent);
 
@@ -53,11 +70,21 @@ export async function openSessionLog(baseDir, projectId, sessionId) {
 
 // New helper: validate hash chain
 function validateHashChain(events) {
-  for (let i = 1; i < events.length; i++) {
-    const expectedPrev = events[i - 1].event_hash;
-    const actualPrev = events[i].prev_hash;
-    if (expectedPrev !== actualPrev) {
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i];
+
+    // Recompute hash and verify stored event_hash matches
+    const computedHash = hashEvent(event);
+    if (computedHash !== event.event_hash) {
       return false;
+    }
+
+    // Verify prev_hash chain (skip first event)
+    if (i > 0) {
+      const expectedPrev = events[i - 1].event_hash;
+      if (event.prev_hash !== expectedPrev) {
+        return false;
+      }
     }
   }
   return true;
@@ -69,26 +96,41 @@ class SessionLogWriter {
     this.sessionId = sessionId;
     this.lastHash = null;
     this.seq = 0;
+    this._appendQueue = Promise.resolve();  // serialization queue
   }
 
   async append(eventType, data) {
-    this.seq += 1;
-    const event = {
-      schema_version: SCHEMA_VERSION,
-      event_id: makeEventId(),
-      prev_hash: this.lastHash,
-      event_hash: null,
-      type: eventType,
-      timestamp: new Date().toISOString(),
-      seq: this.seq,
-      ...data
-    };
-    event.event_hash = hashEvent(event);
+    // Serialize all append calls through a chain of promises
+    const prev = this._appendQueue;
+    let resolveQueue;
+    this._appendQueue = new Promise((r) => { resolveQueue = r; });
 
-    await appendLine(this.filePath, event);
-    this.lastHash = event.event_hash;
+    await prev;
 
-    return event;
+    try {
+      this.seq += 1;
+      // Strip reserved keys from caller data to prevent field overwriting
+      const safeData = stripReservedKeys(data);
+
+      const event = {
+        schema_version: SCHEMA_VERSION,
+        event_id: makeEventId(),
+        prev_hash: this.lastHash,
+        event_hash: null,
+        type: eventType,
+        timestamp: new Date().toISOString(),
+        seq: this.seq,
+        ...safeData
+      };
+      event.event_hash = hashEvent(event);
+
+      await appendLine(this.filePath, event);
+      this.lastHash = event.event_hash;
+
+      return event;
+    } finally {
+      resolveQueue();
+    }
   }
 
   async tail(count) {
@@ -135,8 +177,40 @@ async function readAllLines(filePath) {
 
 function hashEvent(event) {
   const { event_hash, ...rest } = event;
-  const canonical = JSON.stringify(rest, Object.keys(rest).sort());
+  const safe = jsonSafe(rest);
+  const canonical = stableStringify(safe);
   return `sha256:${createHash("sha256").update(canonical).digest("hex").slice(0, 16)}`;
+}
+
+// Strip undefined values to match JSON.stringify's serialization behavior.
+// JSON.stringify drops keys with undefined values, so our hash must too.
+function jsonSafe(value) {
+  if (value === null || value === undefined || typeof value !== "object") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(jsonSafe);
+  }
+  const result = {};
+  for (const key of Object.keys(value)) {
+    if (value[key] !== undefined) {
+      result[key] = jsonSafe(value[key]);
+    }
+  }
+  return result;
+}
+
+function stableStringify(value) {
+  if (value === undefined) return "null";
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(",")}]`;
+  }
+  const keys = Object.keys(value).sort();
+  const parts = keys.map((k) => `${JSON.stringify(k)}:${stableStringify(value[k])}`);
+  return `{${parts.join(",")}}`;
 }
 
 function makeEventId() {

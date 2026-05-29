@@ -127,12 +127,14 @@ test("reasoningEffort preserves low/medium/high without coercion", async () => {
 });
 
 test("home and local profiles are deep-merged without losing either", async () => {
-  // Write home config with reasoning override
-  const homeDir = path.join(os.homedir(), ".deepseek-code");
-  const homeConfigPath = path.join(homeDir, "config.json");
-  await fs.mkdir(homeDir, { recursive: true });
+  // Use a fake home directory inside tmpDir to avoid touching real ~/.deepseek-code
+  const fakeHome = path.join(tmpDir, "fake-home");
+
+  // Write fake home config with reasoning override
+  const fakeHomeConfigDir = path.join(fakeHome, ".deepseek-code");
+  await fs.mkdir(fakeHomeConfigDir, { recursive: true });
   await fs.writeFile(
-    homeConfigPath,
+    path.join(fakeHomeConfigDir, "config.json"),
     JSON.stringify({
       profiles: {
         reasoning: { models: ["home-custom-model"], reasoning_effort: "max" }
@@ -151,7 +153,7 @@ test("home and local profiles are deep-merged without losing either", async () =
   );
 
   try {
-    const config = await loadConfig(tmpDir, { allowMissingKey: true });
+    const config = await loadConfig(tmpDir, { allowMissingKey: true, homeDir: fakeHome });
 
     // Home reasoning override should be preserved
     assert.ok(config.profiles.reasoning);
@@ -170,7 +172,6 @@ test("home and local profiles are deep-merged without losing either", async () =
     assert.ok(config.profiles.fim);
     assert.deepEqual(config.profiles.fim.models, ["deepseek-v4-pro", "deepseek-v4-flash"]);
   } finally {
-    // Cleanup: remove home config
-    await fs.rm(homeConfigPath, { force: true });
+    // fakeHome is inside tmpDir — cleaned up by test.after
   }
 });

@@ -8,7 +8,7 @@
     "dsc": "./bin/deepseek-code.js"
   },
   "scripts": {
-    "test": "node --test",
+    "test": "node --test test/**/*.test.js",
     "check": "node --check bin/deepseek-code.js && node --check src/cli.js src/agent.js src/chat.js src/config.js src/context.js src/git.js src/patch.js src/changes.js src/provider.js src/search.js src/ui.js src/theme.js src/tui.js && node --check src/kernel/event-bus.js src/kernel/session-log.js src/kernel/config-provider.js src/kernel/kernel-api.js"
   },
   "engines": {
