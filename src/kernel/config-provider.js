@@ -83,7 +83,7 @@ export async function saveLocalConfig(root, config) {
   await fs.mkdir(dir, { recursive: true });
   const target = path.join(dir, "config.json");
   const { profiles, ...persisted } = config;
-  await fs.writeFile(target, `${JSON.stringify({ ...persisted, profiles }, null, 2)}\n`, "utf8");
+  await fs.writeFile(target, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
   return target;
 }
 
