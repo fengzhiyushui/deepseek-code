@@ -20,8 +20,8 @@ export async function createSessionLog(baseDir, projectId, sessionId, meta) {
     type: "session:start",
     timestamp: new Date().toISOString(),
     seq: 1,
-    session_id: sessionId,
-    ...meta
+    ...meta,
+    session_id: sessionId    // Moved after ...meta — explicit always wins
   };
   startEvent.event_hash = hashEvent(startEvent);
 
@@ -36,15 +36,31 @@ export async function openSessionLog(baseDir, projectId, sessionId) {
   const dir = sessionDir(baseDir, projectId);
   const filePath = sessionFilePath(dir, sessionId);
 
-  // Read existing events to recover last_hash and seq
   const existing = await readAllLines(filePath);
   const lastEvent = existing.length > 0 ? existing[existing.length - 1] : null;
+
+  // Validate hash chain integrity
+  if (!validateHashChain(existing)) {
+    console.error(`SessionLog: hash chain validation failed for ${sessionId}. Some events may be corrupted.`);
+  }
 
   const log = new SessionLogWriter(filePath, sessionId);
   log.lastHash = lastEvent?.event_hash ?? null;
   log.seq = lastEvent?.seq ?? 0;
 
   return log;
+}
+
+// New helper: validate hash chain
+function validateHashChain(events) {
+  for (let i = 1; i < events.length; i++) {
+    const expectedPrev = events[i - 1].event_hash;
+    const actualPrev = events[i].prev_hash;
+    if (expectedPrev !== actualPrev) {
+      return false;
+    }
+  }
+  return true;
 }
 
 class SessionLogWriter {
@@ -98,11 +114,19 @@ async function appendLine(filePath, event) {
 async function readAllLines(filePath) {
   try {
     const content = await fs.readFile(filePath, "utf8");
-    return content
-      .trim()
-      .split(/\r?\n/)
-      .filter(Boolean)
-      .map((line) => JSON.parse(line));
+    const events = [];
+    const lines = content.split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        events.push(JSON.parse(trimmed));
+      } catch {
+        // Skip corrupt lines so one bad entry does not block
+        // access to all other events.
+      }
+    }
+    return events;
   } catch (error) {
     if (error.code === "ENOENT") return [];
     throw error;

@@ -110,3 +110,24 @@ test("session:start includes metadata fields", async () => {
   assert.equal(start.config_id, "cfg_prod");
   assert.ok(typeof start.session_id === "string");
 });
+
+test("recovers readable events from a partially corrupted log", async () => {
+  // Manually write a JSONL file with a corrupt line in the middle
+  const dir = path.join(tmpDir, "sessions", "test-project");
+  await fs.mkdir(dir, { recursive: true });
+  const filePath = path.join(dir, "sess_corrupt.jsonl");
+
+  const good1 = JSON.stringify({ schema_version: 1, event_id: "evt_aaa", prev_hash: null, event_hash: "sha256:aaa", type: "session:start", timestamp: new Date().toISOString(), seq: 1, session_id: "sess_corrupt" });
+  const corrupt = "{ this is not valid json }";
+  const good2 = JSON.stringify({ schema_version: 1, event_id: "evt_bbb", prev_hash: "sha256:aaa", event_hash: "sha256:bbb", type: "user:message", timestamp: new Date().toISOString(), seq: 2 });
+
+  await fs.writeFile(filePath, `${good1}\n${corrupt}\n${good2}\n`, "utf8");
+
+  const log = await openSessionLog(tmpDir, "test-project", "sess_corrupt");
+  const events = await log.tail(10);
+
+  // Should recover the 2 valid events (corrupt line skipped)
+  assert.equal(events.length, 2);
+  assert.equal(events[0].event_id, "evt_aaa");
+  assert.equal(events[1].event_id, "evt_bbb");
+});
