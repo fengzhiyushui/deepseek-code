@@ -6,7 +6,18 @@ import path from "node:path";
 async function resolvePath(rawPath, projectRoot) {
   if (!rawPath) throw new Error("path is required");
   if (!projectRoot) throw new Error("projectRoot is required for path resolution");
-  const resolved = path.resolve(projectRoot, rawPath);
+
+  // Resolve projectRoot itself through realpath, to prevent bypass when
+  // projectRoot is a symlink pointing outside the real workspace.
+  let realRoot;
+  try {
+    realRoot = await fs.realpath(projectRoot);
+  } catch {
+    // If projectRoot doesn't exist (unlikely), fall back to lexical
+    realRoot = path.resolve(projectRoot);
+  }
+
+  const resolved = path.resolve(realRoot, rawPath);
   // Resolve symlinks to get the real filesystem path
   let real;
   try {
@@ -38,7 +49,7 @@ async function resolvePath(rawPath, projectRoot) {
       throw err;
     }
   }
-  const rel = path.relative(projectRoot, real);
+  const rel = path.relative(realRoot, real);
   if (rel.startsWith("..") || path.isAbsolute(rel)) {
     throw new Error(`Path escapes project root: ${rawPath}`);
   }

@@ -116,14 +116,23 @@ function ruleMatches(rule, toolCall, context) {
 }
 
 function globMatch(pattern, value) {
-  // First: escape regex special characters in the literal parts of the pattern
-  let regexPattern = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  // Replace glob tokens with null-byte sentinels that survive regex escaping.
+  // Null bytes cannot appear in valid filesystem paths, so they are safe placeholders.
+  let regexPattern = pattern
+    .replace(/\*\*/g, "\x00DSTAR\x00")
+    .replace(/\*/g, "\x00STAR\x00")
+    .replace(/\?/g, "\x00QMARK\x00");
 
-  // Then: replace glob tokens with regex equivalents
+  // Escape regex special characters in the literal parts.
+  // The sentinels contain no regex metacharacters, so they survive untouched.
+  regexPattern = regexPattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+
+  // Replace sentinels with their regex equivalents.
+  // Order matters: ** (recursive) must NOT be caught by * (single-segment).
   regexPattern = regexPattern
-    .replace(/\*\*/g, ".*")
-    .replace(/\*/g, "[^/]*")
-    .replace(/\?/g, "[^/]");
+    .replace(/\x00DSTAR\x00/g, ".*")
+    .replace(/\x00STAR\x00/g, "[^/]*")
+    .replace(/\x00QMARK\x00/g, "[^/]");
 
   const regex = new RegExp("^" + regexPattern + "$");
   return regex.test(value);

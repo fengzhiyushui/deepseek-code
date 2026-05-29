@@ -217,6 +217,55 @@ test("shell command without matching rule falls to matrix default", () => {
   assert.equal(result.decision, "ask");
 });
 
+// --- Glob Pattern Matching ---
+
+test("glob ** matches recursive paths", () => {
+  const engine = createPermissionEngine();
+  const ctx = testContext({
+    trustStore: {
+      rules: [{
+        id: "allow-src-recursive",
+        category: "write_update",
+        pattern: "src/**",
+        decision: "allow"
+      }]
+    }
+  });
+  // ** should match one level
+  assert.equal(engine.decide(
+    testToolCall({ category: "write_update", params: { path: "src/index.js" } }), ctx
+  ).decision, "allow");
+  // ** should match multiple levels
+  assert.equal(engine.decide(
+    testToolCall({ category: "write_update", params: { path: "src/a/b/c/deep.js" } }), ctx
+  ).decision, "allow");
+});
+
+test("glob * matches single segment only", () => {
+  const engine = createPermissionEngine();
+  // Use supervised so write_update defaults to "ask" — we can distinguish
+  // "rule matched (deny)" from "fell to matrix (ask)".
+  const ctx = testContext({
+    autonomy: "supervised",
+    trustStore: {
+      rules: [{
+        id: "deny-src-single",
+        category: "write_update",
+        pattern: "src/*.js",
+        decision: "deny"
+      }]
+    }
+  });
+  // src/index.js matches src/*.js → rule hits → deny
+  assert.equal(engine.decide(
+    testToolCall({ category: "write_update", params: { path: "src/index.js" } }), ctx
+  ).decision, "deny");
+  // src/a/index.js does NOT match src/*.js → rule misses → falls to matrix (supervised+write_update=ask)
+  assert.equal(engine.decide(
+    testToolCall({ category: "write_update", params: { path: "src/a/index.js" } }), ctx
+  ).decision, "ask");
+});
+
 // --- TTL Fingerprint ---
 
 test("fingerprint is deterministic for same tool call", () => {
