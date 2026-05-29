@@ -1,0 +1,18 @@
+{
+  "name": "deepseek-code",
+  "version": "0.1.0",
+  "description": "A local DeepSeek-powered coding agent CLI.",
+  "type": "module",
+  "bin": {
+    "deepseek-code": "./bin/deepseek-code.js",
+    "dsc": "./bin/deepseek-code.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check bin/deepseek-code.js && node --check src/*.js && node --check src/kernel/*.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "Apache-2.0"
+}
