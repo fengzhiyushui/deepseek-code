@@ -133,6 +133,18 @@ export async function runTui(root, kernel = null) {
     throw new Error("TUI 需要在交互式终端中运行。");
   }
 
+  // Create kernel if not provided
+  let ownKernel = false;
+  if (!kernel) {
+    try {
+      kernel = await createKernel(root, { config: { allowMissingKey: true } });
+      ownKernel = true;
+    } catch (err) {
+      // If kernel creation fails (e.g., no API key), run without it
+      // Status bar and timeline will be disabled
+    }
+  }
+
   const state = {
     cursor: 0,
     message: "准备就绪。",
@@ -140,8 +152,9 @@ export async function runTui(root, kernel = null) {
   };
 
   // Subscribe to orchestrator state events
+  let orchestratorSub = null;
   if (kernel) {
-    kernel.eventBus.subscribe("orchestrator:state", (data) => {
+    orchestratorSub = kernel.eventBus.subscribe("orchestrator:state", (data) => {
       recordTimelineEvent("orchestrator:state", `${data.state?.exited} → ${data.state?.entered}`);
     });
   }
@@ -175,6 +188,7 @@ export async function runTui(root, kernel = null) {
       }
     }
   } finally {
+    if (orchestratorSub) orchestratorSub.unsubscribe();
     showCursor();
     clear();
     stdin.setRawMode(false);
