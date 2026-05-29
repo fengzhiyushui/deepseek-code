@@ -117,3 +117,55 @@ test("shutdown stops bridging", async () => {
   assert.ok(contents.includes("before"));
   assert.ok(!contents.includes("after"));
 });
+
+// -- Integration tests: kernel-api + session manager --
+
+import { createKernel } from "../../src/kernel/kernel-api.js";
+
+const kernelTmpDir = path.join(os.tmpdir(), `dsc-kernel-test-${Date.now()}`);
+
+test("agent.send publishes user:message on EventBus", async () => {
+  await fs.mkdir(kernelTmpDir, { recursive: true });
+  await fs.writeFile(path.join(kernelTmpDir, "package.json"), "{}", "utf8");
+
+  const kernel = await createKernel(kernelTmpDir, { config: { allowMissingKey: true } });
+  const received = [];
+  kernel.eventBus.subscribe("user:message", (data) => received.push(data));
+
+  // Fire and forget: orchestrator may hang waiting for approval, but the
+  // event is published synchronously before submit is called.
+  kernel.agent.send("hello world").catch(() => {});
+  // Let microtasks flush so subscriber fires
+  await new Promise(r => setTimeout(r, 50));
+
+  assert.ok(received.length >= 1, "agent.send should publish user:message");
+  assert.equal(received[0].content, "hello world");
+
+  // Clean up the hung orchestrator
+  kernel.agent.interrupt();
+
+  await fs.rm(kernelTmpDir, { recursive: true, force: true });
+});
+
+test("session.subscribe receives orchestrator state events", async () => {
+  await fs.mkdir(kernelTmpDir, { recursive: true });
+  await fs.writeFile(path.join(kernelTmpDir, "package.json"), "{}", "utf8");
+
+  const kernel = await createKernel(kernelTmpDir, { config: { allowMissingKey: true } });
+  const events = [];
+  kernel.session.subscribe((evt) => events.push(evt));
+
+  // Fire and forget: the orchestrator transitions through states
+  // (CLASSIFY -> AWAITAPPROVAL) which publish "orchestrator:state" events.
+  kernel.agent.send("explain the project").catch(() => {});
+  await new Promise(r => setTimeout(r, 50));
+
+  // Should have received at least some orchestrator state events
+  const stateEvents = events.filter(e => e.type === "orchestrator:state");
+  assert.ok(stateEvents.length >= 1, "session.subscribe should receive orchestrator:state events");
+
+  // Clean up
+  kernel.agent.interrupt();
+
+  await fs.rm(kernelTmpDir, { recursive: true, force: true });
+});
