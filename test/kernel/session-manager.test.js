@@ -128,7 +128,7 @@ test("agent.send publishes user:message on EventBus", async () => {
   await fs.mkdir(kernelTmpDir, { recursive: true });
   await fs.writeFile(path.join(kernelTmpDir, "package.json"), "{}", "utf8");
 
-  const kernel = await createKernel(kernelTmpDir, { config: { allowMissingKey: true } });
+  const kernel = await createKernel(kernelTmpDir, { config: { allowMissingKey: true }, sessionDir: kernelTmpDir });
   const received = [];
   kernel.eventBus.subscribe("user:message", (data) => received.push(data));
 
@@ -151,7 +151,7 @@ test("session.subscribe receives orchestrator state events", async () => {
   await fs.mkdir(kernelTmpDir, { recursive: true });
   await fs.writeFile(path.join(kernelTmpDir, "package.json"), "{}", "utf8");
 
-  const kernel = await createKernel(kernelTmpDir, { config: { allowMissingKey: true } });
+  const kernel = await createKernel(kernelTmpDir, { config: { allowMissingKey: true }, sessionDir: kernelTmpDir });
   const events = [];
   kernel.session.subscribe((evt) => events.push(evt));
 
