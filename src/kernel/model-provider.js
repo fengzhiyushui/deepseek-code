@@ -148,7 +148,7 @@ export function createModelProvider(config) {
 
   async function invoke(messages, channel, explicitModel) {
     const body = buildRequestBody(messages, channel, explicitModel);
-    const url = `${config.baseUrl}/chat/completions`;
+    const url = buildUrl("/chat/completions");
 
     const startTime = Date.now();
     const response = await fetch(url, {
@@ -187,7 +187,7 @@ export function createModelProvider(config) {
     body.stream = true;
     body.stream_options = { include_usage: true };
 
-    const url = `${config.baseUrl}/chat/completions`;
+    const url = buildUrl("/chat/completions");
     const startTime = Date.now();
 
     const response = await fetch(url, {
@@ -227,16 +227,22 @@ export function createModelProvider(config) {
         const data = line.slice(6).trim();
         if (!data || data === "[DONE]") continue;
 
-        const event = JSON.parse(data);
-        if (event.usage) usage = event.usage;
+        try {
+          const event = JSON.parse(data);
+          if (event.usage) usage = event.usage;
 
-        const delta = event.choices?.[0]?.delta;
-        if (delta?.content) {
-          content += delta.content;
-          if (onDelta) onDelta(delta.content);
-        }
-        if (delta?.reasoning_content) {
-          reasoningContent = (reasoningContent || "") + delta.reasoning_content;
+          const delta = event.choices?.[0]?.delta;
+          if (delta?.content) {
+            content += delta.content;
+            if (onDelta) onDelta(delta.content);
+          }
+          if (delta?.reasoning_content) {
+            reasoningContent = (reasoningContent || "") + delta.reasoning_content;
+          }
+        } catch {
+          // Malformed SSE chunk — skip this line but continue processing.
+          // The partial content is preserved in `content` and `reasoningContent`.
+          // Common cause: network corruption, proxy interference, or API edge cases.
         }
       }
     }
@@ -265,7 +271,7 @@ export function createModelProvider(config) {
     if (!supportsFIM()) throw new Error("FIM not supported by current config");
 
     const body = fimParams(prefix, suffix, explicitModel);
-    const url = `${config.baseUrl}/completions`;
+    const url = buildUrl("/completions");
     const startTime = Date.now();
 
     const response = await fetch(url, {
@@ -294,6 +300,11 @@ export function createModelProvider(config) {
     }
 
     return completion;
+  }
+
+  function buildUrl(path) {
+    const base = config.baseUrl.replace(/\/+$/, "");
+    return `${base}${path}`;
   }
 
   return {
