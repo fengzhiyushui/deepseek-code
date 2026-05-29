@@ -44,6 +44,7 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
   let interrupted = false;
   let returnState = null;
   let pendingApproval = null;
+  let pendingTask = null;
   let _pendingResolve = null;
   let _pendingReject = null;
 
@@ -124,6 +125,16 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
   }
 
   function submit(message, options = {}) {
+    if (currentState !== STATE.IDLE && currentState !== STATE.TERMINAL) {
+      const err = new Error("Another task is in progress. Wait or interrupt.");
+      err.code = "BUSY";
+      throw err;
+    }
+
+    // Reset terminal state
+    if (currentState === STATE.TERMINAL) {
+      interrupted = false;
+    }
     const outerPromise = new Promise((resolve, reject) => {
       _pendingResolve = resolve;
       _pendingReject = reject;
@@ -141,6 +152,7 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
     if (needsApproval) {
       pendingApproval = { type: "plan", message, classification };
       returnState = STATE.THINKPLAN;
+      pendingTask = { message, classification, options };
       transition(STATE.AWAITAPPROVAL, "plan requires approval", { channel: "think" });
       // Promise stays pending until approve() or interrupt()
       return;
@@ -195,8 +207,23 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
   }
 
   function approve(id, decision) {
-    if (pendingApproval) pendingApproval = null;
-    if (returnState) {
+    if (decision === "deny" || decision === "cancel" || decision === "no") {
+      pendingApproval = null;
+      pendingTask = null;
+      returnState = null;
+      transition(STATE.IDLE, `user ${decision} — task cancelled`);
+      if (_pendingReject) {
+        _pendingReject(new InterruptedError("User denied approval"));
+        _clearPending();
+      }
+      return;
+    }
+
+    pendingApproval = null;
+    const task = pendingTask;
+    pendingTask = null;
+
+    if (returnState && task) {
       currentState = returnState;
       returnState = null;
       if (eventBus) {
@@ -206,6 +233,24 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
           trace: { id: `trace_${randomUUID().replace(/-/g, "").slice(0, 12)}`, timestamp: new Date().toISOString() }
         });
       }
+      // Resume execution with full-auto so the approval gate is skipped
+      const savedAutonomy = currentAutonomy;
+      currentAutonomy = "full-auto";
+      _runStandardLoop(task.message, task.classification, task.options).then(() => {
+        currentAutonomy = savedAutonomy;
+        _pendingResolve({ status: "complete", state: "idle" });
+      }).catch((err) => {
+        currentAutonomy = savedAutonomy;
+        if (err instanceof InterruptedError) {
+          // interrupt() already handled the rejection
+          return;
+        }
+        transition(STATE.TERMINAL, `error: ${err.message}`, { channel: currentChannel });
+        if (_pendingReject) {
+          _pendingReject(err);
+          _clearPending();
+        }
+      });
     }
   }
 
@@ -215,6 +260,12 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
       transition(STATE.IDLE, "interrupted by user");
       _pendingReject(new InterruptedError());
       _clearPending();
+    } else if (currentState !== STATE.IDLE) {
+      // Reset stuck state (e.g. terminal, orphaned awaitapproval)
+      pendingApproval = null;
+      returnState = null;
+      pendingTask = null;
+      transition(STATE.IDLE, "interrupted by user (reset)");
     }
   }
 

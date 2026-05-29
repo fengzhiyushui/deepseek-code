@@ -189,3 +189,118 @@ test("getState returns current state with metadata", () => {
   assert.equal(state.autonomy, "gated");
   assert.equal(state.channel, null);
 });
+
+test("approve resumes task execution after awaitapproval", async () => {
+  const bus = createEventBus();
+  const states = [];
+  bus.subscribe("orchestrator:state", (data) => states.push(data.state.entered));
+  const orchestrator = createTaskOrchestrator({
+    eventBus: bus,
+    modelProvider: mockModelProvider(),
+    contextEngine: mockContextEngine()
+  });
+
+  // Submit an edit task with supervised autonomy — enters awaitapproval
+  const promise = orchestrator.submit("fix the bug in login", { autonomy: "supervised" });
+
+  // Let the state machine settle
+  await new Promise(r => setTimeout(r, 50));
+
+  assert.ok(states.includes("awaitapproval"), "should have entered awaitapproval");
+  assert.equal(orchestrator.getState().current, "awaitapproval");
+
+  // Approve the plan — this should resume execution
+  orchestrator.approve("plan-1", "approved");
+
+  // The promise should now resolve with complete
+  const result = await promise;
+  assert.equal(result.status, "complete");
+  assert.equal(result.state, "idle");
+  assert.equal(orchestrator.getState().current, "idle");
+  assert.ok(states.includes("thinkplan"), "should have continued to thinkplan after approval");
+  assert.ok(states.includes("complete"), "should have reached complete state");
+});
+
+test("submit rejects when orchestrator is busy", async () => {
+  const bus = createEventBus();
+  const orchestrator = createTaskOrchestrator({
+    eventBus: bus,
+    modelProvider: mockModelProvider(),
+    contextEngine: mockContextEngine()
+  });
+
+  // Submit an edit task that enters the approval gate (gated is default)
+  const p1 = orchestrator.submit("fix the login bug");
+
+  // Let state settle into awaitapproval
+  await new Promise(r => setTimeout(r, 30));
+
+  // Second submit while first is awaiting approval must reject
+  try {
+    await orchestrator.submit("another question");
+    assert.fail("should have thrown BUSY");
+  } catch (e) {
+    assert.ok(
+      e.message.includes("in progress") || e.message.includes("busy") || e.code === "BUSY",
+      `expected BUSY error, got: ${e.message}`
+    );
+  }
+
+  // Clean up
+  orchestrator.interrupt();
+  try { await p1; } catch {}
+
+  // After interrupt, state should be idle and new submit should work
+  assert.equal(orchestrator.getState().current, "idle");
+  const p2 = orchestrator.submit("what is this?");
+  const r2 = await p2;
+  assert.equal(r2.status, "complete");
+});
+
+test("deny decision cancels task and rejects promise", async () => {
+  const bus = createEventBus();
+  const orchestrator = createTaskOrchestrator({
+    eventBus: bus,
+    modelProvider: mockModelProvider(),
+    contextEngine: mockContextEngine()
+  });
+
+  const promise = orchestrator.submit("delete files", { autonomy: "supervised" });
+  await new Promise(r => setTimeout(r, 80));
+
+  orchestrator.approve("any-id", "deny");
+
+  try {
+    await promise;
+    assert.fail("should have been rejected");
+  } catch (e) {
+    assert.ok(e.message.includes("denied") || e.message.includes("Denied") || e.message.includes("Interrupted"));
+  }
+
+  assert.equal(orchestrator.getState().current, "idle");
+});
+
+test("terminal state allows new submission without interrupt", async () => {
+  const bus = createEventBus();
+  const badMP = mockModelProvider();
+  badMP.buildRequestBody = function() { throw new Error("API key invalid"); };
+
+  const orchestrator = createTaskOrchestrator({
+    eventBus: bus,
+    modelProvider: badMP,
+    contextEngine: mockContextEngine()
+  });
+
+  // First submit hits terminal
+  try { await orchestrator.submit("do something"); } catch {}
+  assert.equal(orchestrator.getState().current, "terminal");
+
+  // Second submit should be allowed (Terminal is recoverable)
+  try {
+    await orchestrator.submit("retry with different input");
+  } catch {}
+
+  // Should have transitioned out of terminal (either to classify or another terminal)
+  const state = orchestrator.getState().current;
+  assert.ok(state === "classify" || state === "terminal" || state === "idle");
+});
