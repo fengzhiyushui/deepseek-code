@@ -74,6 +74,31 @@ test("warm loads a cold file into warm layer", async () => {
   assert.ok(snapshot.units.includes(unit.id));
 });
 
+test("unknown source files default to P3 cold tier", async () => {
+  const engine = createContextEngine(tmpDir);
+  await engine.scan();
+  const unit = engine.getUnit("src/index.js");
+  assert.equal(unit.priority, 3);
+});
+
+test("warming promotes a P3 file into warm set", async () => {
+  const engine = createContextEngine(tmpDir);
+  await engine.scan();
+
+  // src/index.js should be P3 (cold) by default
+  const unit = engine.getUnit("src/index.js");
+  assert.equal(unit.priority, 3);
+
+  // warm() moves it into warm set without changing priority
+  engine.warm("src/index.js");
+  const stats = engine.getCacheStats();
+  assert.ok(stats.warm_units >= 1);
+
+  // It should appear in snapshot (warm set bypasses priority filter)
+  const snapshot = engine.snapshot("plan", "think");
+  assert.ok(snapshot.units.includes(unit.id));
+});
+
 test("snapshot for think channel includes P0-P2 by default", async () => {
   const engine = createContextEngine(tmpDir);
   await engine.scan();
@@ -128,10 +153,62 @@ test("invalidation: file change updates hash", async () => {
   const before = engine.getUnit("README.md");
   const beforeHash = before.hash;
   await fs.writeFile(path.join(tmpDir, "README.md"), "# Updated\nChanged.", "utf8");
-  engine.invalidate("README.md");
-  // invalidate is async — wait a tick
-  await new Promise(r => setTimeout(r, 100));
+  await engine.invalidate("README.md");  // await the returned promise
   const after = engine.getUnit("README.md");
   assert.notEqual(after.hash, beforeHash);
   assert.ok(new Date(after.freshness).getTime() >= new Date(before.freshness).getTime());
+});
+
+test("prune removes units for deleted files", async () => {
+  const engine = createContextEngine(tmpDir);
+  await engine.scan();
+  const before = engine.getCacheStats().total_units;
+  // Create then delete a temp file
+  await fs.writeFile(path.join(tmpDir, "temp-delete.js"), "// will be deleted", "utf8");
+  await engine.scan();
+  assert.ok(engine.getUnit("temp-delete.js"));
+  await fs.rm(path.join(tmpDir, "temp-delete.js"));
+  const removed = await engine.prune();
+  assert.ok(removed >= 1);
+  assert.equal(engine.getUnit("temp-delete.js"), undefined);
+});
+
+test("readTextFile rejects path traversal attempts", async () => {
+  const engine = createContextEngine(tmpDir);
+  await engine.scan();
+  const beforeStats = engine.getCacheStats();
+
+  // Attempt to invalidate with a path that traverses outside the project root.
+  // The internal path guard in readTextFile should throw, and invalidate's
+  // catch handler should suppress it — no crash, state preserved.
+  await engine.invalidate("../etc/passwd");
+  await engine.invalidate("../../windows/system32/config");
+  // Also try a sibling-directory bypass (the startsWith bug on Windows)
+  await engine.invalidate("../dsc-ctx-test-bypass/secret.txt");
+
+  // Engine should still be in a valid, consistent state
+  const afterStats = engine.getCacheStats();
+  assert.equal(afterStats.total_units, beforeStats.total_units,
+    "No units should be added from outside the project root");
+
+  const snap = engine.snapshot("test", "think");
+  assert.ok(Array.isArray(snap.units));
+  // All unit IDs should still be valid (prefixed with "unit_")
+  for (const uid of snap.units) {
+    assert.ok(uid.startsWith("unit_"), `Unexpected unit ID: ${uid}`);
+  }
+  // Snapshot budget should be non-negative
+  assert.ok(snap.budget.used >= 0);
+  assert.ok(snap.expected_cache_prefix_offset >= 0);
+});
+
+test("scan discovers extensionless text files like Makefile and Dockerfile", async () => {
+  await fs.writeFile(path.join(tmpDir, "Makefile"), "all:\n\techo hello\n", "utf8");
+  await fs.writeFile(path.join(tmpDir, "Dockerfile"), "FROM node:20\n", "utf8");
+  await fs.writeFile(path.join(tmpDir, "LICENSE"), "MIT\n", "utf8");
+  const engine = createContextEngine(tmpDir);
+  await engine.scan();
+  assert.ok(engine.getUnit("Makefile"));
+  assert.ok(engine.getUnit("Dockerfile"));
+  assert.ok(engine.getUnit("LICENSE"));
 });

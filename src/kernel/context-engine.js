@@ -14,13 +14,18 @@ const CHANNEL_MAX_PRIORITY = {
 };
 
 const PRIORITY_RANK = {
-  "README.md": 3,
-  "package.json": 3,
-  "tsconfig.json": 3,
-  "pyproject.toml": 3,
-  "Cargo.toml": 3,
-  "go.mod": 3,
-  ".gitignore": 2
+  // P0: project manifest — always hot, always in context
+  "package.json": 0,
+  "pyproject.toml": 0,
+  "Cargo.toml": 0,
+  "go.mod": 0,
+  // P1: project documentation/configuration — hot
+  "README.md": 1,
+  "tsconfig.json": 1,
+  ".gitignore": 1,
+  // P2: secondary config (still hot, but lower than P1)
+  // Makefile, Dockerfile, LICENSE etc. are now default P3 —
+  // they're recognized as text but not auto-promoted to hot
 };
 
 const TEXT_EXTENSIONS = new Set([
@@ -34,6 +39,11 @@ const IGNORE_DIRS = new Set([
   ".git", ".deepseek-code", "node_modules", "dist", "build",
   "coverage", ".next", ".nuxt", ".turbo", ".cache", "target",
   "vendor", "__pycache__"
+]);
+
+const EXTENSIONLESS_TEXT_FILES = new Set([
+  "Makefile", "Dockerfile", "LICENSE", "CHANGELOG", "NOTICE",
+  "AUTHORS", "CONTRIBUTORS", "TODO"
 ]);
 
 export function createContextEngine(root) {
@@ -83,10 +93,30 @@ export function createContextEngine(root) {
     if (unit) warmSet.delete(unit.id);
   }
 
+  async function prune() {
+    const toRemove = [];
+    for (const [source, unit] of units) {
+      const target = path.resolve(root, source);
+      try {
+        await fs.stat(target);
+      } catch (err) {
+        if (err.code === "ENOENT") {
+          toRemove.push(source);
+          warmSet.delete(unit.id);
+          pinned.delete(source);
+        }
+      }
+    }
+    for (const source of toRemove) {
+      units.delete(source);
+    }
+    return toRemove.length;
+  }
+
   function invalidate(filePath) {
     const unit = units.get(filePath);
-    if (!unit) return;
-    readTextFile(root, filePath, 64000).then((content) => {
+    if (!unit) return Promise.resolve();
+    return readTextFile(root, filePath, 64000).then((content) => {
       const newHash = hashContent(content);
       if (newHash !== unit.hash) {
         unit.hash = newHash;
@@ -99,7 +129,10 @@ export function createContextEngine(root) {
           }
         }
       }
-    }).catch(() => {});
+    }).catch((err) => {
+      // Log failure so callers can detect stale state
+      console.error(`ContextEngine: failed to invalidate ${filePath}: ${err.message}`);
+    });
   }
 
   function snapshot(phase, channel, options = {}) {
@@ -111,7 +144,7 @@ export function createContextEngine(root) {
     let used = 0;
 
     for (const unit of sortedUnits()) {
-      if (unit.priority > maxPriority && unit.priority !== 4) continue;
+      if (unit.priority > maxPriority && unit.priority !== 4 && !warmSet.has(unit.id)) continue;
       if (used + unit.token_count > budget) break;
       selected.push(unit);
       used += unit.token_count;
@@ -140,11 +173,16 @@ export function createContextEngine(root) {
   function getCacheStats() {
     const allUnits = [...units.values()];
     const hotUnits = allUnits.filter(u => u.priority <= 2 || pinned.has(u.source));
+    const hotIds = new Set(hotUnits.map(u => u.id));
+    // warm = in warmSet but NOT already counted as hot
+    const warmOnly = [...warmSet].filter(id => !hotIds.has(id));
+    // cold = everything else
+    const coldCount = allUnits.length - hotUnits.length - warmOnly.length;
     return {
       total_units: allUnits.length,
       hot_units: hotUnits.length,
-      warm_units: warmSet.size,
-      cold_units: allUnits.length - hotUnits.length - warmSet.size,
+      warm_units: warmOnly.length,
+      cold_units: Math.max(0, coldCount),
       pinned_count: pinned.size
     };
   }
@@ -173,20 +211,27 @@ export function createContextEngine(root) {
   function defaultPriority(filePath) {
     const base = path.basename(filePath);
     if (PRIORITY_RANK[base] !== undefined) return PRIORITY_RANK[base];
-    return 1;
+    // Default: P3 — cold tier until explicitly warmed
+    return 3;
   }
 
   function sortedUnits() {
     return [...units.values()].sort((a, b) => {
-      if (a.priority !== b.priority) return b.priority - a.priority;
-      return a.source.localeCompare(b.source);
+      // P0-P2 come before P3-P4
+      const tierA = a.priority <= 2 ? 0 : 1;
+      const tierB = b.priority <= 2 ? 0 : 1;
+      if (tierA !== tierB) return tierA - tierB;
+      // Within tier 0: ascending priority (P0 first, then P1, P2)
+      // Within tier 1: ascending priority (P3 first, then pinned P4)
+      return a.priority - b.priority;
     });
   }
 
   function estimateCacheOffset(selectedUnits, channel) {
+    // Stable cache prefix = P0 units only (project manifests that rarely change)
     let offset = 0;
     for (const unit of selectedUnits) {
-      if (unit.priority >= 3) offset += unit.token_count;
+      if (unit.priority === 0) offset += unit.token_count;
     }
     return offset;
   }
@@ -203,7 +248,7 @@ export function createContextEngine(root) {
 
   return {
     scan, getUnit, pin, unpin, warm, evict,
-    invalidate, snapshot, getCacheStats, setChannelConfig
+    invalidate, snapshot, getCacheStats, setChannelConfig, prune
   };
 }
 
@@ -235,10 +280,15 @@ async function listProjectFiles(rootDir, maxFiles = 1000) {
 }
 
 async function readTextFile(rootDir, relativePath, maxBytes = 200000) {
-  const target = path.resolve(rootDir, relativePath);
-  if (!target.startsWith(path.resolve(rootDir))) {
-    throw new Error(`Path escape: ${relativePath}`);
+  const resolvedRoot = path.resolve(rootDir);
+  const target = path.resolve(resolvedRoot, relativePath);
+
+  // Check that target is within rootDir using path.relative
+  const rel = path.relative(resolvedRoot, target);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error(`Path escapes project root: ${relativePath}`);
   }
+
   const stat = await fs.stat(target);
   if (stat.size > maxBytes) throw new Error(`File too large: ${relativePath}`);
   const buffer = await fs.readFile(target);
@@ -247,8 +297,12 @@ async function readTextFile(rootDir, relativePath, maxBytes = 200000) {
 }
 
 function isLikelyText(file) {
-  return TEXT_EXTENSIONS.has(path.extname(file).toLowerCase())
-    || path.basename(file).includes(".");
+  const ext = path.extname(file).toLowerCase();
+  if (TEXT_EXTENSIONS.has(ext)) return true;
+  const base = path.basename(file);
+  if (EXTENSIONLESS_TEXT_FILES.has(base)) return true;
+  if (base.includes(".")) return true;
+  return false;
 }
 
 function estimateTokens(content) {
