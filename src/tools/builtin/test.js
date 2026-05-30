@@ -30,7 +30,11 @@ export function createTestTool() {
 }
 
 export async function detectTestCommand(projectRoot) {
-  if (await exists(path.join(projectRoot, "package.json"))) return [process.platform === "win32" ? "npm.cmd" : "npm", "test"];
+  if (await exists(path.join(projectRoot, "package.json"))) {
+    return process.platform === "win32"
+      ? ["cmd.exe", "/d", "/s", "/c", "npm", "test"]
+      : ["npm", "test"];
+  }
   if (await exists(path.join(projectRoot, "pytest.ini")) || await exists(path.join(projectRoot, "pyproject.toml"))) return ["pytest"];
   if (await exists(path.join(projectRoot, "Cargo.toml"))) return ["cargo", "test"];
   if (await exists(path.join(projectRoot, "go.mod"))) return ["go", "test", "./..."];

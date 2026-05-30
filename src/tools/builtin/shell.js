@@ -32,35 +32,48 @@ export function createShellTool() {
 export function runProcess(argv, { cwd, timeoutMs = 30000 } = {}) {
   return new Promise((resolve) => {
     let settled = false;
-    const child = spawn(argv[0], argv.slice(1), { cwd, shell: false, windowsHide: true });
     let stdout = "";
     let stderr = "";
-    const timer = setTimeout(() => { child.kill(); }, timeoutMs);
+    let timer = null;
+    let child = null;
 
     function finish(result) {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       resolve(result);
     }
+
+    function spawnErrorResult(message) {
+      const errOut = limitOutput(stderr || message);
+      return {
+        content: [{ type: "text", text: `spawn error: ${message}` + (errOut.text ? `\n${errOut.text}` : "") }],
+        stdout: "",
+        stderr: errOut.text || message,
+        metadata: {
+          exit_code: null,
+          signal: null,
+          spawn_error: message,
+          stdout_truncated: false,
+          stderr_truncated: errOut.truncated
+        }
+      };
+    }
+
+    try {
+      child = spawn(argv[0], argv.slice(1), { cwd, shell: false, windowsHide: true });
+    } catch (err) {
+      finish(spawnErrorResult(err.message));
+      return;
+    }
+
+    timer = setTimeout(() => { child.kill(); }, timeoutMs);
 
     child.stdout.on("data", (chunk) => { stdout += chunk.toString(); });
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
 
     child.on("error", (err) => {
-      const errOut = limitOutput(stderr || err.message);
-      finish({
-        content: [{ type: "text", text: `spawn error: ${err.message}` + (errOut.text ? `\n${errOut.text}` : "") }],
-        stdout: "",
-        stderr: errOut.text || err.message,
-        metadata: {
-          exit_code: null,
-          signal: null,
-          spawn_error: err.message,
-          stdout_truncated: false,
-          stderr_truncated: errOut.truncated
-        }
-      });
+      finish(spawnErrorResult(err.message));
     });
 
     child.on("close", (code, signal) => {

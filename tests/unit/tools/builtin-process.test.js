@@ -33,8 +33,21 @@ test("test tool detects npm test from package json", async () => {
 
   const result = await createTestTool().execute({ detect: true }, { projectRoot: root });
 
-  const expectedArgv = process.platform === "win32" ? ["npm.cmd", "test"] : ["npm", "test"];
+  const expectedArgv = process.platform === "win32"
+    ? ["cmd.exe", "/d", "/s", "/c", "npm", "test"]
+    : ["npm", "test"];
   assert.deepEqual(result.metadata.argv, expectedArgv);
+});
+
+test("test tool runs detected npm test without throwing or hanging", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-test-"));
+  await writeFile(path.join(root, "package.json"), JSON.stringify({ scripts: { test: "node --version" } }));
+
+  // detect:false forces actual execution via shell tool
+  const result = await createTestTool().execute({ detect: false }, { projectRoot: root });
+
+  // The spawned command should complete, returning exit_code (success or spawn_error)
+  assert.ok(typeof result.metadata.exit_code === "number" || result.metadata.spawn_error != null);
 });
 
 test("shell tool returns error on non-existent command instead of hanging", async () => {
