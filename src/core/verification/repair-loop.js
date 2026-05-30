@@ -18,39 +18,71 @@ export async function runRepairLoop({
   maxRepairAttempts = 2,
   options = {},
   runVerifierImpl = runVerifier,
-  runRepairExecutorImpl = runRepairExecutor
+  runRepairExecutorImpl = runRepairExecutor,
+  resumeAfterApproval = null
 } = {}) {
-  const attempts = [];
-  let verification = initialVerification;
-  let allToolResults = [...initialToolResults];
-  eventBus?.publish?.("repair:started", { turn_id: turnId, max_attempts: maxRepairAttempts, verification_status: verification?.status });
+  const attempts = resumeAfterApproval ? [...resumeAfterApproval.attempts] : [];
+  let verification = resumeAfterApproval ? resumeAfterApproval.verification : initialVerification;
+  let allToolResults = resumeAfterApproval
+    ? [...resumeAfterApproval.all_tool_results]
+    : [...initialToolResults];
 
-  for (let attempt = 1; attempt <= maxRepairAttempts; attempt += 1) {
-    eventBus?.publish?.("repair:attempt", { turn_id: turnId, attempt, verification_status: verification?.status });
-    const messages = buildRepairMessages({
-      userMessage,
-      classification,
-      verification,
-      toolResults: allToolResults,
-      previousRepairAttempts: attempts,
-      maxRepairAttempts
-    });
-    const repairExec = await runRepairExecutorImpl({
-      turnId,
-      messages,
-      modelGateway,
-      toolSchemas,
-      executeTool,
-      createPolicyContext,
-      eventBus,
-      signal,
-      options: { ...options, message: userMessage, classification }
-    });
-    if (repairExec.status === "awaiting_approval") {
-      return { ...repairExec, repair: { attempts: attempt, status: "awaiting_approval" }, verification };
+  if (!resumeAfterApproval) {
+    eventBus?.publish?.("repair:started", { turn_id: turnId, max_attempts: maxRepairAttempts, verification_status: verification?.status });
+  }
+
+  const startAttempt = resumeAfterApproval ? resumeAfterApproval.attempt : 1;
+  let skipToVerification = !!resumeAfterApproval;
+
+  for (let attempt = startAttempt; attempt <= maxRepairAttempts; attempt += 1) {
+    if (!skipToVerification) {
+      eventBus?.publish?.("repair:attempt", { turn_id: turnId, attempt, verification_status: verification?.status });
+      const messages = buildRepairMessages({
+        userMessage,
+        classification,
+        verification,
+        toolResults: allToolResults,
+        previousRepairAttempts: attempts,
+        maxRepairAttempts
+      });
+      const repairExec = await runRepairExecutorImpl({
+        turnId,
+        messages,
+        modelGateway,
+        toolSchemas,
+        executeTool,
+        createPolicyContext,
+        eventBus,
+        signal,
+        options: { ...options, message: userMessage, classification }
+      });
+      if (repairExec.status === "awaiting_approval") {
+        return {
+          ...repairExec,
+          repair: { attempts: attempt, status: "awaiting_approval" },
+          verification,
+          resume_state: {
+            ...repairExec.resume_state,
+            repair_context: {
+              all_tool_results: allToolResults,
+              verification,
+              attempt,
+              attempts: [...attempts],
+              initial_verification: initialVerification,
+              max_repair_attempts: maxRepairAttempts
+            }
+          }
+        };
+      }
+
+      allToolResults = [...allToolResults, ...(repairExec.toolResults || [])];
+    } else {
+      // Resuming after an approval within this attempt:
+      // allToolResults already includes the resumed repair executor results
+      // (merged by caller), skip build+exec, go straight to verification
+      skipToVerification = false;
     }
 
-    allToolResults = [...allToolResults, ...(repairExec.toolResults || [])];
     verification = await runVerifierImpl({
       turnId,
       autonomy: options.autonomy || "gated",
@@ -65,7 +97,7 @@ export async function runRepairLoop({
       attempt,
       status: verification.status === "passed" || verification.status === "skipped" ? "complete" : "failed",
       verification_status: verification.status,
-      tool_result_count: repairExec.toolResults?.length || 0
+      tool_result_count: allToolResults.length
     };
     attempts.push(repairResult);
     eventBus?.publish?.("repair:result", repairResult);
@@ -73,7 +105,7 @@ export async function runRepairLoop({
     if (verification.status === "passed" || verification.status === "skipped") {
       return {
         status: "complete",
-        content: repairExec.content || "Repair complete.",
+        content: "Repair complete.",
         toolResults: allToolResults,
         verification,
         repair: { attempts: attempt, status: "complete", history: attempts }

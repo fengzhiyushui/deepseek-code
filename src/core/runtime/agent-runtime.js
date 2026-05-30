@@ -200,7 +200,7 @@ export function createAgentRuntime({
         executeTool,
         createPolicyContext: ({ turnId, toolCall, phase }) => createPolicyContext({
           ...options,
-          autonomy: options.autonomy || turn.autonomy,
+          autonomy: phase === "verify" ? "auto" : (options.autonomy || turn.autonomy),
           turnId,
           toolCall,
           phase
@@ -276,6 +276,78 @@ export function createAgentRuntime({
         currentAbortController = null;
         return { status: "awaiting_approval", state: "awaiting_approval", content: loop.content, approval: loop.approval, turn: setTurnStatus(record.turn, "awaiting_approval") };
       }
+
+      // Repair-phase approval: resume within the repair loop, not a fresh verifyAndMaybeRepair
+      if (record.resume_state.repair_context) {
+        const ctx = record.resume_state.repair_context;
+        const mergedToolResults = [...ctx.all_tool_results, ...(loop.toolResults || [])];
+        const repairResult = await runRepairLoop({
+          turnId: record.turn_id,
+          userMessage: record.turn.user_message,
+          classification: record.resume_state.classification || { task_type: "edit" },
+          modelGateway,
+          toolSchemas: typeof toolSchemas === "function" ? toolSchemas() : toolSchemas,
+          executeTool,
+          createPolicyContext: ({ turnId, toolCall, phase }) => createPolicyContext({
+            ...(record.resume_state.options || {}),
+            autonomy: phase === "verify" ? "auto" : (record.turn.autonomy),
+            turnId,
+            toolCall,
+            phase
+          }),
+          verificationPolicy: createVerificationPolicy({
+            verifyMode: record.resume_state.options?.verifyMode || verifyMode,
+            testArgv: record.resume_state.options?.testArgv || testArgv
+          }),
+          initialVerification: ctx.initial_verification,
+          initialToolResults: ctx.initial_tool_results || [],
+          eventBus,
+          signal: currentAbortController.signal,
+          maxRepairAttempts: ctx.max_repair_attempts,
+          options: record.resume_state.options || {},
+          resumeAfterApproval: {
+            all_tool_results: mergedToolResults,
+            verification: ctx.verification,
+            attempt: ctx.attempt,
+            attempts: ctx.attempts
+          }
+        });
+
+        if (repairResult.status === "awaiting_approval") {
+          if (repairResult.approval?.id && repairResult.resume_state) {
+            pausedTurnStore.save({
+              approval_id: repairResult.approval.id,
+              turn_id: record.turn_id,
+              approval: repairResult.approval,
+              turn: record.turn,
+              resume_state: repairResult.resume_state
+            });
+          }
+          lifecycle = transitionLifecycle(lifecycle, { to: "awaiting_approval", reason: "repair approval required", channel: "system" });
+          currentTurnId = null;
+          currentAbortController = null;
+          return {
+            status: "awaiting_approval",
+            state: "awaiting_approval",
+            content: repairResult.content,
+            approval: repairResult.approval,
+            turn: setTurnStatus(record.turn, "awaiting_approval"),
+            verification: repairResult.verification
+          };
+        }
+
+        if (repairResult.status === "failed") {
+          throw new Error(`verification failed: ${repairResult.content || repairResult.verification?.reason || "repair failed"}`);
+        }
+
+        const finalTurn = setTurnStatus(record.turn, "completed");
+        publish(eventBus, "agent:final", { turn_id: record.turn_id, content: repairResult.content, status: "complete" });
+        lifecycle = transitionLifecycle(lifecycle, { to: "idle", reason: "turn complete", channel: null });
+        currentTurnId = null;
+        currentAbortController = null;
+        return { status: "complete", state: "idle", content: repairResult.content, turn: finalTurn, verification: repairResult.verification, repair: repairResult.repair || null };
+      }
+
       const repaired = await verifyAndMaybeRepair({
         turn: record.turn,
         message: record.turn.user_message,
