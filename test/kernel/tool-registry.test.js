@@ -150,6 +150,28 @@ test("read/write with path traversal returns error", async () => {
   assert.ok(result.content[0].text.includes("escapes"));
 });
 
+test("web_fetch blocks localhost", async () => {
+  const registry = createToolRegistry({ permissionEngine: createPermissionEngine() });
+  const result = await registry.execute(
+    { id: "c_ssrf", tool: "web_fetch", category: "network", risk_level: "medium",
+      params: { url: "http://localhost:8080/secret" } },
+    testContext({ autonomy: "full-auto" })
+  );
+  assert.equal(result.status, "error");
+  assert.ok(result.content[0].text.includes("Blocked"));
+});
+
+test("web_fetch blocks private LAN addresses", async () => {
+  const registry = createToolRegistry({ permissionEngine: createPermissionEngine() });
+  const result = await registry.execute(
+    { id: "c_lan", tool: "web_fetch", category: "network", risk_level: "medium",
+      params: { url: "http://192.168.1.1/admin" } },
+    testContext({ autonomy: "full-auto" })
+  );
+  assert.equal(result.status, "error");
+  assert.ok(result.content[0].text.includes("Blocked"));
+});
+
 test("listTools filters by category", () => {
   const registry = createToolRegistry({ permissionEngine: createPermissionEngine() });
   const writeTools = registry.listTools({ category: "write_update" });

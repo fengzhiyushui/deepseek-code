@@ -135,10 +135,114 @@ export const BUILTIN_TOOLS = [
     params: { query: { type: "string" } },
     execute: async () => ({ content: [{ type: "text", text: "search results" }] })
   },
-  { name: "web_fetch", description: "Fetch a URL", category: "network",
+  { name: "web_fetch", description: "Fetch content from a URL", category: "network",
     side_effect: "network", risk_level: "medium", source: "builtin", version: "1.0",
-    params: { url: { type: "string" } },
-    execute: async () => ({ content: [{ type: "text", text: "fetched content" }] })
+    params: { url: { type: "string", description: "URL to fetch" } },
+    execute: async (params, ctx) => {
+      const url = String(params.url || "").trim();
+      if (!url) throw new Error("url is required");
+
+      // SSRF protection
+      const parsed = new URL(url);
+      const hostname = parsed.hostname.toLowerCase();
+      const blockedHosts = ["localhost", "127.0.0.1", "0.0.0.0", "[::1]"];
+      if (blockedHosts.some(h => hostname === h || hostname.startsWith("169.254."))) {
+        throw new Error(`Blocked internal address: ${hostname}`);
+      }
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw new Error(`Unsupported protocol: ${parsed.protocol}`);
+      }
+      const privateRanges = [/^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./];
+      if (privateRanges.some(r => r.test(hostname))) {
+        throw new Error(`Blocked private network: ${hostname}`);
+      }
+
+      try {
+        const response = await fetch(url, {
+          headers: { "User-Agent": "DeepSeek-Code/1.0" },
+          redirect: "follow",
+          signal: AbortSignal.timeout(10000)
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const text = await response.text();
+        const trimmed = text.slice(0, 32000);
+        return {
+          content: [{ type: "text", text: trimmed }],
+          metadata: { status: response.status, content_type: response.headers.get("content-type"), original_length: text.length }
+        };
+      } catch (err) {
+        if (err.name === "TimeoutError" || (err.message && err.message.includes("timeout"))) {
+          throw new Error("Request timed out after 10s");
+        }
+        throw err;
+      }
+    }
+  },
+
+  { name: "memory", description: "Read/write persistent project memory across sessions", category: "read",
+    side_effect: "memory", risk_level: "medium", source: "builtin", version: "1.0",
+    params: {
+      action: { type: "string", enum: ["read", "write", "list", "delete"] },
+      key: { type: "string" },
+      value: { type: "string" }
+    },
+    execute: async (params, ctx) => {
+      const action = params.action || "read";
+      const os = await import("node:os");
+      const pathMod = await import("node:path");
+      const fsMod = await import("node:fs/promises");
+      const crypto = await import("node:crypto");
+
+      const projectHash = crypto.createHash("sha256").update(ctx.projectRoot || "").digest("hex").slice(0, 12);
+      const memoryDir = pathMod.join(os.homedir(), ".deepseek-code", "projects", projectHash, "memory");
+      await fsMod.mkdir(memoryDir, { recursive: true });
+
+      if (action === "write") {
+        if (!params.key) throw new Error("key is required for write");
+        const entry = { time: new Date().toISOString(), key: params.key, value: params.value || "" };
+        await fsMod.writeFile(pathMod.join(memoryDir, sanitizeFilename(params.key) + ".json"), JSON.stringify(entry, null, 2), "utf8");
+        return { content: [{ type: "text", text: "Memory stored: " + params.key }] };
+      }
+      if (action === "read") {
+        if (!params.key) throw new Error("key is required for read");
+        try {
+          const content = await fsMod.readFile(pathMod.join(memoryDir, sanitizeFilename(params.key) + ".json"), "utf8");
+          const entry = JSON.parse(content);
+          return { content: [{ type: "text", text: entry.value || "" }], metadata: { key: entry.key, time: entry.time } };
+        } catch (err) {
+          if (err.code === "ENOENT") return { content: [{ type: "text", text: "No memory found for: " + params.key }] };
+          throw err;
+        }
+      }
+      if (action === "list") {
+        const files = await fsMod.readdir(memoryDir);
+        const keys = files.filter(f => f.endsWith(".json")).map(f => f.replace(".json", ""));
+        return { content: [{ type: "text", text: keys.length ? keys.join("\n") : "No memories stored." }], metadata: { count: keys.length } };
+      }
+      if (action === "delete") {
+        if (!params.key) throw new Error("key is required for delete");
+        await fsMod.rm(pathMod.join(memoryDir, sanitizeFilename(params.key) + ".json"), { force: true });
+        return { content: [{ type: "text", text: "Memory deleted: " + params.key }] };
+      }
+      throw new Error("Unknown action: " + action);
+    }
+  },
+
+  { name: "task", description: "Delegate a sub-task with constrained tool set", category: "execute",
+    side_effect: "process", risk_level: "medium", source: "builtin", version: "1.0",
+    params: {
+      prompt: { type: "string", description: "Sub-task description" },
+      tools: { type: "array", description: "Allowed tool names (max 5)" }
+    },
+    execute: async (params, ctx) => {
+      const allowedTools = (params.tools || ["read", "grep", "glob"]).slice(0, 5);
+      return {
+        content: [{ type: "text", text: `Sub-task delegated with tools: ${allowedTools.join(", ")}. Prompt: ${(params.prompt || "").slice(0, 100)}` }],
+        metadata: { delegated_tools: allowedTools, status: "delegated" }
+      };
+    }
   }
 ];
 
@@ -241,4 +345,8 @@ function makeResult(id, status, content, metadata = {}, duration_ms = 0) {
     metadata,
     duration_ms
   };
+}
+
+function sanitizeFilename(name) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 64);
 }
