@@ -54,9 +54,14 @@ async function sendKernelPrompt(kernel, prompt, options = {}) {
   if (!kernel) {
     throw new Error("V2 kernel is not available.");
   }
-  const result = await kernel.agent.send(prompt, options);
+  let result = await kernel.agent.send(prompt, options);
   if (result.status === "awaiting_approval") {
-    return `Approval required: ${result.approval?.id || "unknown"}\nV2-5 TUI only displays approval requests. Approval resume is a later phase.`;
+    const answer = await promptLine(`Approval required ${result.approval?.id || "unknown"}. Approve? y/N`);
+    const normalized = String(answer || "").trim().toLowerCase();
+    const decision = normalized === "y" || normalized === "yes" || normalized === "approve" || normalized === "allow"
+      ? "approve"
+      : "deny";
+    result = await kernel.agent.approve(result.approval.id, decision);
   }
   return result.content || "";
 }
