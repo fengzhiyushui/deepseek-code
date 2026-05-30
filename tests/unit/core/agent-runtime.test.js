@@ -179,3 +179,53 @@ test("agent runtime keeps query tasks on reply fast path", async () => {
   assert.equal(result.content, "fast reply");
   assert.equal(invokeCalled, false);
 });
+
+test("query fast path includes final step in returned turn", async () => {
+  const runtime = createAgentRuntime({
+    sessionId: "sess_query_steps",
+    modelGateway: {
+      reply: async () => ({ content: "fast reply" }),
+      invoke: async () => ({ content: "slow" })
+    },
+    toolSchemas: () => [],
+    executeTool: async () => { throw new Error("should not execute"); },
+    createPolicyContext: () => ({ autonomy: "gated" })
+  });
+
+  const result = await runtime.send("what is this?");
+
+  assert.equal(result.status, "complete");
+  const stepTypes = result.turn.steps.map((s) => s.type);
+  assert.ok(stepTypes.includes("final"), "turn should include final step from reply fast path");
+});
+
+test("verifier approval_required returns awaiting_approval even with auto autonomy", async () => {
+  let invokeCount = 0;
+  const runtime = createAgentRuntime({
+    sessionId: "sess_verify_approval",
+    modelGateway: {
+      invoke: async () => {
+        invokeCount++;
+        if (invokeCount === 1) {
+          return { content: "", tool_calls: [{ id: "call_edit", name: "edit", arguments: { diff: "--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new" } }] };
+        }
+        return { content: "model done", tool_calls: [] };
+      },
+      reply: async () => ({ content: "fast" })
+    },
+    toolSchemas: () => [{ type: "function", function: { name: "edit" } }],
+    executeTool: async (toolCall) => {
+      if (toolCall.name === "test") {
+        return { call_id: toolCall.id, status: "approval_required", content: [{ type: "text", text: "verify needs approval" }], metadata: {} };
+      }
+      // edit tool succeeds (simulates change_id for verifier trigger)
+      return { call_id: toolCall.id, status: "success", content: [{ type: "text", text: "applied" }], metadata: { change_id: "20260530120000" } };
+    },
+    createPolicyContext: () => ({ autonomy: "auto" })
+  });
+
+  // "modify" is an edit task → tool loop completes → verifier returns approval_required
+  const result = await runtime.send("modify a.txt");
+
+  assert.equal(result.status, "awaiting_approval");
+});

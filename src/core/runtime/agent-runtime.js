@@ -61,6 +61,10 @@ export function createAgentRuntime({
       }
       assertNotInterrupted(generation);
 
+      if (response.turn) {
+        turn = response.turn;
+      }
+
       if (response.status === "awaiting_approval") {
         lifecycle = transitionLifecycle(lifecycle, { to: "awaiting_approval", reason: "tool approval required", channel: "system" });
         turn = setTurnStatus(turn, "awaiting_approval");
@@ -130,8 +134,7 @@ export function createAgentRuntime({
       toolResults: loop.toolResults,
       executeTool,
       createPolicyContext: ({ turnId, toolCall, phase }) => createPolicyContext({
-        ...options,
-        autonomy: options.autonomy || turn.autonomy,
+        autonomy: "auto",
         turnId,
         toolCall,
         phase
@@ -139,6 +142,16 @@ export function createAgentRuntime({
       eventBus
     });
     const repair = decideRepair(verification);
+    if (repair.decision === "stop" && verification.status === "approval_required") {
+      return {
+        status: "awaiting_approval",
+        content: verification.reason || "Verification requires approval",
+        approval: verification.tool_result?.metadata?.approval || null,
+        toolResults: loop.toolResults,
+        iterations: loop.iterations,
+        verification
+      };
+    }
     if (repair.decision === "repair") {
       lifecycle = transitionLifecycle(lifecycle, { to: "failed", reason: repair.reason, channel: "system" });
       throw new Error(`verification failed: ${verification.reason}`);
