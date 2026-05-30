@@ -11,6 +11,7 @@ import { testDeepSeekConnection } from "./provider.js";
 import { searchProject } from "./search.js";
 import { runTui } from "./tui.js";
 import { banner, commandLine, section, statusLine } from "./theme.js";
+import { buildEditPrompt, runKernelAgentCommand, runKernelTestCommand } from "./apps/cli/kernel-runner.js";
 
 export async function runCli(argv) {
   const root = process.cwd();
@@ -112,18 +113,15 @@ function appendFlag(flags, key, value) {
 async function runAsk(root, args, flags) {
   const prompt = args.join(" ").trim();
   if (!prompt) {
-    throw new Error("提问命令需要输入问题。");
+    throw new Error("ask command requires a question.");
   }
 
-  const response = await askCommand({
+  await runKernelAgentCommand({
     root,
     prompt,
-    options: commonOptions(flags)
+    autonomy: stringFlag(flags, "autonomy") || "gated",
+    sendOptions: commonOptions(flags)
   });
-  if (response) {
-    console.log("");
-    console.log(response);
-  }
 }
 
 async function runChat(root, args, flags) {
@@ -144,20 +142,20 @@ async function runChat(root, args, flags) {
 async function runEdit(root, args, flags) {
   const prompt = args.join(" ").trim();
   if (!prompt) {
-    throw new Error("修改命令需要输入修改需求。");
+    throw new Error("edit command requires an edit request.");
   }
 
-  const response = await editCommand({
+  const dryRun = boolFlag(flags, "dry-run");
+  const yes = boolFlag(flags, "yes");
+  const files = arrayFlag(flags, "file");
+  const fileHint = files.length ? `\n\nRelevant files: ${files.join(", ")}` : "";
+
+  await runKernelAgentCommand({
     root,
-    prompt,
-    options: {
-      ...commonOptions(flags),
-      files: arrayFlag(flags, "file"),
-      dryRun: boolFlag(flags, "dry-run"),
-      yes: boolFlag(flags, "yes")
-    }
+    prompt: buildEditPrompt(`${prompt}${fileHint}`, { dryRun }),
+    autonomy: yes ? "gated" : "supervised",
+    sendOptions: commonOptions(flags)
   });
-  console.log(response);
 }
 
 async function runScan(root, flags) {
@@ -190,22 +188,10 @@ async function runSearch(root, args, flags) {
 }
 
 async function runTest(root, args) {
-  const command = args.length ? args : await detectTestCommand(root);
-  if (!command.length) {
-    console.log("没有检测到测试命令。你可以手动指定，例如：");
-    console.log("  deepseek-code test node --test");
-    return;
+  const result = await runKernelTestCommand({ root, argv: args });
+  if (result.status === "error" || result.status === "denied") {
+    process.exitCode = 1;
   }
-
-  console.log(statusLine("正在运行", command.join(" ")));
-  const child = spawn(command[0], command.slice(1), {
-    cwd: root,
-    stdio: "inherit",
-    shell: false
-  });
-
-  const code = await new Promise((resolve) => child.on("close", resolve));
-  process.exitCode = code || 0;
 }
 
 async function runDiff(root) {
