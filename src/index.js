@@ -2,6 +2,7 @@ import { createEventBus } from "./shared/event-bus.js";
 import { createAgentRuntime } from "./core/runtime/agent-runtime.js";
 import { SESSION_EVENT_TYPES } from "./sessions/event-types.js";
 import { createDeepSeekGateway } from "./deepseek/model-gateway.js";
+import { createEditService } from "./edits/edit-service.js";
 import { createBuiltinTools } from "./tools/builtin/index.js";
 import { createToolRegistry } from "./tools/registry.js";
 import { createToolExecutor } from "./tools/executor.js";
@@ -15,9 +16,13 @@ export async function createKernel(root, options = {}) {
   const modelGateway = resolveModelGateway(options);
   const approvalCache = options.approvalCache || createApprovalCache();
   const permissionEngine = options.permissionEngine || createPermissionEngine();
+  const editService = options.editService || createEditService({
+    projectRoot: root,
+    eventBus
+  });
   const toolRegistry = options.toolRegistry || createToolRegistry({
     tools: createBuiltinTools({
-      editService: options.editService || null,
+      editService,
       webFetch: options.webFetch || {}
     })
   });
