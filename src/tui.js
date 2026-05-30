@@ -10,42 +10,56 @@ import { showDiff } from "./git.js";
 import { testDeepSeekConnection } from "./provider.js";
 import { searchProject } from "./search.js";
 import { banner, color, section, statusLine } from "./theme.js";
-import { createKernel } from "./kernel/kernel-api.js";
+import { createKernel } from "./index.js";
+import { buildKernelOptions } from "./apps/kernel-options.js";
 
 // --- Status Bar Helpers (if kernel available) ---
 
 function renderStatusLine(kernel) {
   if (!kernel) return "";
 
-  const state = kernel.orchestrator ? kernel.orchestrator.getState() : { current: "idle", autonomy: "gated", channel: null };
+  const state = kernel.runtime?.getState?.() || { current: "idle", channel: null };
+  const publicConfig = kernel.config?.getPublicConfig?.() || {};
 
-  let parts = [
-    color.dim("│"),
-    ` ${state.autonomy || "gated"} `,
-    color.dim("│"),
-    ` ${state.channel || "—"} `,
+  const parts = [
+    color.dim("|"),
+    ` ${state.current || "idle"} `,
+    color.dim("|"),
+    ` ${state.channel || "-"} `,
+    color.dim("|"),
+    ` ${publicConfig.runtime || "v2"} `
   ];
 
-  // Token usage
-  if (kernel.modelProvider) {
-    const usage = kernel.modelProvider.getUsageStats();
-    const total = usage.total_prompt_tokens + usage.total_completion_tokens;
-    parts.push(color.dim("│"));
-    parts.push(total >= 1000 ? ` ${(total/1000).toFixed(1)}K tokens ` : ` ${total} tokens `);
-    if (usage.requests > 0) {
-      const denom = usage.cache_hit_tokens + usage.cache_miss_tokens;
-      const hitRate = denom > 0 ? Math.round(usage.cache_hit_tokens / denom * 100) : 0;
-      parts.push(color.dim("│"));
-      parts.push(` cache ${hitRate}% `);
-    }
-  }
-
+  parts.push(color.dim("|"));
   return parts.join("");
 }
 
 // --- Timeline helpers ---
 
 const timelineBuffer = [];
+
+function summarizeTuiEvent(event = {}) {
+  if (event.type === "user:message") return `input: ${(event.content || "").slice(0, 50)}`;
+  if (event.type === "tool:call") return `tool: ${event.call?.name || event.tool || "unknown"}`;
+  if (event.type === "tool:result") return `tool result: ${event.result?.status || "unknown"}`;
+  if (event.type === "approval:requested") return `approval: ${event.approval?.summary || event.approval?.id || ""}`;
+  if (event.type === "file:diff_applied") return `diff applied: ${event.change_id || event.record?.id || ""}`;
+  if (event.type === "verification:result") return `verification: ${event.result?.status || event.status || "unknown"}`;
+  if (event.type === "agent:final") return `complete: ${(event.content || "").slice(0, 50)}`;
+  if (event.type === "agent:error") return `Error: ${event.message || event.error || ""}`;
+  return event.type || "event";
+}
+
+async function sendKernelPrompt(kernel, prompt, options = {}) {
+  if (!kernel) {
+    throw new Error("V2 kernel is not available.");
+  }
+  const result = await kernel.agent.send(prompt, options);
+  if (result.status === "awaiting_approval") {
+    return `Approval required: ${result.approval?.id || "unknown"}\nV2-5 TUI only displays approval requests. Approval resume is a later phase.`;
+  }
+  return result.content || "";
+}
 
 function recordTimelineEvent(type, summary) {
   timelineBuffer.push({ time: new Date().toISOString(), type, summary });
@@ -58,7 +72,17 @@ function renderTimeline(count = 5) {
 
   const lines = ["", color.dim("── Recent Activity ──")];
   for (const e of recent) {
-    const icon = { "user:message": "💬", "orchestrator:state": "🔄", "tool:call": "🔧", "tool:result": "✓", "permission:decision": "🔐" }[e.type] || "•";
+    const icon = {
+      "user:message": "U",
+      "tool:call": "T",
+      "tool:result": "R",
+      "permission:decision": "P",
+      "approval:requested": "A",
+      "file:diff_applied": "D",
+      "verification:result": "V",
+      "agent:final": "F",
+      "agent:error": "E"
+    }[e.type] || "-";
     const time = new Date(e.time).toLocaleTimeString();
     lines.push(color.dim(`${time} ${icon} ${e.summary}`));
   }
@@ -137,7 +161,7 @@ export async function runTui(root, kernel = null) {
   let ownKernel = false;
   if (!kernel) {
     try {
-      kernel = await createKernel(root, { config: { allowMissingKey: true } });
+      kernel = await createKernel(root, await buildKernelOptions(root));
       ownKernel = true;
     } catch (err) {
       // If kernel creation fails (e.g., no API key), run without it
@@ -152,10 +176,10 @@ export async function runTui(root, kernel = null) {
   };
 
   // Subscribe to orchestrator state events
-  let orchestratorSub = null;
+  let sessionSub = null;
   if (kernel) {
-    orchestratorSub = kernel.eventBus.subscribe("orchestrator:state", (data) => {
-      recordTimelineEvent("orchestrator:state", `${data.state?.exited} → ${data.state?.entered}`);
+    sessionSub = kernel.session.subscribe((event) => {
+      recordTimelineEvent(event.type, summarizeTuiEvent(event));
     });
   }
 
@@ -188,7 +212,7 @@ export async function runTui(root, kernel = null) {
       }
     }
   } finally {
-    if (orchestratorSub) orchestratorSub.unsubscribe();
+    if (sessionSub) sessionSub.unsubscribe();
     showCursor();
     clear();
     stdin.setRawMode(false);
@@ -209,11 +233,7 @@ async function runAction(root, action, state, kernel) {
         return;
       }
       recordTimelineEvent("user:message", "提问: " + (prompt || "").slice(0, 50));
-      const answer = await withCookedInput(() => askCommand({
-        root,
-        prompt,
-        options: defaultOptions()
-      }));
+      const answer = await withCookedInput(() => sendKernelPrompt(kernel, prompt, { autonomy: "gated" }));
       await pauseWithOutput("回答结果", answer);
       state.message = "提问已完成。";
       return;
@@ -239,16 +259,8 @@ async function runAction(root, action, state, kernel) {
       }
       recordTimelineEvent("user:message", "修改: " + (prompt || "").slice(0, 50));
       const files = await promptLine("相关文件，多个文件用英文逗号分隔");
-      const answer = await withCookedInput(() => editCommand({
-        root,
-        prompt,
-        options: {
-          ...defaultOptions(),
-          files: splitFiles(files),
-          dryRun: false,
-          yes: false
-        }
-      }));
+      const fileHint = splitFiles(files).length ? `\n\nRelevant files: ${splitFiles(files).join(", ")}` : "";
+      const answer = await withCookedInput(() => sendKernelPrompt(kernel, `${prompt}${fileHint}`, { autonomy: "supervised" }));
       await pauseWithOutput("修改结果", answer);
       state.message = "修改流程已完成。";
       return;
