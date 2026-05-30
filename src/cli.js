@@ -1,7 +1,5 @@
-import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { askCommand, editCommand } from "./agent.js";
 import { chatCommand } from "./chat.js";
 import { describeChange, formatChange, listChanges, rollbackChange } from "./changes.js";
 import { configureProject, DEFAULT_CONFIG, loadConfig } from "./config.js";

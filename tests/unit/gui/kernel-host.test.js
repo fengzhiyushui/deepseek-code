@@ -72,3 +72,22 @@ test("buildKernelOptions bridges legacy config into V2 DeepSeek options", async 
     deepseek: { apiKey: "sk-gui", baseUrl: "https://example.invalid" }
   });
 });
+
+test("kernel host delegates timeline to V2 session facade", async () => {
+  const host = createKernelHost({
+    projectRoot: "/repo",
+    kernelFactory: async () => ({
+      session: {
+        subscribe: () => ({ unsubscribe() {} }),
+        getTimeline: async (count) => [{ type: "agent:final", count }]
+      },
+      agent: { send: async () => ({ status: "complete" }), approve: () => {}, interrupt: () => {} },
+      context: { snapshot: async () => ({ units: [] }) },
+      config: { getPublicConfig: () => ({ runtime: "v2" }) },
+      runtime: { getState: () => ({ current: "idle", channel: null }) }
+    })
+  });
+
+  await host.init();
+  assert.deepEqual(await host.getTimeline(3), [{ type: "agent:final", count: 3 }]);
+});
