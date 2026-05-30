@@ -67,7 +67,22 @@ export async function createKernel(root, options = {}) {
       approvalCache,
       memoryRoot: options.memoryRoot || null,
       turnId: executionOptions.turnId
-    })
+    }),
+    grantApprovalForToolCall: async (toolCall, approvalContext = {}) => {
+      const securedCall = toolRegistry.secureToolCall(toolCall);
+      const policyContext = createPolicyContext({
+        autonomy: approvalContext.options?.autonomy || "supervised",
+        projectId: approvalContext.options?.projectId || sessionId,
+        projectRoot: root,
+        trustStore: options.trustStore || { rules: [] },
+        projectRules: options.projectRules || [],
+        approvalCache,
+        memoryRoot: options.memoryRoot || null,
+        turnId: approvalContext.turnId
+      });
+      const fp = permissionEngine.fingerprint(securedCall, policyContext);
+      approvalCache.grant(fp, { decision: "allow" });
+    }
   });
 
   const session = {
