@@ -69,15 +69,47 @@ test("agent runtime interrupt returns to idle", async () => {
   assert.equal(after.current, "idle");
 });
 
-test("agent runtime approve publishes approval resolution", () => {
+test("agent runtime approve publishes approval resolution and completes", async () => {
   const bus = createEventBus();
   const approvals = [];
   bus.subscribe("approval:resolved", (data) => approvals.push(data));
 
-  const runtime = createAgentRuntime({ eventBus: bus, sessionId: "sess_test" });
-  runtime.approve("approval_1", "approve");
+  let invokeCount = 0;
+  let approved = false;
+  const runtime = createAgentRuntime({
+    eventBus: bus,
+    sessionId: "sess_approve_publish",
+    modelGateway: {
+      invoke: async () => {
+        invokeCount += 1;
+        if (invokeCount === 1) {
+          return { content: "", tool_calls: [{ id: "call_test", name: "shell", arguments: { argv: ["npm", "test"] } }] };
+        }
+        return { content: "done", tool_calls: [] };
+      },
+      reply: async () => ({ content: "fast" })
+    },
+    executeTool: async (toolCall) => {
+      if (!approved) {
+        return {
+          call_id: toolCall.id,
+          status: "approval_required",
+          content: [{ type: "text", text: "needs approval" }],
+          metadata: { approval: { id: "approval_1", summary: "needs approval" } }
+        };
+      }
+      return { call_id: toolCall.id, status: "success", content: [{ type: "text", text: "ran" }] };
+    },
+    createPolicyContext: () => ({ autonomy: "supervised" }),
+    grantApprovalForToolCall: async () => { approved = true; }
+  });
 
+  const first = await runtime.send("run test", { autonomy: "supervised" });
+  assert.equal(first.status, "awaiting_approval");
+
+  const result = await runtime.approve("approval_1", "approve");
   assert.deepEqual(approvals, [{ approval_id: "approval_1", decision: "approve" }]);
+  assert.equal(result.status, "complete");
 });
 
 test("agent runtime interrupt cancels in-flight turn and prevents stale events", async () => {
@@ -228,4 +260,187 @@ test("verifier approval_required returns awaiting_approval even with auto autono
   const result = await runtime.send("modify a.txt");
 
   assert.equal(result.status, "awaiting_approval");
+});
+
+test("agent runtime resumes a paused tool call after approval", async () => {
+  const bus = createEventBus();
+  const events = [];
+  for (const type of ["approval:requested", "approval:resolved", "tool:result", "agent:final"]) {
+    bus.subscribe(type, (data) => events.push([type, data]));
+  }
+  let approved = false;
+  let invokeCount = 0;
+  const runtime = createAgentRuntime({
+    eventBus: bus,
+    sessionId: "sess_resume",
+    modelGateway: {
+      invoke: async () => {
+        invokeCount += 1;
+        if (invokeCount === 1) {
+          return { content: "", tool_calls: [{ id: "call_edit", name: "edit", arguments: { diff: "d" } }] };
+        }
+        return { content: "done after approve", tool_calls: [] };
+      },
+      reply: async () => ({ content: "fast" })
+    },
+    toolSchemas: () => [],
+    executeTool: async (toolCall) => {
+      if (!approved) {
+        return {
+          call_id: toolCall.id,
+          status: "approval_required",
+          content: [{ type: "text", text: "edit requires approval" }],
+          metadata: { approval: { id: "approval_edit", summary: "edit requires approval" } }
+        };
+      }
+      return { call_id: toolCall.id, status: "success", content: [{ type: "text", text: "applied" }], metadata: { change_id: "chg_1" } };
+    },
+    createPolicyContext: () => ({ autonomy: "supervised" }),
+    grantApprovalForToolCall: async (toolCall) => {
+      assert.equal(toolCall.name, "edit");
+      approved = true;
+    }
+  });
+
+  const first = await runtime.send("modify a.txt", { autonomy: "supervised" });
+  assert.equal(first.status, "awaiting_approval");
+
+  const resumed = await runtime.approve("approval_edit", "approve");
+
+  assert.equal(resumed.status, "complete");
+  assert.equal(resumed.content, "done after approve");
+  assert.ok(events.some(([type]) => type === "approval:resolved"));
+  assert.ok(events.some(([type]) => type === "agent:final"));
+});
+
+test("agent runtime runs verifier after approval resume edit results", async () => {
+  let approved = false;
+  let verifierRan = false;
+  let invokeCount = 0;
+  const runtime = createAgentRuntime({
+    sessionId: "sess_resume_verify",
+    modelGateway: {
+      invoke: async () => {
+        invokeCount += 1;
+        if (invokeCount === 1) {
+          return { content: "", tool_calls: [{ id: "call_edit", name: "edit", arguments: { diff: "d" } }] };
+        }
+        return { content: "done after verify", tool_calls: [] };
+      },
+      reply: async () => ({ content: "fast" })
+    },
+    toolSchemas: () => [],
+    executeTool: async (toolCall) => {
+      if (toolCall.name === "test") {
+        verifierRan = true;
+        return { call_id: toolCall.id, status: "success", content: [{ type: "text", text: "detect only" }], metadata: { detect_only: true } };
+      }
+      if (!approved) {
+        return {
+          call_id: toolCall.id,
+          status: "approval_required",
+          content: [{ type: "text", text: "edit requires approval" }],
+          metadata: { approval: { id: "approval_edit", summary: "edit requires approval" } }
+        };
+      }
+      return { call_id: toolCall.id, status: "success", content: [{ type: "text", text: "applied" }], metadata: { change_id: "chg_1" } };
+    },
+    createPolicyContext: () => ({ autonomy: "supervised" }),
+    grantApprovalForToolCall: async () => { approved = true; }
+  });
+
+  const paused = await runtime.send("modify a.txt", { autonomy: "supervised" });
+  const resumed = await runtime.approve(paused.approval.id, "approve");
+
+  assert.equal(resumed.status, "complete");
+  assert.equal(verifierRan, true);
+  assert.equal(resumed.verification.status, "passed");
+});
+
+test("agent runtime denies a paused approval without executing the tool", async () => {
+  let executions = 0;
+  const runtime = createAgentRuntime({
+    sessionId: "sess_deny",
+    modelGateway: {
+      invoke: async () => ({ content: "", tool_calls: [{ id: "call_shell", name: "shell", arguments: { argv: ["npm", "test"] } }] }),
+      reply: async () => ({ content: "fast" })
+    },
+    executeTool: async (toolCall) => {
+      executions += 1;
+      return {
+        call_id: toolCall.id,
+        status: "approval_required",
+        content: [{ type: "text", text: "shell requires approval" }],
+        metadata: { approval: { id: "approval_shell" } }
+      };
+    },
+    createPolicyContext: () => ({ autonomy: "supervised" })
+  });
+
+  const first = await runtime.send("run tests", { autonomy: "supervised" });
+  assert.equal(first.status, "awaiting_approval");
+
+  const denied = await runtime.approve("approval_shell", "deny");
+
+  assert.equal(denied.status, "cancelled");
+  assert.equal(executions, 1, "deny should not execute the pending tool again");
+});
+
+test("agent runtime rejects duplicate or unknown approval ids", async () => {
+  const runtime = createAgentRuntime({ sessionId: "sess_unknown" });
+
+  await assert.rejects(
+    () => runtime.approve("missing", "approve"),
+    /approval not found/
+  );
+});
+
+test("agent runtime rejects new send while approval is paused", async () => {
+  const runtime = createAgentRuntime({
+    sessionId: "sess_paused_busy",
+    modelGateway: {
+      invoke: async () => ({ content: "", tool_calls: [{ id: "call_edit", name: "edit", arguments: { diff: "d" } }] }),
+      reply: async () => ({ content: "fast" })
+    },
+    executeTool: async (toolCall) => ({
+      call_id: toolCall.id,
+      status: "approval_required",
+      content: [{ type: "text", text: "edit requires approval" }],
+      metadata: { approval: { id: "approval_edit" } }
+    }),
+    createPolicyContext: () => ({ autonomy: "supervised" })
+  });
+
+  const first = await runtime.send("modify a.txt", { autonomy: "supervised" });
+  assert.equal(first.status, "awaiting_approval");
+
+  await assert.rejects(
+    () => runtime.send("second request"),
+    /approval is awaiting resolution/
+  );
+});
+
+test("agent runtime interrupt clears paused approvals", async () => {
+  const runtime = createAgentRuntime({
+    sessionId: "sess_interrupt_paused",
+    modelGateway: {
+      invoke: async () => ({ content: "", tool_calls: [{ id: "call_edit", name: "edit", arguments: { diff: "d" } }] }),
+      reply: async () => ({ content: "fast" })
+    },
+    executeTool: async (toolCall) => ({
+      call_id: toolCall.id,
+      status: "approval_required",
+      content: [{ type: "text", text: "edit requires approval" }],
+      metadata: { approval: { id: "approval_edit" } }
+    }),
+    createPolicyContext: () => ({ autonomy: "supervised" })
+  });
+
+  await runtime.send("modify a.txt", { autonomy: "supervised" });
+  runtime.interrupt();
+
+  await assert.rejects(
+    () => runtime.approve("approval_edit", "approve"),
+    /approval not found/
+  );
 });
