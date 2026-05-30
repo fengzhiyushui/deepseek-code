@@ -19,7 +19,7 @@ export async function createKernel(root, options = {}) {
 
       const subscriptions = SESSION_EVENT_TYPES.map((type) =>
         eventBus.subscribe(type, (data, meta) => {
-          handler({ type, ...data, meta });
+          handler({ ...data, type, meta });
         })
       );
 

@@ -79,3 +79,38 @@ test("agent runtime approve publishes approval resolution", () => {
 
   assert.deepEqual(approvals, [{ approval_id: "approval_1", decision: "approve" }]);
 });
+
+test("agent runtime interrupt cancels in-flight turn and prevents stale events", async () => {
+  const bus = createEventBus();
+  const events = [];
+  bus.subscribe("agent:final", (data) => events.push(["final", data]));
+  bus.subscribe("agent:error", (data) => events.push(["error", data]));
+
+  let release;
+  const blocked = new Promise((resolve) => { release = resolve; });
+
+  const runtime = createAgentRuntime({
+    eventBus: bus,
+    sessionId: "sess_cancel",
+    modelGateway: {
+      reply: async () => {
+        await blocked;
+        return { content: "stale response" };
+      }
+    }
+  });
+
+  // Start a turn that blocks on modelGateway
+  const first = runtime.send("long task");
+  await new Promise(r => setTimeout(r, 20));
+
+  // Interrupt should cancel the turn
+  runtime.interrupt();
+
+  // Release the blocked gateway — the old turn should throw InterruptedError
+  release();
+  await assert.rejects(() => first, /turn was interrupted/);
+
+  // No agent:final or agent:error should have been published for the old turn
+  assert.equal(events.length, 0, "interrupted turn must not publish final or error events");
+});

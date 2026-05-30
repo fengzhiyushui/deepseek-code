@@ -9,27 +9,37 @@ function publish(eventBus, eventType, data) {
   }
 }
 
+class InterruptedError extends Error {
+  constructor(reason = "turn was interrupted") {
+    super(reason);
+    this.name = "InterruptedError";
+    this.code = "INTERRUPTED";
+  }
+}
+
 export function createAgentRuntime({ eventBus = null, sessionId = `sess_${Date.now()}`, modelGateway = null } = {}) {
   let lifecycle = createLifecycleState();
-  let activeTurn = null;
+  let currentTurnId = null;
+  let turnGeneration = 0;
 
   function getState() {
     return { ...lifecycle };
   }
 
   async function send(message, options = {}) {
-    if (activeTurn) {
+    if (currentTurnId) {
       const err = new Error("another turn is in progress");
       err.code = "BUSY";
       throw err;
     }
 
+    const generation = ++turnGeneration;
     let turn = createAgentTurn({
       sessionId,
       userMessage: message,
       autonomy: options.autonomy || "gated"
     });
-    activeTurn = turn;
+    currentTurnId = turn.id;
 
     publish(eventBus, "user:message", {
       turn_id: turn.id,
@@ -44,6 +54,7 @@ export function createAgentRuntime({ eventBus = null, sessionId = `sess_${Date.n
         reason: "user message received",
         channel: "think"
       });
+      if (turnGeneration !== generation) throw new InterruptedError();
 
       const classifyStep = createAgentStep({
         turnId: turn.id,
@@ -60,12 +71,14 @@ export function createAgentRuntime({ eventBus = null, sessionId = `sess_${Date.n
         step: completedClassifyStep,
         classification
       });
+      if (turnGeneration !== generation) throw new InterruptedError();
 
       lifecycle = transitionLifecycle(lifecycle, {
         to: "complete",
         reason: "V2-0 mock runtime completed",
         channel: "system"
       });
+      if (turnGeneration !== generation) throw new InterruptedError();
 
       const finalStep = completeAgentStep(createAgentStep({
         turnId: turn.id,
@@ -77,6 +90,9 @@ export function createAgentRuntime({ eventBus = null, sessionId = `sess_${Date.n
       const response = modelGateway && typeof modelGateway.reply === "function"
         ? await modelGateway.reply({ message, classification, turn })
         : { content: `V2-0 mock ${classification.task_type} response` };
+
+      // After async work, verify the turn was not interrupted
+      if (turnGeneration !== generation) throw new InterruptedError();
 
       turn = setTurnStatus(turn, "completed");
       publish(eventBus, "agent:final", {
@@ -90,7 +106,7 @@ export function createAgentRuntime({ eventBus = null, sessionId = `sess_${Date.n
         reason: "turn complete",
         channel: null
       });
-      activeTurn = null;
+      currentTurnId = null;
 
       return {
         status: "complete",
@@ -99,6 +115,17 @@ export function createAgentRuntime({ eventBus = null, sessionId = `sess_${Date.n
         turn
       };
     } catch (error) {
+      // Interrupted turns do not publish agent:error or transition to failed — they just clean up
+      if (error instanceof InterruptedError) {
+        currentTurnId = null;
+        lifecycle = transitionLifecycle(lifecycle, {
+          to: "idle",
+          reason: error.message,
+          channel: null
+        });
+        throw error;
+      }
+
       lifecycle = transitionLifecycle(lifecycle, {
         to: "failed",
         reason: error.message,
@@ -108,7 +135,7 @@ export function createAgentRuntime({ eventBus = null, sessionId = `sess_${Date.n
         turn_id: turn.id,
         message: error.message
       });
-      activeTurn = null;
+      currentTurnId = null;
       throw error;
     }
   }
@@ -121,7 +148,8 @@ export function createAgentRuntime({ eventBus = null, sessionId = `sess_${Date.n
   }
 
   function interrupt(turnId = null) {
-    activeTurn = null;
+    turnGeneration += 1;
+    currentTurnId = null;
     lifecycle = transitionLifecycle(lifecycle, {
       to: "idle",
       reason: turnId ? `turn interrupted: ${turnId}` : "interrupt requested",
