@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>DeepSeek Code</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Surface Layer: chat view -->
+    <div id="surface-layer" class="layer visible">
+      <div id="toolbar">
+        <span class="brand">DeepSeek Code</span>
+        <button id="btn-context" title="Agent activity">🔍</button>
+        <button id="btn-control" title="Full panels">📋</button>
+      </div>
+      <div id="messages"></div>
+      <div id="approval-box" class="hidden"></div>
+    </div>
+
+    <!-- Context Layer: agent activity log -->
+    <div id="context-layer" class="layer hidden">
+      <div class="layer-header">
+        <span>Agent Activity</span>
+        <button id="btn-close-context">✕</button>
+      </div>
+      <div id="activity-log"></div>
+    </div>
+
+    <!-- Control Layer: full panels overlay -->
+    <div id="control-overlay" class="overlay hidden">
+      <div id="control-content">
+        <div class="overlay-header">
+          <span id="control-title">Plan Review</span>
+          <button id="btn-close-control">✕</button>
+        </div>
+        <div id="control-body"></div>
+      </div>
+    </div>
+
+    <!-- Input Bar -->
+    <div id="input-bar">
+      <input type="text" id="msg-input" placeholder="输入问题..." autofocus>
+      <button id="btn-send">发送</button>
+    </div>
+
+    <!-- Status Bar -->
+    <div id="status-bar">
+      <span id="status-autonomy">gated</span> |
+      <span id="status-channel">—</span> |
+      <span id="status-tokens">0 tokens</span> |
+      <span id="status-cache">cache —%</span>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
