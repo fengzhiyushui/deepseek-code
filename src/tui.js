@@ -55,7 +55,7 @@ async function sendKernelPrompt(kernel, prompt, options = {}) {
     throw new Error("V2 kernel is not available.");
   }
   let result = await kernel.agent.send(prompt, options);
-  if (result.status === "awaiting_approval") {
+  while (result.status === "awaiting_approval") {
     const answer = await promptLine(`Approval required ${result.approval?.id || "unknown"}. Approve? y/N`);
     const normalized = String(answer || "").trim().toLowerCase();
     const decision = normalized === "y" || normalized === "yes" || normalized === "approve" || normalized === "allow"

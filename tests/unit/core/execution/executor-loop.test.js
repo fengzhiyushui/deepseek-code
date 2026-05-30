@@ -180,6 +180,134 @@ test("resumeExecutorLoop executes pending and remaining tools then finishes", as
   assert.ok(modelCalls[0].some((message) => message.role === "tool"));
 });
 
+test("resumeExecutorLoop includes pre-approval tool results in model messages", async () => {
+  // Scenario: model returns read + edit + grep. Read succeeds, edit pauses.
+  // On resume, edit and grep succeed. Model must see ALL three results.
+  const modelCalls = [];
+  const resumeState = {
+    turn_id: "turn_resume_pre",
+    message: "read edit grep",
+    classification: { task_type: "edit" },
+    messages: [{ role: "user", content: "read edit grep" }],
+    model_result: { content: "", tool_calls: [
+      { id: "call_read", name: "read", arguments: { path: "a.txt" } },
+      { id: "call_edit", name: "edit", arguments: { diff: "--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new" } },
+      { id: "call_grep", name: "grep", arguments: { pattern: "TODO" } }
+    ] },
+    raw_tool_calls: [
+      { id: "call_read", name: "read", arguments: { path: "a.txt" } },
+      { id: "call_edit", name: "edit", arguments: { diff: "--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new" } },
+      { id: "call_grep", name: "grep", arguments: { pattern: "TODO" } }
+    ],
+    pending_tool_call: { id: "call_edit", name: "edit", params: { diff: "d" }, requested_by_step_id: "model:turn_resume_pre:0" },
+    remaining_tool_calls: [{ id: "call_grep", name: "grep", params: { pattern: "TODO" }, requested_by_step_id: "model:turn_resume_pre:0" }],
+    iteration: 0,
+    tool_results: [
+      { call_id: "call_read", status: "success", content: [{ type: "text", text: "read ok" }], metadata: { path: "a.txt" } }
+    ],
+    tool_schemas: [],
+    max_iterations: 5,
+    options: {}
+  };
+
+  const result = await resumeExecutorLoop({
+    resumeState,
+    modelGateway: {
+      invoke: async (messages) => {
+        modelCalls.push(messages);
+        return { content: "all done", tool_calls: [] };
+      }
+    },
+    executeTool: async (toolCall) => ({
+      call_id: toolCall.id, status: "success", content: [{ type: "text", text: `${toolCall.name} ok` }]
+    }),
+    createPolicyContext: () => ({ autonomy: "supervised" })
+  });
+
+  assert.equal(result.status, "complete");
+  // Model should have received tool messages for all 3 tool calls
+  const toolMessages = modelCalls[0].filter((m) => m.role === "tool");
+  assert.equal(toolMessages.length, 3);
+  assert.ok(toolMessages.some((m) => m.tool_call_id === "call_read"));
+  assert.ok(toolMessages.some((m) => m.tool_call_id === "call_edit"));
+  assert.ok(toolMessages.some((m) => m.tool_call_id === "call_grep"));
+});
+
+test("resume after cross-iteration pause does not duplicate prior-iteration results", async () => {
+  // Iteration 0: model returns [read] → executes → messages get read tool result
+  // Iteration 1: model returns [shell, edit] → shell succeeds, edit pauses
+  // resume_state.tool_results MUST NOT include the iteration-0 read result
+  // (it's already in messages). On resume model should see each result once.
+  const modelCalls = [];
+  let invokeCount = 0;
+  const modelGateway = {
+    invoke: async (messages) => {
+      invokeCount += 1;
+      modelCalls.push({ invokeCount, messages: [...messages] });
+      if (invokeCount === 1) {
+        return { content: "", tool_calls: [{ id: "call_read", name: "read", arguments: { path: "a.txt" } }] };
+      }
+      if (invokeCount === 2) {
+        return { content: "", tool_calls: [
+          { id: "call_shell", name: "shell", arguments: { argv: ["npm", "test"] } },
+          { id: "call_edit", name: "edit", arguments: { diff: "--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new" } }
+        ] };
+      }
+      return { content: "all done", tool_calls: [] };
+    }
+  };
+
+  const paused = await runExecutorLoop({
+    message: "read then shell edit",
+    classification: { task_type: "edit" },
+    turnId: "turn_cross_iter",
+    modelGateway,
+    toolSchemas: [],
+    executeTool: async (toolCall) => {
+      if (toolCall.name === "edit") {
+        return {
+          call_id: toolCall.id, status: "approval_required",
+          content: [{ type: "text", text: "edit needs approval" }],
+          metadata: { approval: { id: "approval_edit" } }
+        };
+      }
+      return { call_id: toolCall.id, status: "success", content: [{ type: "text", text: `${toolCall.name} ok` }] };
+    },
+    createPolicyContext: () => ({ autonomy: "supervised" })
+  });
+
+  assert.equal(paused.status, "awaiting_approval");
+  // resume_state.tool_results should only contain iteration-1 pre-approval results (shell)
+  // NOT the iteration-0 read result (that's already baked into messages)
+  assert.equal(paused.resume_state.iteration, 1);
+
+  const modelCallsAfterResume = [];
+  const resumed = await resumeExecutorLoop({
+    resumeState: paused.resume_state,
+    modelGateway: {
+      invoke: async (messages) => {
+        modelCallsAfterResume.push([...messages]);
+        return { content: "done after resume", tool_calls: [] };
+      }
+    },
+    executeTool: async (toolCall) => ({
+      call_id: toolCall.id, status: "success", content: [{ type: "text", text: `${toolCall.name} ok` }]
+    }),
+    createPolicyContext: () => ({ autonomy: "supervised" })
+  });
+
+  assert.equal(resumed.status, "complete");
+  // Verify no duplicate tool call_ids in the messages sent to model after resume
+  const toolMessages = modelCallsAfterResume[0].filter((m) => m.role === "tool");
+  const ids = toolMessages.map((m) => m.tool_call_id);
+  const uniqueIds = new Set(ids);
+  assert.equal(ids.length, uniqueIds.size, `duplicate tool ids found: ${JSON.stringify(ids)}`);
+  // All 3 results should be present: read (iter0), shell (iter1 pre), edit (resume)
+  assert.ok(uniqueIds.has("call_read"), "missing read");
+  assert.ok(uniqueIds.has("call_shell"), "missing shell");
+  assert.ok(uniqueIds.has("call_edit"), "missing edit");
+});
+
 test("resumeExecutorLoop can pause again on a remaining tool approval", async () => {
   const resumeState = {
     turn_id: "turn_resume_again",

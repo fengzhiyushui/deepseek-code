@@ -28,7 +28,7 @@ export async function runKernelAgentCommand({
   try {
     let result = await kernel.agent.send(message, { autonomy, ...sendOptions });
     for (const line of renderKernelResult(result)) write(line);
-    if (result.status === "awaiting_approval" && result.approval?.id) {
+    while (result.status === "awaiting_approval" && result.approval?.id) {
       const answer = await promptApproval(result.approval);
       const decision = isApprovalYes(answer) ? "approve" : "deny";
       result = await kernel.agent.approve(result.approval.id, decision);

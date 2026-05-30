@@ -66,14 +66,15 @@ export function createPermissionEngine() {
   }
 
   function fingerprint(toolCall, context = {}) {
+    const params = toolCall.params || {};
+    const sortedParams = Object.keys(params).sort().reduce((obj, key) => {
+      obj[key] = params[key];
+      return obj;
+    }, {});
     const canonical = JSON.stringify({
       tool: toolCall.name,
       category: toolCall.category,
-      path: toolCall.params?.path || "",
-      pattern: toolCall.params?.pattern || "",
-      url: toolCall.params?.url || "",
-      argv: toolCall.params?.argv || [],
-      cwd: toolCall.params?.cwd || "",
+      params: sortedParams,
       project: context.projectId || ""
     });
     return `fp:${createHash("sha256").update(canonical).digest("hex").slice(0, 16)}`;

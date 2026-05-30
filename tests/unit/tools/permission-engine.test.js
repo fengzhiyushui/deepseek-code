@@ -82,3 +82,50 @@ test("fingerprint is deterministic for tool path argv and project", () => {
   assert.equal(a, b);
   assert.match(a, /^fp:/);
 });
+
+test("fingerprint changes when diff content differs (edit)", () => {
+  const engine = createPermissionEngine();
+  const ctx = createPolicyContext({ projectId: "proj_1" });
+  const fp1 = engine.fingerprint(
+    { name: "edit", category: "write_update", params: { diff: "--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new", path: "a.txt" } },
+    ctx
+  );
+  const fp2 = engine.fingerprint(
+    { name: "edit", category: "write_update", params: { diff: "--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-safe\n+evil", path: "a.txt" } },
+    ctx
+  );
+  assert.notEqual(fp1, fp2);
+});
+
+test("fingerprint changes when memory action differs", () => {
+  const engine = createPermissionEngine();
+  const ctx = createPolicyContext({ projectId: "proj_1" });
+  const fpWrite = engine.fingerprint(
+    { name: "memory", category: "write_create", params: { action: "write", key: "notes", value: "hello" } },
+    ctx
+  );
+  const fpDelete = engine.fingerprint(
+    { name: "memory", category: "write_delete", params: { action: "delete", key: "notes" } },
+    ctx
+  );
+  assert.notEqual(fpWrite, fpDelete);
+});
+
+test("fingerprint changes when memory key or value differs", () => {
+  const engine = createPermissionEngine();
+  const ctx = createPolicyContext({ projectId: "proj_1" });
+  const fp1 = engine.fingerprint(
+    { name: "memory", category: "write_create", params: { action: "write", key: "notes", value: "safe" } },
+    ctx
+  );
+  const fp2 = engine.fingerprint(
+    { name: "memory", category: "write_create", params: { action: "write", key: "notes", value: "DROP TABLE users" } },
+    ctx
+  );
+  const fp3 = engine.fingerprint(
+    { name: "memory", category: "write_create", params: { action: "write", key: "secrets", value: "safe" } },
+    ctx
+  );
+  assert.notEqual(fp1, fp2);
+  assert.notEqual(fp1, fp3);
+});

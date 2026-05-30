@@ -128,3 +128,37 @@ test("runKernelAgentCommand prompts and resumes approval in process", async () =
   assert.deepEqual(approvals, [["approval_1", "approve"]]);
   assert.ok(writes.some((line) => line.includes("resumed final")));
 });
+
+test("runKernelAgentCommand loops until no more awaiting_approval", async () => {
+  // Simulate: first approval (edit) resumes but immediately pauses again (shell)
+  const writes = [];
+  const approvals = [];
+  let sendCalls = 0;
+  const result = await runKernelAgentCommand({
+    root: "/repo",
+    prompt: "edit and run",
+    write: (line) => writes.push(line),
+    createKernelImpl: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }) },
+      agent: {
+        send: async () => {
+          sendCalls += 1;
+          return { status: "awaiting_approval", approval: { id: "approval_1" }, content: "first pause" };
+        },
+        approve: async (id, decision) => {
+          approvals.push([id, decision]);
+          if (approvals.length === 1) {
+            return { status: "awaiting_approval", approval: { id: "approval_2" }, content: "second pause" };
+          }
+          return { status: "complete", content: "all done" };
+        }
+      }
+    }),
+    promptApproval: async (approval) => (approval.id === "approval_1" ? "y" : "y")
+  });
+
+  assert.equal(result.status, "complete");
+  assert.equal(result.content, "all done");
+  assert.deepEqual(approvals, [["approval_1", "approve"], ["approval_2", "approve"]]);
+  assert.equal(sendCalls, 1);
+});

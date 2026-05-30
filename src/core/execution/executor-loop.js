@@ -128,7 +128,7 @@ async function continueToolIteration({
           pending_tool_call: toolCall,
           remaining_tool_calls: toolCalls.slice(index + 1),
           iteration,
-          tool_results: toolResults.filter(() => true).slice(0, -1),
+          tool_results: iterationResults.slice(0, -1),
           tool_schemas: toolSchemas,
           max_iterations: maxIterations,
           options
@@ -196,7 +196,7 @@ export async function resumeExecutorLoop({
   let messages = [
     ...resumeState.messages,
     assistantToolCallMessage(resumeState.model_result, resumeState.raw_tool_calls),
-    ...toolResultsToMessages(iterationResults)
+    ...toolResultsToMessages([...resumeState.tool_results, ...iterationResults])
   ];
 
   for (let iteration = resumeState.iteration + 1; iteration < (resumeState.max_iterations || 5); iteration += 1) {
