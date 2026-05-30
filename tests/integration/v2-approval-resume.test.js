@@ -89,3 +89,34 @@ test("kernel rejects duplicate approval", async () => {
     /approval not found/
   );
 });
+
+test("approval resume timeline persists requested resolved tool and final events", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-approval-timeline-"));
+  await writeFile(path.join(root, "a.txt"), "old\n");
+  let invokeCount = 0;
+  const kernel = await createKernel(root, {
+    sessionRoot: path.join(root, ".sessions"),
+    sessionId: "sess_approval_timeline",
+    modelGateway: {
+      invoke: async () => {
+        invokeCount += 1;
+        if (invokeCount === 1) {
+          return { content: "", tool_calls: [{ id: "call_edit", name: "edit", arguments: { diff: DIFF, prompt: "update a" } }] };
+        }
+        return { content: "updated", tool_calls: [] };
+      },
+      reply: async () => ({ content: "fast" })
+    }
+  });
+
+  const paused = await kernel.agent.send("modify a.txt", { autonomy: "supervised" });
+  await kernel.agent.approve(paused.approval.id, "approve");
+  await kernel.session.flush();
+  const timeline = await kernel.session.getTimeline(50);
+  const types = timeline.map((event) => event.type);
+
+  assert.ok(types.includes("approval:requested"));
+  assert.ok(types.includes("approval:resolved"));
+  assert.ok(types.includes("tool:result"));
+  assert.ok(types.includes("agent:final"));
+});
