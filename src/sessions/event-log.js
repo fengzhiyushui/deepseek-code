@@ -1,0 +1,164 @@
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import { createHash } from "node:crypto";
+import { makeId } from "../shared/id.js";
+import { nowIso } from "../shared/time.js";
+
+const SCHEMA_VERSION = 2;
+
+const RESERVED_KEYS = new Set([
+  "schema_version",
+  "event_id",
+  "prev_hash",
+  "event_hash",
+  "type",
+  "timestamp",
+  "seq",
+  "session_id"
+]);
+
+export function projectIdFromRoot(root) {
+  const normalized = path.resolve(String(root || process.cwd())).toLowerCase();
+  return `proj_${createHash("sha256").update(normalized).digest("hex").slice(0, 12)}`;
+}
+
+export async function createSessionEventLog({ sessionRoot, projectId, sessionId, meta = {} } = {}) {
+  assertLogOptions({ sessionRoot, projectId, sessionId });
+  await fs.mkdir(sessionDirectory(sessionRoot, projectId), { recursive: true });
+  const log = new SessionEventLog(sessionFilePath(sessionRoot, projectId, sessionId), sessionId);
+  const existing = await readJsonl(log.filePath);
+  if (existing.length > 0) {
+    log.seq = Number(existing.at(-1).seq) || 0;
+    log.lastHash = existing.at(-1).event_hash || null;
+    return log;
+  }
+  await log.append("session:start", meta);
+  return log;
+}
+
+export async function openSessionEventLog({ sessionRoot, projectId, sessionId } = {}) {
+  assertLogOptions({ sessionRoot, projectId, sessionId });
+  await fs.mkdir(sessionDirectory(sessionRoot, projectId), { recursive: true });
+  const log = new SessionEventLog(sessionFilePath(sessionRoot, projectId, sessionId), sessionId);
+  const existing = await readJsonl(log.filePath);
+  const validEvents = existing.filter((event) => event && typeof event === "object");
+  if (validEvents.length > 0) {
+    log.seq = Number(validEvents.at(-1).seq) || 0;
+    log.lastHash = validEvents.at(-1).event_hash || null;
+  }
+  return log;
+}
+
+class SessionEventLog {
+  constructor(filePath, sessionId) {
+    this.filePath = filePath;
+    this.sessionId = sessionId;
+    this.seq = 0;
+    this.lastHash = null;
+    this.queue = Promise.resolve();
+  }
+
+  append(type, data = {}, meta = {}) {
+    if (!type || typeof type !== "string") {
+      throw new Error("session event type must be a non-empty string");
+    }
+    const write = this.queue.then(async () => {
+      const event = {
+        schema_version: SCHEMA_VERSION,
+        event_id: typeof meta.event_id === "string" ? meta.event_id : makeId("evt"),
+        prev_hash: this.lastHash,
+        event_hash: null,
+        type,
+        timestamp: typeof meta.timestamp === "string" ? meta.timestamp : nowIso(),
+        seq: this.seq + 1,
+        session_id: this.sessionId,
+        ...stripReservedKeys(data)
+      };
+      event.event_hash = hashEvent(event);
+      await fs.appendFile(this.filePath, `${JSON.stringify(event)}\n`, "utf8");
+      this.seq = event.seq;
+      this.lastHash = event.event_hash;
+      return event;
+    });
+    this.queue = write.catch(() => {});
+    return write;
+  }
+
+  async flush() {
+    await this.queue;
+  }
+
+  async tail(count = 20) {
+    const safeCount = Number.isFinite(Number(count)) && Number(count) > 0 ? Number(count) : 20;
+    const events = await readJsonl(this.filePath);
+    return events.slice(-safeCount);
+  }
+}
+
+function assertLogOptions({ sessionRoot, projectId, sessionId }) {
+  if (!sessionRoot || typeof sessionRoot !== "string") throw new Error("sessionRoot is required");
+  if (!projectId || typeof projectId !== "string") throw new Error("projectId is required");
+  if (!sessionId || typeof sessionId !== "string") throw new Error("sessionId is required");
+}
+
+function sessionDirectory(sessionRoot, projectId) {
+  return path.join(sessionRoot, sanitize(projectId));
+}
+
+function sessionFilePath(sessionRoot, projectId, sessionId) {
+  return path.join(sessionDirectory(sessionRoot, projectId), `${sanitize(sessionId)}.jsonl`);
+}
+
+async function readJsonl(filePath) {
+  try {
+    const content = await fs.readFile(filePath, "utf8");
+    const events = [];
+    for (const line of content.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      try {
+        events.push(JSON.parse(line));
+      } catch {
+        // Ignore corrupt lines so one bad append does not hide the usable timeline.
+      }
+    }
+    return events;
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+function stripReservedKeys(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return {};
+  const cleaned = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (!RESERVED_KEYS.has(key) && value !== undefined) cleaned[key] = value;
+  }
+  return cleaned;
+}
+
+function hashEvent(event) {
+  const { event_hash, ...hashable } = jsonSafe(event);
+  return `sha256:${createHash("sha256").update(stableStringify(hashable)).digest("hex").slice(0, 16)}`;
+}
+
+function jsonSafe(value) {
+  if (value === null || value === undefined || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(jsonSafe);
+  const safe = {};
+  for (const key of Object.keys(value)) {
+    if (value[key] !== undefined) safe[key] = jsonSafe(value[key]);
+  }
+  return safe;
+}
+
+function stableStringify(value) {
+  if (value === undefined) return "null";
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
+}
+
+function sanitize(value) {
+  return String(value).replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
+}
