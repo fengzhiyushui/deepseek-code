@@ -1,5 +1,6 @@
 import path from "node:path";
 import { createEventBus } from "./shared/event-bus.js";
+import { makeId } from "./shared/id.js";
 import { createAgentRuntime } from "./core/runtime/agent-runtime.js";
 import { SESSION_EVENT_TYPES } from "./sessions/event-types.js";
 import { createSessionEventLog, projectIdFromRoot } from "./sessions/event-log.js";
@@ -15,17 +16,19 @@ import { createPolicyContext } from "./tools/permissions/policy-loader.js";
 
 export async function createKernel(root, options = {}) {
   const eventBus = options.eventBus || createEventBus();
-  const sessionId = options.sessionId || `sess_${Date.now()}`;
+  const sessionId = options.sessionId || makeId("sess");
   const projectId = options.projectId || projectIdFromRoot(root);
   const sessionRoot = options.sessionRoot || path.join(root, ".deepseek-code", "v2", "sessions");
   const sessionLog = options.sessionLog === null
     ? null
-    : options.sessionLog || await createSessionEventLog({
-        sessionRoot,
-        projectId,
-        sessionId,
-        meta: { root, runtime: "v2" }
-      });
+    : options.sessionLog || (!options.sessionManager
+        ? await createSessionEventLog({
+            sessionRoot,
+            projectId,
+            sessionId,
+            meta: { root, runtime: "v2" }
+          })
+        : null);
   const sessionManager = options.sessionManager || createSessionManager({
     eventBus,
     eventLog: sessionLog,

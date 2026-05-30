@@ -10,11 +10,12 @@ import { runKernelAgentCommand } from "../../src/apps/cli/kernel-runner.js";
 const repoRoot = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const binPath = path.join(repoRoot, "bin", "deepseek-code.js");
 
-test("CLI test command propagates child process exit code", () => {
+test("CLI test command propagates child process exit code", async () => {
+  const testRoot = await mkdtemp(path.join(tmpdir(), "dsc-cli-smoke-test-"));
   const child = spawnSync(
     process.execPath,
     [binPath, "test", process.execPath, "-e", "process.exit(7)"],
-    { cwd: repoRoot, encoding: "utf8" }
+    { cwd: testRoot, encoding: "utf8" }
   );
 
   assert.equal(child.status, 7, `stdout:\n${child.stdout}\nstderr:\n${child.stderr}`);
