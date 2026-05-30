@@ -68,6 +68,9 @@ export async function createKernel(root, options = {}) {
       memoryRoot: options.memoryRoot || null,
       turnId: executionOptions.turnId
     }),
+    verifyMode: options.verifyMode || "auto",
+    testArgv: options.testArgv || null,
+    maxRepairAttempts: options.maxRepairAttempts ?? 2,
     grantApprovalForToolCall: async (toolCall, approvalContext = {}) => {
       const securedCall = toolRegistry.secureToolCall(toolCall);
       const policyContext = createPolicyContext({

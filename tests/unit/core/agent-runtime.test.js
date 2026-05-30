@@ -420,6 +420,137 @@ test("agent runtime rejects new send while approval is paused", async () => {
   );
 });
 
+test("agent runtime repairs failed verification and completes", async () => {
+  let invokeCount = 0;
+  let testRuns = 0;
+  const runtime = createAgentRuntime({
+    sessionId: "sess_repair_runtime",
+    maxRepairAttempts: 1,
+    verifyMode: "run",
+    modelGateway: {
+      invoke: async (_messages, options = {}) => {
+        invokeCount += 1;
+        if (options.purpose === "repair") {
+          return { content: "", tool_calls: [{ id: "call_repair_edit", name: "edit", arguments: { diff: "repair" } }] };
+        }
+        if (invokeCount === 1) {
+          return { content: "", tool_calls: [{ id: "call_edit", name: "edit", arguments: { diff: "broken" } }] };
+        }
+        return { content: "done", tool_calls: [] };
+      },
+      reply: async () => ({ content: "fast" })
+    },
+    toolSchemas: () => [],
+    executeTool: async (toolCall) => {
+      if (toolCall.name === "test") {
+        testRuns += 1;
+        return {
+          call_id: toolCall.id,
+          status: "success",
+          content: [{ type: "text", text: testRuns === 1 ? "failed" : "passed" }],
+          metadata: { exit_code: testRuns === 1 ? 1 : 0 }
+        };
+      }
+      return { call_id: toolCall.id, status: "success", content: [{ type: "text", text: "applied" }], metadata: { change_id: `chg_${toolCall.id}` } };
+    },
+    createPolicyContext: () => ({ autonomy: "gated" })
+  });
+
+  const result = await runtime.send("modify a.txt", { autonomy: "gated", verifyMode: "run" });
+
+  assert.equal(result.status, "complete");
+  assert.equal(result.verification.status, "passed");
+  assert.equal(result.repair.status, "complete");
+  assert.equal(testRuns, 2);
+});
+
+test("agent runtime returns awaiting_approval when repair tool asks", async () => {
+  let testRuns = 0;
+  let mainInvokeCount = 0;
+  const runtime = createAgentRuntime({
+    sessionId: "sess_repair_approval",
+    maxRepairAttempts: 1,
+    verifyMode: "run",
+    modelGateway: {
+      invoke: async (_messages, options = {}) => {
+        if (options.purpose === "repair") {
+          return { content: "", tool_calls: [{ id: "call_shell", name: "shell", arguments: { argv: ["npm", "test"] } }] };
+        }
+        mainInvokeCount += 1;
+        if (mainInvokeCount === 1) {
+          return { content: "", tool_calls: [{ id: "call_edit", name: "edit", arguments: { diff: "broken" } }] };
+        }
+        return { content: "done", tool_calls: [] };
+      },
+      reply: async () => ({ content: "fast" })
+    },
+    toolSchemas: () => [],
+    executeTool: async (toolCall) => {
+      if (toolCall.name === "test") {
+        testRuns += 1;
+        return { call_id: toolCall.id, status: "success", content: [{ type: "text", text: "failed" }], metadata: { exit_code: 1 } };
+      }
+      if (toolCall.name === "shell") {
+        return {
+          call_id: toolCall.id,
+          status: "approval_required",
+          content: [{ type: "text", text: "shell requires approval" }],
+          metadata: { approval: { id: "approval_repair_shell" } }
+        };
+      }
+      return { call_id: toolCall.id, status: "success", content: [{ type: "text", text: "applied" }], metadata: { change_id: "chg_1" } };
+    },
+    createPolicyContext: () => ({ autonomy: "supervised" })
+  });
+
+  const result = await runtime.send("modify a.txt", { autonomy: "gated", verifyMode: "run" });
+
+  assert.equal(result.status, "awaiting_approval");
+  assert.equal(result.approval.id, "approval_repair_shell");
+});
+
+test("agent runtime throws when repair attempts are exhausted", async () => {
+  let testRuns = 0;
+  let mainInvokeCount = 0;
+  const runtime = createAgentRuntime({
+    sessionId: "sess_repair_exhausted",
+    maxRepairAttempts: 1,
+    verifyMode: "run",
+    modelGateway: {
+      invoke: async (_messages, options = {}) => {
+        if (options.purpose === "repair") {
+          return { content: "no fix", tool_calls: [] };
+        }
+        mainInvokeCount += 1;
+        if (mainInvokeCount === 1) {
+          return { content: "", tool_calls: [{ id: "call_edit", name: "edit", arguments: { diff: "broken" } }] };
+        }
+        return { content: "done", tool_calls: [] };
+      },
+      reply: async () => ({ content: "fast" })
+    },
+    toolSchemas: () => [],
+    executeTool: async (toolCall) => {
+      if (toolCall.name === "test") {
+        testRuns += 1;
+        return {
+          call_id: toolCall.id,
+          status: "success",
+          content: [{ type: "text", text: `failed ${testRuns}` }],
+          metadata: { exit_code: 1 }
+        };
+      }
+      return { call_id: toolCall.id, status: "success", content: [{ type: "text", text: "applied" }], metadata: { change_id: "chg_1" } };
+    },
+    createPolicyContext: () => ({ autonomy: "gated" })
+  });
+
+  await assert.rejects(
+    () => runtime.send("modify a.txt", { autonomy: "gated", verifyMode: "run" }),
+    /verification failed|repair/i
+  );
+});
+
 test("agent runtime interrupt clears paused approvals", async () => {
   const runtime = createAgentRuntime({
     sessionId: "sess_interrupt_paused",

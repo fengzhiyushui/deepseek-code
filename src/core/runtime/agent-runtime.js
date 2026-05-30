@@ -4,6 +4,8 @@ import { classifyMessage } from "../planning/classifier.js";
 import { runExecutorLoop, resumeExecutorLoop } from "../execution/executor-loop.js";
 import { runVerifier } from "../verification/verifier.js";
 import { decideRepair } from "../verification/repair-decision.js";
+import { createVerificationPolicy } from "../verification/verification-policy.js";
+import { runRepairLoop } from "../verification/repair-loop.js";
 import { createPausedTurnStore } from "../approval/paused-turn-store.js";
 import { createLifecycleState, transitionLifecycle } from "./lifecycle.js";
 
@@ -27,6 +29,9 @@ export function createAgentRuntime({
   executeTool = null,
   createPolicyContext = () => ({}),
   maxToolIterations = 5,
+  maxRepairAttempts = 2,
+  verifyMode = "auto",
+  testArgv = null,
   pausedTurnStore = createPausedTurnStore(),
   grantApprovalForToolCall = async () => {}
 } = {}) {
@@ -90,12 +95,16 @@ export function createAgentRuntime({
         return { status: "awaiting_approval", state: "awaiting_approval", content: response.content, approval: response.approval, turn };
       }
 
+      if (response.status === "failed") {
+        throw new Error(`verification failed: ${response.content || response.verification?.reason || "repair failed"}`);
+      }
+
       turn = setTurnStatus(turn, "completed");
       publish(eventBus, "agent:final", { turn_id: turn.id, content: response.content, status: "complete" });
       lifecycle = transitionLifecycle(lifecycle, { to: "idle", reason: "turn complete", channel: null });
       currentTurnId = null;
       currentAbortController = null;
-      return { status: "complete", state: "idle", content: response.content, turn, verification: response.verification || null };
+      return { status: "complete", state: "idle", content: response.content, turn, verification: response.verification || null, repair: response.repair || null };
     } catch (error) {
       if (currentTurnId !== turn.id) throw error;
       if (error instanceof InterruptedError || error.name === "AbortError") {
@@ -145,9 +154,18 @@ export function createAgentRuntime({
     });
     if (loop.status === "awaiting_approval") return loop;
 
+    return verifyAndMaybeRepair({ turn, message, classification, loop, options, signal });
+  }
+
+  async function verifyAndMaybeRepair({ turn, message, classification, loop, options, signal }) {
     lifecycle = transitionLifecycle(lifecycle, { to: "verify", reason: "tool loop complete", channel: "system" });
+    const verificationPolicy = createVerificationPolicy({
+      verifyMode: options.verifyMode || verifyMode,
+      testArgv: options.testArgv || testArgv
+    });
     const verification = await runVerifier({
       turnId: turn.id,
+      autonomy: options.autonomy || turn.autonomy,
       toolResults: loop.toolResults,
       executeTool,
       createPolicyContext: ({ turnId, toolCall, phase }) => createPolicyContext({
@@ -156,9 +174,11 @@ export function createAgentRuntime({
         toolCall,
         phase
       }),
+      verificationPolicy,
       eventBus
     });
     const repair = decideRepair(verification);
+    if (repair.decision === "none") return { ...loop, verification, repair: null };
     if (repair.decision === "stop" && verification.status === "approval_required") {
       return {
         status: "awaiting_approval",
@@ -170,10 +190,32 @@ export function createAgentRuntime({
       };
     }
     if (repair.decision === "repair") {
-      lifecycle = transitionLifecycle(lifecycle, { to: "failed", reason: repair.reason, channel: "system" });
-      throw new Error(`verification failed: ${verification.reason}`);
+      lifecycle = transitionLifecycle(lifecycle, { to: "repair", reason: repair.reason, channel: "think" });
+      const repairLoop = await runRepairLoop({
+        turnId: turn.id,
+        userMessage: message,
+        classification,
+        modelGateway,
+        toolSchemas: typeof toolSchemas === "function" ? toolSchemas() : toolSchemas,
+        executeTool,
+        createPolicyContext: ({ turnId, toolCall, phase }) => createPolicyContext({
+          ...options,
+          autonomy: options.autonomy || turn.autonomy,
+          turnId,
+          toolCall,
+          phase
+        }),
+        verificationPolicy,
+        initialVerification: verification,
+        initialToolResults: loop.toolResults,
+        eventBus,
+        signal,
+        maxRepairAttempts: options.maxRepairAttempts || maxRepairAttempts,
+        options
+      });
+      return repairLoop;
     }
-    return { ...loop, verification };
+    return { status: "failed", content: repair.reason, verification, toolResults: loop.toolResults };
   }
 
   async function approve(approvalId, decision = "approve") {
@@ -234,42 +276,36 @@ export function createAgentRuntime({
         currentAbortController = null;
         return { status: "awaiting_approval", state: "awaiting_approval", content: loop.content, approval: loop.approval, turn: setTurnStatus(record.turn, "awaiting_approval") };
       }
-      lifecycle = transitionLifecycle(lifecycle, { to: "verify", reason: "tool loop complete", channel: "system" });
-      const verification = await runVerifier({
-        turnId: record.turn_id,
-        toolResults: loop.toolResults,
-        executeTool,
-        createPolicyContext: ({ turnId, toolCall, phase }) => createPolicyContext({
-          autonomy: "auto",
-          turnId,
-          toolCall,
-          phase
-        }),
-        eventBus
+      const repaired = await verifyAndMaybeRepair({
+        turn: record.turn,
+        message: record.turn.user_message,
+        classification: record.resume_state.classification || { task_type: "edit" },
+        loop,
+        options: record.resume_state.options || {},
+        signal: currentAbortController.signal
       });
-      const repair = decideRepair(verification);
-      if (repair.decision === "stop" && verification.status === "approval_required") {
-        lifecycle = transitionLifecycle(lifecycle, { to: "awaiting_approval", reason: "verification approval required", channel: "system" });
+      if (repaired.status === "awaiting_approval") {
+        lifecycle = transitionLifecycle(lifecycle, { to: "awaiting_approval", reason: "repair approval required", channel: "system" });
         currentTurnId = null;
         currentAbortController = null;
         return {
           status: "awaiting_approval",
           state: "awaiting_approval",
-          content: verification.reason || "Verification requires approval",
-          approval: verification.tool_result?.metadata?.approval || null,
+          content: repaired.content,
+          approval: repaired.approval,
           turn: setTurnStatus(record.turn, "awaiting_approval"),
-          verification
+          verification: repaired.verification
         };
       }
-      if (repair.decision === "repair") {
-        throw new Error(`verification failed: ${verification.reason}`);
+      if (repaired.status === "failed") {
+        throw new Error(`verification failed: ${repaired.content || repaired.verification?.reason || "repair failed"}`);
       }
       const finalTurn = setTurnStatus(record.turn, "completed");
-      publish(eventBus, "agent:final", { turn_id: record.turn_id, content: loop.content, status: "complete" });
+      publish(eventBus, "agent:final", { turn_id: record.turn_id, content: repaired.content, status: "complete" });
       lifecycle = transitionLifecycle(lifecycle, { to: "idle", reason: "turn complete", channel: null });
       currentTurnId = null;
       currentAbortController = null;
-      return { status: "complete", state: "idle", content: loop.content, turn: finalTurn, verification };
+      return { status: "complete", state: "idle", content: repaired.content, turn: finalTurn, verification: repaired.verification, repair: repaired.repair || null };
     } catch (error) {
       lifecycle = transitionLifecycle(lifecycle, { to: "failed", reason: error.message, channel: lifecycle.channel });
       publish(eventBus, "agent:error", { turn_id: record.turn_id, message: error.message });
