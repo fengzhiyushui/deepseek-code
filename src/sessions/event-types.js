@@ -15,6 +15,10 @@ export const SESSION_EVENT_TYPES = Object.freeze([
   "file:diff_applied",
   "file:rollback_applied",
   "verification:result",
+  "repair:started",
+  "repair:attempt",
+  "repair:result",
+  "repair:exhausted",
   "agent:final",
   "agent:error"
 ]);

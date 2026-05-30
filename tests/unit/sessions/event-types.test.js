@@ -24,11 +24,21 @@ test("session event registry contains the v2 canonical events", () => {
     "file:diff_applied",
     "file:rollback_applied",
     "verification:result",
+    "repair:started",
+    "repair:attempt",
+    "repair:result",
+    "repair:exhausted",
     "agent:final",
     "agent:error"
   ]) {
     assert.ok(SESSION_EVENT_TYPES.includes(type), `${type} missing`);
     assert.equal(isSessionEventType(type), true);
+  }
+});
+
+test("session event registry contains repair events", () => {
+  for (const type of ["repair:started", "repair:attempt", "repair:result", "repair:exhausted"]) {
+    assert.ok(SESSION_EVENT_TYPES.includes(type), `${type} should be registered`);
   }
 });
 
