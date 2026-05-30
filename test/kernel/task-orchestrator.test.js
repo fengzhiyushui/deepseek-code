@@ -86,6 +86,24 @@ test("classify detects query task type and takes fast path", async () => {
   assert.ok(states.includes("thinkreply") || states.includes("complete"));
 });
 
+test("classify sends Chinese questions to thinkreply fast path", async () => {
+  const bus = createEventBus();
+  const states = [];
+  bus.subscribe("orchestrator:state", (data) => states.push(data.state.entered));
+
+  const orchestrator = createTaskOrchestrator({
+    eventBus: bus,
+    modelProvider: mockModelProvider(),
+    contextEngine: mockContextEngine()
+  });
+
+  const result = await orchestrator.submit("你是什么模型");
+
+  assert.equal(result.status, "complete");
+  assert.equal(result.content, "mock response");
+  assert.ok(states.includes("thinkreply"));
+});
+
 test("autonomy levels: supervised requires approval before plan", async () => {
   const bus = createEventBus();
   const approvals = [];

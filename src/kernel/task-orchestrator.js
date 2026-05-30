@@ -21,8 +21,17 @@ function classifyMessage(message, options = {}) {
   const lower = message.toLowerCase().trim();
   const autonomy = options.autonomy || AUTONOMY_DEFAULT;
 
-  if (/^(what|how|why|explain|describe|show|list|who|where|when)\b/.test(lower)
-      && !/\b(fix|change|modify|edit|delete|remove|add|create|write|update|refactor)\b/.test(lower)) {
+  // Chinese query patterns: questions ending with ？/?, greetings, self-intro questions
+  const trimmed = message.trim();
+  const isChineseQuery =
+    /[？?]\s*$/.test(trimmed)
+    || /^(你好|您好|嗨|哈喽|你是谁|你是什么|介绍一下|解释|说明|描述|列出|展示|查看|帮我|请问|什么是|什么是|怎么|如何|为什么)/.test(trimmed);
+
+  if (
+    (/^(what|how|why|explain|describe|show|list|who|where|when|can|could|tell|find|get|check)\b/.test(lower)
+      || isChineseQuery)
+    && !/\b(fix|change|modify|edit|delete|remove|add|create|write|update|refactor|implement)\b/.test(lower)
+  ) {
     return { task_type: "query", risk: "low", channel: "think", autonomy, reason: "问答/查询任务", fast_path: "thinkreply" };
   }
 
@@ -189,8 +198,9 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
       { role: "user", content: `Context: ${execSnapshot.snapshot_id}\n\nExecute: ${message}` }
     ];
 
+    let actResult = null;
     if (modelProvider.invoke) {
-      await modelProvider.invoke(actMessages, "act");
+      actResult = await modelProvider.invoke(actMessages, "act");
     }
 
     if (interrupted) throw new InterruptedError();
@@ -201,7 +211,7 @@ export function createTaskOrchestrator({ eventBus, modelProvider, contextEngine 
 
     transition(STATE.COMPLETE, "verification passed");
     transition(STATE.IDLE, "task complete");
-    _pendingResolve({ status: "complete", state: "idle" });
+    _pendingResolve({ status: "complete", state: "idle", content: actResult?.content || "" });
     _clearPending();
     } catch (err) {
       if (err instanceof InterruptedError) {
