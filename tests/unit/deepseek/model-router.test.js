@@ -36,7 +36,7 @@ test("routes complex reply to pro when complexity is high", () => {
 test("routes fim to beta completion profile without thinking", () => {
   const route = routeModel({ purpose: "fim" });
   assert.equal(route.channel, "fim");
-  assert.equal(route.model, "deepseek-v4-flash");
+  assert.equal(route.model, "deepseek-v4-pro");
   assert.equal(route.max_tokens, 512);
   assert.equal(route.thinking, undefined);
 });

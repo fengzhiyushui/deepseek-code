@@ -4,7 +4,7 @@ const CHANNELS = {
   plan: { purpose: "plan", channel: "think", model: "deepseek-v4-pro", thinking: { type: "enabled" }, reasoning_effort: "high", temperature: 0.2, max_tokens: 8192, stream: false },
   review: { purpose: "review", channel: "think", model: "deepseek-v4-pro", thinking: { type: "enabled" }, reasoning_effort: "high", temperature: 0.2, max_tokens: 8192, stream: false },
   repair: { purpose: "repair", channel: "think", model: "deepseek-v4-pro", thinking: { type: "enabled" }, reasoning_effort: "high", temperature: 0.1, max_tokens: 8192, stream: false },
-  fim: { purpose: "fim", channel: "fim", model: "deepseek-v4-flash", max_tokens: 512 }
+  fim: { purpose: "fim", channel: "fim", model: "deepseek-v4-pro", max_tokens: 512 }
 };
 
 export function routeModel({ purpose = "reply", complexity = "normal", explicitModel = null } = {}) {

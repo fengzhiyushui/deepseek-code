@@ -4,8 +4,8 @@ import { buildFimRequest, createFimClient } from "../../../src/deepseek/fim-clie
 import { normalizeToolCalls, parseToolArguments } from "../../../src/deepseek/tool-call-repair.js";
 
 test("buildFimRequest creates beta completion body without chat-only fields", () => {
-  const body = buildFimRequest({ prefix: "function add(a, b) {", suffix: "}", model: "deepseek-v4-flash", maxTokens: 256 });
-  assert.deepEqual(body, { model: "deepseek-v4-flash", prompt: "function add(a, b) {", suffix: "}", max_tokens: 256 });
+  const body = buildFimRequest({ prefix: "function add(a, b) {", suffix: "}", model: "deepseek-v4-pro", maxTokens: 256 });
+  assert.deepEqual(body, { model: "deepseek-v4-pro", prompt: "function add(a, b) {", suffix: "}", max_tokens: 256 });
   assert.equal(body.thinking, undefined);
   assert.equal(body.response_format, undefined);
 });
@@ -17,6 +17,8 @@ test("fim client posts to beta completions endpoint and returns text", async () 
   assert.equal(result.content, " return a + b; ");
   assert.equal(calls[0].url, "https://api.deepseek.com/beta/completions");
   assert.equal(JSON.parse(calls[0].init.body).prompt, "function add(a, b) {");
+  assert.ok(typeof result.latency_ms === "number");
+  assert.ok(result.latency_ms >= 0);
 });
 
 test("normalizeToolCalls preserves raw argument strings and parsed arguments", () => {
