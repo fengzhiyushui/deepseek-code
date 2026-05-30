@@ -87,9 +87,9 @@ function createKernelHost({
     return { ok: true };
   }
 
-  function approve(id, decision) {
-    requireKernel().agent.approve(id, decision);
-    return { ok: true };
+  async function approve(id, decision) {
+    const result = await requireKernel().agent.approve(id, decision);
+    return { ok: true, result };
   }
 
   function interrupt() {

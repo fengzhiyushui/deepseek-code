@@ -91,3 +91,30 @@ test("kernel host delegates timeline to V2 session facade", async () => {
   await host.init();
   assert.deepEqual(await host.getTimeline(3), [{ type: "agent:final", count: 3 }]);
 });
+
+test("kernel host approve awaits V2 runtime approval result", async () => {
+  const calls = [];
+  const host = createKernelHost({
+    projectRoot: "/repo",
+    kernelFactory: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }), getTimeline: async () => [] },
+      agent: {
+        send: async () => ({ status: "awaiting_approval" }),
+        approve: async (id, decision) => {
+          calls.push([id, decision]);
+          return { status: "complete", content: "resumed" };
+        },
+        interrupt: () => {}
+      },
+      context: { snapshot: async () => ({ units: [] }) },
+      config: { getPublicConfig: () => ({ runtime: "v2" }) },
+      runtime: { getState: () => ({ current: "idle", channel: null }) }
+    })
+  });
+
+  await host.init();
+  const result = await host.approve("approval_1", "approve");
+
+  assert.deepEqual(calls, [["approval_1", "approve"]]);
+  assert.deepEqual(result, { ok: true, result: { status: "complete", content: "resumed" } });
+});

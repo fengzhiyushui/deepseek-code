@@ -53,8 +53,8 @@ function registerIpcHandlers() {
     try { return await host.send(message, opts || {}); }
     catch (error) { return { error: error.message }; }
   });
-  ipcMain.handle("agent:approve", (_event, id, decision) => {
-    try { return host.approve(id, decision); }
+  ipcMain.handle("agent:approve", async (_event, id, decision) => {
+    try { return await host.approve(id, decision); }
     catch (error) { return { error: error.message }; }
   });
   ipcMain.handle("agent:interrupt", () => {
