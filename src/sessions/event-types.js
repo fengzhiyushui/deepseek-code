@@ -13,6 +13,7 @@ export const SESSION_EVENT_TYPES = Object.freeze([
   "approval:resolved",
   "file:diff_preview",
   "file:diff_applied",
+  "file:rollback_applied",
   "verification:result",
   "agent:final",
   "agent:error"

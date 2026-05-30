@@ -22,6 +22,7 @@ test("session event registry contains the v2 canonical events", () => {
     "approval:resolved",
     "file:diff_preview",
     "file:diff_applied",
+    "file:rollback_applied",
     "verification:result",
     "agent:final",
     "agent:error"

@@ -60,6 +60,32 @@ test("ask_user creates an approval-style pending result", async () => {
   assert.equal(result.content[0].text, "Which file?");
 });
 
+test("deferred edit tools dispatch to configured editService", async () => {
+  const calls = [];
+  const editService = {
+    preview: async (params) => {
+      calls.push(["preview", params]);
+      return { content: [{ type: "text", text: "previewed" }], metadata: { ok: true } };
+    },
+    apply: async (params) => {
+      calls.push(["apply", params]);
+      return { content: [{ type: "text", text: "applied" }], metadata: { ok: true } };
+    },
+    rollback: async (params) => {
+      calls.push(["rollback", params]);
+      return { content: [{ type: "text", text: "rolled back" }], metadata: { ok: true } };
+    }
+  };
+
+  const [preview, apply, rollback, edit] = createDeferredEditTools({ editService });
+  assert.equal((await preview.execute({ diff: "d" }, {})).content[0].text, "previewed");
+  assert.equal((await apply.execute({ diff: "d", prompt: "p", approval_id: "a" }, {})).content[0].text, "applied");
+  assert.equal((await rollback.execute({ change_id: "c" }, {})).content[0].text, "rolled back");
+  assert.equal((await edit.execute({ diff: "d", prompt: "p" }, {})).content[0].text, "applied");
+
+  assert.deepEqual(calls.map(([name]) => name), ["preview", "apply", "rollback", "apply"]);
+});
+
 test("deferred edit tools fail clearly without editService", async () => {
   const [preview] = createDeferredEditTools();
   await assert.rejects(
