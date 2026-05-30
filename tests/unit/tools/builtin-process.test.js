@@ -33,7 +33,19 @@ test("test tool detects npm test from package json", async () => {
 
   const result = await createTestTool().execute({ detect: true }, { projectRoot: root });
 
-  assert.deepEqual(result.metadata.argv, ["npm", "test"]);
+  const expectedArgv = process.platform === "win32" ? ["npm.cmd", "test"] : ["npm", "test"];
+  assert.deepEqual(result.metadata.argv, expectedArgv);
+});
+
+test("shell tool returns error on non-existent command instead of hanging", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-shell-"));
+  const result = await createShellTool().execute(
+    { argv: ["definitely-not-a-command-xyz"], cwd: "." },
+    { projectRoot: root }
+  );
+
+  assert.equal(result.metadata.spawn_error != null, true);
+  assert.match(result.content[0].text, /spawn error/);
 });
 
 test("git tool only allows read operations", async () => {

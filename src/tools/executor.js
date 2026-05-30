@@ -17,8 +17,6 @@ export function createToolExecutor({ registry, permissionEngine, eventBus = null
       }));
     }
 
-    publish("tool:call", { call: toolCall, tool: publicTool(def) });
-
     let params;
     try {
       params = registry.normalizeParams(def.name, toolCall.params || {});
@@ -41,6 +39,9 @@ export function createToolExecutor({ registry, permissionEngine, eventBus = null
       side_effect: def.side_effect,
       requested_by_step_id: toolCall.requested_by_step_id
     };
+
+    publish("tool:call", { call: securedCall, tool: publicTool(def) });
+
     const permission = permissionEngine.decide(securedCall, context);
     publish("permission:decision", { call_id: toolCall.id, tool: def.name, category, permission });
 

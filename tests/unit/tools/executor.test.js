@@ -33,6 +33,9 @@ test("executor validates schema and executes allowed tools", async () => {
 });
 
 test("executor ignores model-provided category and uses definition category", async () => {
+  const bus = createEventBus();
+  const toolCalls = [];
+  bus.subscribe("tool:call", (data) => toolCalls.push(data));
   const registry = createToolRegistry({
     tools: [{
       name: "write_like",
@@ -46,7 +49,7 @@ test("executor ignores model-provided category and uses definition category", as
       execute: async () => ({ content: [{ type: "text", text: "wrote" }] })
     }]
   });
-  const executor = createToolExecutor({ registry, permissionEngine: createPermissionEngine() });
+  const executor = createToolExecutor({ registry, permissionEngine: createPermissionEngine(), eventBus: bus });
 
   const result = await executor.execute(
     { id: "call_1", name: "write_like", category: "read", params: {}, requested_by_step_id: "step_1" },
@@ -54,6 +57,10 @@ test("executor ignores model-provided category and uses definition category", as
   );
 
   assert.equal(result.status, "approval_required");
+  // tool:call event must use registry-derived category, not model-provided "read"
+  assert.equal(toolCalls.length, 1);
+  assert.equal(toolCalls[0].call.category, "write_delete");
+  assert.equal(toolCalls[0].call.risk_level, "high");
 });
 
 test("executor publishes tool call permission approval and result events", async () => {
