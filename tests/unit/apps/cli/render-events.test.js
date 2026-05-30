@@ -32,7 +32,7 @@ test("renderKernelResult returns final content and approval message", () => {
   );
   assert.deepEqual(
     renderKernelResult({ status: "awaiting_approval", approval: { id: "apr_1" } }),
-    ["", "Approval required: apr_1", "V2-5 CLI only displays approval requests. Approval resume is a later phase."]
+    ["", "Approval required: apr_1", "Approve? y/N"]
   );
 });
 

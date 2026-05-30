@@ -103,3 +103,28 @@ test("runKernelTestCommand passes through non-zero exit code from shell tool", a
   assert.equal(result.status, "success");
   assert.equal(result.metadata.exit_code, 7);
 });
+
+test("runKernelAgentCommand prompts and resumes approval in process", async () => {
+  const writes = [];
+  const approvals = [];
+  const result = await runKernelAgentCommand({
+    root: "/repo",
+    prompt: "modify a",
+    write: (line) => writes.push(line),
+    createKernelImpl: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }) },
+      agent: {
+        send: async () => ({ status: "awaiting_approval", approval: { id: "approval_1" }, content: "approval needed" }),
+        approve: async (id, decision) => {
+          approvals.push([id, decision]);
+          return { status: "complete", content: "resumed final" };
+        }
+      }
+    }),
+    promptApproval: async () => "y"
+  });
+
+  assert.equal(result.status, "complete");
+  assert.deepEqual(approvals, [["approval_1", "approve"]]);
+  assert.ok(writes.some((line) => line.includes("resumed final")));
+});

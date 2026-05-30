@@ -20,7 +20,7 @@ export function renderKernelResult(result = {}) {
     return [
       "",
       `Approval required: ${result.approval?.id || "unknown"}`,
-      "V2-5 CLI only displays approval requests. Approval resume is a later phase."
+      "Approve? y/N"
     ];
   }
   if (result.status === "error") {

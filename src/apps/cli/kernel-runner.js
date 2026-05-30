@@ -13,7 +13,8 @@ export async function runKernelAgentCommand({
   createKernelImpl = createKernel,
   createKernelOptions = {},
   loadConfigImpl = null,
-  sendOptions = {}
+  sendOptions = {},
+  promptApproval = defaultPromptApproval
 } = {}) {
   const message = String(prompt || "").trim();
   if (!message) throw new Error("prompt is required");
@@ -25,12 +26,34 @@ export async function runKernelAgentCommand({
   const renderEvent = createEventRenderer({ write });
   const subscription = kernel.session.subscribe(renderEvent);
   try {
-    const result = await kernel.agent.send(message, { autonomy, ...sendOptions });
+    let result = await kernel.agent.send(message, { autonomy, ...sendOptions });
     for (const line of renderKernelResult(result)) write(line);
+    if (result.status === "awaiting_approval" && result.approval?.id) {
+      const answer = await promptApproval(result.approval);
+      const decision = isApprovalYes(answer) ? "approve" : "deny";
+      result = await kernel.agent.approve(result.approval.id, decision);
+      for (const line of renderKernelResult(result)) write(line);
+    }
     return result;
   } finally {
     subscription.unsubscribe();
   }
+}
+
+async function defaultPromptApproval(approval) {
+  const { createInterface } = await import("node:readline/promises");
+  const { stdin, stdout } = await import("node:process");
+  const rl = createInterface({ input: stdin, output: stdout });
+  try {
+    return await rl.question(`Approve ${approval.id}? y/N `);
+  } finally {
+    rl.close();
+  }
+}
+
+function isApprovalYes(answer) {
+  const value = String(answer || "").trim().toLowerCase();
+  return value === "y" || value === "yes" || value === "approve" || value === "allow";
 }
 
 export async function runKernelTestCommand({
