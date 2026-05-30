@@ -40,7 +40,8 @@ test("kernel host delegates send and pushes final event", async () => {
   assert.deepEqual(response, { ok: true });
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.ok(pushed.some((event) => event.type === "agent:final"));
-  assert.ok(pushed.some((event) => event.type === "agent:result" && event.result.content === "hello:gated"));
+  // V2 runtime publishes agent:final natively; host must not duplicate agent:result
+  assert.equal(pushed.some((event) => event.type === "agent:result"), false);
 });
 
 test("kernel host exposes safe default state and usage", async () => {

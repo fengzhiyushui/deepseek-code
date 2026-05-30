@@ -81,3 +81,25 @@ test("buildEditPrompt preserves dry-run as an explicit model instruction", () =>
   );
   assert.equal(buildEditPrompt("change README", { dryRun: false }), "change README");
 });
+
+test("runKernelTestCommand passes through non-zero exit code from shell tool", async () => {
+  const result = await runKernelTestCommand({
+    root: "/repo",
+    argv: ["node", "-e", "process.exit(7)"],
+    createKernelImpl: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }) },
+      tools: {
+        execute: async () => ({
+          status: "success",
+          content: [{ type: "text", text: "test output" }],
+          metadata: { exit_code: 7, argv: ["node", "-e", "process.exit(7)"] }
+        })
+      }
+    })
+  });
+
+  // V2 test tool returns status:"success" even when the command fails;
+  // the real exit_code is in metadata and must be propagated by the CLI caller.
+  assert.equal(result.status, "success");
+  assert.equal(result.metadata.exit_code, 7);
+});

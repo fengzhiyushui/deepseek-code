@@ -80,9 +80,8 @@ function createKernelHost({
 
   async function send(message, opts = {}) {
     const k = requireKernel();
-    k.agent.send(message, opts).then((result) => {
-      pushEvent({ type: "agent:result", result: result || { status: "complete" } });
-    }).catch((error) => {
+    // V2 runtime publishes agent:final natively; host only catches errors.
+    k.agent.send(message, opts).catch((error) => {
       pushEvent({ type: "agent:error", error: error.message });
     });
     return { ok: true };

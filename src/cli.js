@@ -191,6 +191,8 @@ async function runTest(root, args) {
   const result = await runKernelTestCommand({ root, argv: args });
   if (result.status === "error" || result.status === "denied") {
     process.exitCode = 1;
+  } else if (result.metadata?.exit_code != null && result.metadata.exit_code !== 0) {
+    process.exitCode = result.metadata.exit_code;
   }
 }
 
