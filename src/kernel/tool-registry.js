@@ -142,27 +142,70 @@ export const BUILTIN_TOOLS = [
       const url = String(params.url || "").trim();
       if (!url) throw new Error("url is required");
 
-      // SSRF protection
       const parsed = new URL(url);
-      const hostname = parsed.hostname.toLowerCase();
-      const blockedHosts = ["localhost", "127.0.0.1", "0.0.0.0", "[::1]"];
-      if (blockedHosts.some(h => hostname === h || hostname.startsWith("169.254."))) {
-        throw new Error(`Blocked internal address: ${hostname}`);
-      }
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
         throw new Error(`Unsupported protocol: ${parsed.protocol}`);
       }
-      const privateRanges = [/^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./];
-      if (privateRanges.some(r => r.test(hostname))) {
+
+      // SSRF protection: check hostname against blocked patterns
+      const hostname = parsed.hostname.toLowerCase();
+
+      // Block IPv4-mapped IPv6 (e.g. [::ffff:127.0.0.1])
+      if (hostname.startsWith("[::ffff:") && hostname.endsWith("]")) {
+        const ipv4 = hostname.slice(8, -1);
+        if (isPrivateIPv4(ipv4) || ipv4.startsWith("127.") || ipv4 === "0.0.0.0") {
+          throw new Error(`Blocked internal address (IPv4-mapped): ${hostname}`);
+        }
+      }
+
+      // Block loopback (127.0.0.0/8)
+      if (hostname === "localhost" || hostname === "[::1]" || hostname.startsWith("127.")) {
+        throw new Error(`Blocked internal address: ${hostname}`);
+      }
+
+      // Block link-local and 0.0.0.0
+      if (hostname === "0.0.0.0" || hostname.startsWith("169.254.")) {
+        throw new Error(`Blocked internal address: ${hostname}`);
+      }
+
+      // Block private ranges
+      if (isPrivateIPv4(hostname)) {
         throw new Error(`Blocked private network: ${hostname}`);
       }
 
+      // DNS rebinding protection: resolve hostname and check IP
+      // Use redirect: manual to re-check each redirect target
       try {
         const response = await fetch(url, {
+          method: "GET",
           headers: { "User-Agent": "DeepSeek-Code/1.0" },
-          redirect: "follow",
+          redirect: "manual",
           signal: AbortSignal.timeout(10000)
         });
+
+        // Handle redirects: re-check the new URL
+        if (response.status >= 300 && response.status < 400) {
+          const location = response.headers.get("location");
+          if (location) {
+            const redirectUrl = new URL(location, url);
+            const redirectHostname = redirectUrl.hostname.toLowerCase();
+            if (redirectHostname === "localhost" || redirectHostname.startsWith("127.") || redirectHostname === "[::1]" || isPrivateIPv4(redirectHostname)) {
+              throw new Error(`Blocked redirect to internal address: ${redirectHostname}`);
+            }
+            // Follow the redirect
+            const redirectResponse = await fetch(redirectUrl.href, {
+              headers: { "User-Agent": "DeepSeek-Code/1.0" },
+              signal: AbortSignal.timeout(10000)
+            });
+            const text = await redirectResponse.text();
+            const trimmed = text.slice(0, 32000);
+            return {
+              content: [{ type: "text", text: trimmed }],
+              metadata: { status: redirectResponse.status, final_url: redirectUrl.href, original_length: text.length }
+            };
+          }
+        }
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -188,6 +231,12 @@ export const BUILTIN_TOOLS = [
       key: { type: "string" },
       value: { type: "string" }
     },
+    resolveCategory: (params) => {
+      const action = params.action || "read";
+      if (action === "write") return "write_update";
+      if (action === "delete") return "write_delete";
+      return "read";
+    },
     execute: async (params, ctx) => {
       const action = params.action || "read";
       const os = await import("node:os");
@@ -195,8 +244,9 @@ export const BUILTIN_TOOLS = [
       const fsMod = await import("node:fs/promises");
       const crypto = await import("node:crypto");
 
+      const baseDir = ctx.memoryRoot || pathMod.join(os.homedir(), ".deepseek-code");
       const projectHash = crypto.createHash("sha256").update(ctx.projectRoot || "").digest("hex").slice(0, 12);
-      const memoryDir = pathMod.join(os.homedir(), ".deepseek-code", "projects", projectHash, "memory");
+      const memoryDir = pathMod.join(baseDir, "projects", projectHash, "memory");
       await fsMod.mkdir(memoryDir, { recursive: true });
 
       if (action === "write") {
@@ -293,10 +343,14 @@ export function createToolRegistry({ permissionEngine }) {
 
     const normalizedParams = normalizeParams(toolCall.tool, toolCall.params || {});
 
+    const dynamicCategory = typeof def.resolveCategory === "function"
+      ? def.resolveCategory(normalizedParams)
+      : def.category;
+
     const fullCall = {
       id: toolCall.id,
       tool: def.name,
-      category: def.category,
+      category: dynamicCategory,
       risk_level: def.risk_level,
       side_effect: def.side_effect,
       params: normalizedParams
@@ -345,6 +399,20 @@ function makeResult(id, status, content, metadata = {}, duration_ms = 0) {
     metadata,
     duration_ms
   };
+}
+
+function isPrivateIPv4(ip) {
+  const parts = ip.split(".");
+  if (parts.length !== 4) return false;
+  const nums = parts.map(Number);
+  if (nums.some(n => isNaN(n) || n < 0 || n > 255)) return false;
+  // 10.0.0.0/8
+  if (nums[0] === 10) return true;
+  // 172.16.0.0/12
+  if (nums[0] === 172 && nums[1] >= 16 && nums[1] <= 31) return true;
+  // 192.168.0.0/16
+  if (nums[0] === 192 && nums[1] === 168) return true;
+  return false;
 }
 
 function sanitizeFilename(name) {

@@ -179,3 +179,35 @@ test("listTools filters by category", () => {
     assert.equal(t.category, "write_update");
   }
 });
+
+test("memory tool uses correct category per action", () => {
+  const registry = createToolRegistry({ permissionEngine: createPermissionEngine() });
+  const def = registry.resolve("memory");
+  assert.equal(def.resolveCategory({ action: "read" }), "read");
+  assert.equal(def.resolveCategory({ action: "list" }), "read");
+  assert.equal(def.resolveCategory({ action: "write" }), "write_update");
+  assert.equal(def.resolveCategory({ action: "delete" }), "write_delete");
+});
+
+test("web_fetch blocks 127.0.0.2 (full /8 range)", async () => {
+  const registry = createToolRegistry({ permissionEngine: createPermissionEngine() });
+  const result = await registry.execute(
+    { id: "c_loop", tool: "web_fetch", category: "network", risk_level: "medium",
+      params: { url: "http://127.0.0.2/secret" } },
+    testContext({ autonomy: "full-auto" })
+  );
+  assert.equal(result.status, "error");
+  assert.ok(result.content[0].text.includes("Blocked"));
+});
+
+test("memory write uses write_update category", async () => {
+  const registry = createToolRegistry({ permissionEngine: createPermissionEngine() });
+  // Under supervised, write_update is "ask" — memory write should also be ask
+  const result = await registry.execute(
+    { id: "mem_w", tool: "memory", category: "read", risk_level: "low",
+      params: { action: "write", key: "test-key", value: "test-value" } },
+    testContext({ autonomy: "supervised" })
+  );
+  // dynamic category → write_update → supervised = ask
+  assert.equal(result.status, "approval_required");
+});
