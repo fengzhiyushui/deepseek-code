@@ -43,7 +43,10 @@ test("v2 kernel facade sends a turn and streams events to subscribers", async ()
 });
 
 test("v2 kernel context and config return safe public data", async () => {
-  const kernel = await createKernel("C:/example/project", { sessionId: "sess_safe" });
+  const kernel = await createKernel("C:/example/project", {
+    sessionId: "sess_safe",
+    sessionLog: null
+  });
 
   const snapshot = await kernel.context.snapshot();
   const publicConfig = kernel.config.getPublicConfig();

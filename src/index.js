@@ -1,6 +1,9 @@
+import path from "node:path";
 import { createEventBus } from "./shared/event-bus.js";
 import { createAgentRuntime } from "./core/runtime/agent-runtime.js";
 import { SESSION_EVENT_TYPES } from "./sessions/event-types.js";
+import { createSessionEventLog, projectIdFromRoot } from "./sessions/event-log.js";
+import { createSessionManager } from "./sessions/session-manager.js";
 import { createDeepSeekGateway } from "./deepseek/model-gateway.js";
 import { createEditService } from "./edits/edit-service.js";
 import { createBuiltinTools } from "./tools/builtin/index.js";
@@ -13,6 +16,21 @@ import { createPolicyContext } from "./tools/permissions/policy-loader.js";
 export async function createKernel(root, options = {}) {
   const eventBus = options.eventBus || createEventBus();
   const sessionId = options.sessionId || `sess_${Date.now()}`;
+  const projectId = options.projectId || projectIdFromRoot(root);
+  const sessionRoot = options.sessionRoot || path.join(root, ".deepseek-code", "v2", "sessions");
+  const sessionLog = options.sessionLog === null
+    ? null
+    : options.sessionLog || await createSessionEventLog({
+        sessionRoot,
+        projectId,
+        sessionId,
+        meta: { root, runtime: "v2" }
+      });
+  const sessionManager = options.sessionManager || createSessionManager({
+    eventBus,
+    eventLog: sessionLog,
+    eventTypes: SESSION_EVENT_TYPES
+  });
   const modelGateway = resolveModelGateway(options);
   const approvalCache = options.approvalCache || createApprovalCache();
   const permissionEngine = options.permissionEngine || createPermissionEngine();
@@ -50,15 +68,14 @@ export async function createKernel(root, options = {}) {
   });
 
   const session = {
-    subscribe(handler) {
-      if (typeof handler !== "function") throw new Error("session subscriber must be a function");
-      const subs = SESSION_EVENT_TYPES.map((type) => eventBus.subscribe(type, (data, meta) => {
-        handler({ ...data, type, meta });
-      }));
-      return { unsubscribe() { for (const s of subs) s.unsubscribe(); } };
+    subscribe: sessionManager.subscribe,
+    getTimeline: sessionManager.getTimeline,
+    flush: sessionManager.flush,
+    async resume(id = sessionId) {
+      eventBus.publish("session:resume", { session_id: id, root });
+      await sessionManager.flush();
     },
-    async getTimeline() { return []; },
-    async resume(id = sessionId) { eventBus.publish("session:resume", { session_id: id, root }); }
+    dispose: sessionManager.dispose
   };
 
   const context = {
@@ -105,6 +122,7 @@ export async function createKernel(root, options = {}) {
     runtime,
     agent: { send: runtime.send, approve: runtime.approve, interrupt: runtime.interrupt },
     session,
+    sessionManager,
     context,
     config,
     tools
