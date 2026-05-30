@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createEventBus } from "../../../../src/shared/event-bus.js";
-import { runExecutorLoop } from "../../../../src/core/execution/executor-loop.js";
+import { runExecutorLoop, resumeExecutorLoop } from "../../../../src/core/execution/executor-loop.js";
 
 test("executor loop executes tool calls and feeds results back to model", async () => {
   const calls = [];
@@ -103,4 +103,125 @@ test("executor loop reports malformed tool arguments", async () => {
     }),
     /invalid tool arguments/
   );
+});
+
+test("executor loop returns resume_state when approval is required", async () => {
+  const result = await runExecutorLoop({
+    message: "edit file",
+    classification: { task_type: "edit" },
+    turnId: "turn_approval",
+    modelGateway: {
+      invoke: async () => ({
+        content: "",
+        tool_calls: [{ id: "call_edit", name: "edit", arguments: { diff: "--- a/a.txt\n+++ b/a.txt" } }]
+      })
+    },
+    toolSchemas: [],
+    executeTool: async (toolCall) => ({
+      call_id: toolCall.id,
+      status: "approval_required",
+      content: [{ type: "text", text: "edit requires approval" }],
+      metadata: { approval: { id: "approval_1", summary: "edit requires approval" } }
+    }),
+    createPolicyContext: () => ({ autonomy: "supervised" })
+  });
+
+  assert.equal(result.status, "awaiting_approval");
+  assert.equal(result.resume_state.pending_tool_call.name, "edit");
+  assert.equal(result.resume_state.iteration, 0);
+  assert.equal(result.resume_state.tool_results.length, 0);
+});
+
+test("resumeExecutorLoop executes pending and remaining tools then finishes", async () => {
+  const modelCalls = [];
+  const executed = [];
+  const modelGateway = {
+    invoke: async (messages) => {
+      modelCalls.push(messages);
+      return { content: "done after approval", tool_calls: [] };
+    }
+  };
+  const resumeState = {
+    turn_id: "turn_resume",
+    message: "edit and read",
+    classification: { task_type: "edit" },
+    messages: [{ role: "user", content: "edit and read" }],
+    model_result: { content: "", tool_calls: [
+      { id: "call_edit", name: "edit", arguments: { diff: "d" } },
+      { id: "call_read", name: "read", arguments: { path: "a.txt" } }
+    ] },
+    raw_tool_calls: [
+      { id: "call_edit", name: "edit", arguments: { diff: "d" } },
+      { id: "call_read", name: "read", arguments: { path: "a.txt" } }
+    ],
+    pending_tool_call: { id: "call_edit", name: "edit", params: { diff: "d" }, requested_by_step_id: "model:turn_resume:0" },
+    remaining_tool_calls: [{ id: "call_read", name: "read", params: { path: "a.txt" }, requested_by_step_id: "model:turn_resume:0" }],
+    iteration: 0,
+    tool_results: [],
+    tool_schemas: [],
+    max_iterations: 5,
+    options: {}
+  };
+
+  const result = await resumeExecutorLoop({
+    resumeState,
+    modelGateway,
+    executeTool: async (toolCall) => {
+      executed.push(toolCall.name);
+      return { call_id: toolCall.id, status: "success", content: [{ type: "text", text: `${toolCall.name} ok` }], metadata: {} };
+    },
+    createPolicyContext: () => ({ autonomy: "supervised" })
+  });
+
+  assert.equal(result.status, "complete");
+  assert.equal(result.content, "done after approval");
+  assert.deepEqual(executed, ["edit", "read"]);
+  assert.equal(modelCalls.length, 1);
+  assert.ok(modelCalls[0].some((message) => message.role === "tool"));
+});
+
+test("resumeExecutorLoop can pause again on a remaining tool approval", async () => {
+  const resumeState = {
+    turn_id: "turn_resume_again",
+    message: "edit then shell",
+    classification: { task_type: "edit" },
+    messages: [{ role: "user", content: "edit then shell" }],
+    model_result: { content: "", tool_calls: [
+      { id: "call_edit", name: "edit", arguments: { diff: "d" } },
+      { id: "call_shell", name: "shell", arguments: { argv: ["npm", "test"] } }
+    ] },
+    raw_tool_calls: [
+      { id: "call_edit", name: "edit", arguments: { diff: "d" } },
+      { id: "call_shell", name: "shell", arguments: { argv: ["npm", "test"] } }
+    ],
+    pending_tool_call: { id: "call_edit", name: "edit", params: { diff: "d" }, requested_by_step_id: "model:turn_resume_again:0" },
+    remaining_tool_calls: [{ id: "call_shell", name: "shell", params: { argv: ["npm", "test"] }, requested_by_step_id: "model:turn_resume_again:0" }],
+    iteration: 0,
+    tool_results: [],
+    tool_schemas: [],
+    max_iterations: 5,
+    options: {}
+  };
+
+  const result = await resumeExecutorLoop({
+    resumeState,
+    modelGateway: { invoke: async () => ({ content: "should not call model", tool_calls: [] }) },
+    executeTool: async (toolCall) => {
+      if (toolCall.name === "shell") {
+        return {
+          call_id: toolCall.id,
+          status: "approval_required",
+          content: [{ type: "text", text: "shell requires approval" }],
+          metadata: { approval: { id: "approval_shell" } }
+        };
+      }
+      return { call_id: toolCall.id, status: "success", content: [{ type: "text", text: "edit ok" }] };
+    },
+    createPolicyContext: () => ({ autonomy: "supervised" })
+  });
+
+  assert.equal(result.status, "awaiting_approval");
+  assert.equal(result.approval.id, "approval_shell");
+  assert.equal(result.resume_state.pending_tool_call.name, "shell");
+  assert.equal(result.resume_state.tool_results.length, 1);
 });
