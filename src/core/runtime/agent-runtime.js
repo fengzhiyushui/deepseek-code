@@ -115,7 +115,12 @@ export function createAgentRuntime({ eventBus = null, sessionId = `sess_${Date.n
         turn
       };
     } catch (error) {
-      // Interrupted turns do not publish agent:error or transition to failed — they just clean up
+      // Only clean up if this is still the active turn.
+      // A late error from an interrupted turn must NOT overwrite a new turn's state.
+      if (currentTurnId !== turn.id) {
+        throw error;
+      }
+
       if (error instanceof InterruptedError) {
         currentTurnId = null;
         lifecycle = transitionLifecycle(lifecycle, {

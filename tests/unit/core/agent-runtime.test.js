@@ -114,3 +114,46 @@ test("agent runtime interrupt cancels in-flight turn and prevents stale events",
   // No agent:final or agent:error should have been published for the old turn
   assert.equal(events.length, 0, "interrupted turn must not publish final or error events");
 });
+
+test("interrupted turn cleanup does not corrupt a new turn", async () => {
+  const bus = createEventBus();
+  let releaseA, releaseB;
+  const blockedA = new Promise((r) => { releaseA = r; });
+  const blockedB = new Promise((r) => { releaseB = r; });
+  let callCount = 0;
+
+  const runtime = createAgentRuntime({
+    eventBus: bus,
+    sessionId: "sess_race",
+    modelGateway: {
+      reply: async () => {
+        callCount++;
+        if (callCount === 1) { await blockedA; return { content: "A" }; }
+        if (callCount === 2) { await blockedB; return { content: "B" }; }
+        return { content: "C" };
+      }
+    }
+  });
+
+  // Turn A: blocks on modelGateway
+  const turnA = runtime.send("task A");
+
+  // Interrupt A
+  runtime.interrupt();
+
+  // Turn B: starts immediately, blocks on modelGateway
+  const turnB = runtime.send("task B");
+
+  // Release A's gateway — the late response must NOT corrupt B's state
+  releaseA();
+  await assert.rejects(() => turnA, /turn was interrupted/);
+
+  // Turn C must be rejected because B is still running
+  await assert.rejects(() => runtime.send("task C"), /another turn is in progress/);
+
+  // Release B — should complete normally
+  releaseB();
+  const resultB = await turnB;
+  assert.equal(resultB.status, "complete");
+  assert.equal(resultB.content, "B");
+});
