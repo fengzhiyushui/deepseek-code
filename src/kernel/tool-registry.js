@@ -142,68 +142,37 @@ export const BUILTIN_TOOLS = [
       const url = String(params.url || "").trim();
       if (!url) throw new Error("url is required");
 
-      const parsed = new URL(url);
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-        throw new Error(`Unsupported protocol: ${parsed.protocol}`);
-      }
+      const MAX_REDIRECTS = 5;
+      let currentUrl = url;
+      let redirects = 0;
 
-      // SSRF protection: check hostname against blocked patterns
-      const hostname = parsed.hostname.toLowerCase();
-
-      // Block IPv4-mapped IPv6 (e.g. [::ffff:127.0.0.1])
-      if (hostname.startsWith("[::ffff:") && hostname.endsWith("]")) {
-        const ipv4 = hostname.slice(8, -1);
-        if (isPrivateIPv4(ipv4) || ipv4.startsWith("127.") || ipv4 === "0.0.0.0") {
-          throw new Error(`Blocked internal address (IPv4-mapped): ${hostname}`);
+      while (redirects <= MAX_REDIRECTS) {
+        const parsed = new URL(currentUrl);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          throw new Error(`Unsupported protocol: ${parsed.protocol}`);
         }
-      }
+        validateHostname(parsed.hostname);
 
-      // Block loopback (127.0.0.0/8)
-      if (hostname === "localhost" || hostname === "[::1]" || hostname.startsWith("127.")) {
-        throw new Error(`Blocked internal address: ${hostname}`);
-      }
+        // DNS rebinding: resolve hostname and validate the IP
+        await validateResolvedIP(parsed.hostname);
 
-      // Block link-local and 0.0.0.0
-      if (hostname === "0.0.0.0" || hostname.startsWith("169.254.")) {
-        throw new Error(`Blocked internal address: ${hostname}`);
-      }
-
-      // Block private ranges
-      if (isPrivateIPv4(hostname)) {
-        throw new Error(`Blocked private network: ${hostname}`);
-      }
-
-      // DNS rebinding protection: resolve hostname and check IP
-      // Use redirect: manual to re-check each redirect target
-      try {
-        const response = await fetch(url, {
+        const response = await fetch(currentUrl, {
           method: "GET",
           headers: { "User-Agent": "DeepSeek-Code/1.0" },
           redirect: "manual",
           signal: AbortSignal.timeout(10000)
         });
 
-        // Handle redirects: re-check the new URL
+        // Follow redirect manually with SSRF re-check
         if (response.status >= 300 && response.status < 400) {
           const location = response.headers.get("location");
-          if (location) {
-            const redirectUrl = new URL(location, url);
-            const redirectHostname = redirectUrl.hostname.toLowerCase();
-            if (redirectHostname === "localhost" || redirectHostname.startsWith("127.") || redirectHostname === "[::1]" || isPrivateIPv4(redirectHostname)) {
-              throw new Error(`Blocked redirect to internal address: ${redirectHostname}`);
-            }
-            // Follow the redirect
-            const redirectResponse = await fetch(redirectUrl.href, {
-              headers: { "User-Agent": "DeepSeek-Code/1.0" },
-              signal: AbortSignal.timeout(10000)
-            });
-            const text = await redirectResponse.text();
-            const trimmed = text.slice(0, 32000);
-            return {
-              content: [{ type: "text", text: trimmed }],
-              metadata: { status: redirectResponse.status, final_url: redirectUrl.href, original_length: text.length }
-            };
+          if (!location) break;
+          currentUrl = new URL(location, currentUrl).href;
+          redirects++;
+          if (redirects > MAX_REDIRECTS) {
+            throw new Error(`Too many redirects (max ${MAX_REDIRECTS})`);
           }
+          continue;
         }
 
         if (!response.ok) {
@@ -213,14 +182,16 @@ export const BUILTIN_TOOLS = [
         const trimmed = text.slice(0, 32000);
         return {
           content: [{ type: "text", text: trimmed }],
-          metadata: { status: response.status, content_type: response.headers.get("content-type"), original_length: text.length }
+          metadata: {
+            status: response.status,
+            content_type: response.headers.get("content-type"),
+            original_length: text.length,
+            redirects_followed: redirects
+          }
         };
-      } catch (err) {
-        if (err.name === "TimeoutError" || (err.message && err.message.includes("timeout"))) {
-          throw new Error("Request timed out after 10s");
-        }
-        throw err;
       }
+
+      throw new Error(`Exceeded maximum redirects (${MAX_REDIRECTS}) without a final response`);
     }
   },
 
@@ -413,6 +384,83 @@ function isPrivateIPv4(ip) {
   // 192.168.0.0/16
   if (nums[0] === 192 && nums[1] === 168) return true;
   return false;
+}
+
+function validateHostname(hostname) {
+  let lower = hostname.toLowerCase();
+
+  // Strip IPv6 brackets if present — Node's URL parser may keep brackets for
+  // non-standard forms like ::ffff:127.0.0.1 (which normalizes to ::ffff:7f00:1 with brackets).
+  if (lower.startsWith("[") && lower.endsWith("]")) {
+    lower = lower.slice(1, -1);
+  }
+
+  // Block bare loopback names
+  if (lower === "localhost" || lower === "0.0.0.0") {
+    throw new Error(`Blocked internal address: ${hostname}`);
+  }
+
+  // Block IPv6 loopback (::1) in any form
+  if (lower === "::1") {
+    throw new Error(`Blocked IPv6 loopback: ${hostname}`);
+  }
+
+  // Block IPv4-mapped IPv6 (Node normalizes [::ffff:x.x.x.x] to ::ffff:x.x.x.x
+  // but may keep brackets for dotted-decimal forms)
+  if (lower.startsWith("::ffff:")) {
+    const ipv4 = lower.slice(7);
+    if (isPrivateIPv4(ipv4) || ipv4.startsWith("127.") || ipv4 === "0.0.0.0") {
+      throw new Error(`Blocked internal address (IPv4-mapped): ${hostname}`);
+    }
+  }
+
+  // Block IPv6-literals that might encode private addresses
+  // Safe approach: block ALL IPv6 literals in URLs for now
+  if (lower.includes(":")) {
+    if (lower.split(":").length >= 2) {
+      throw new Error(`IPv6 addresses not supported for web_fetch: ${hostname}`);
+    }
+  }
+
+  // Block 127.0.0.0/8
+  if (lower.startsWith("127.")) {
+    throw new Error(`Blocked loopback address: ${hostname}`);
+  }
+
+  // Block link-local
+  if (lower.startsWith("169.254.")) {
+    throw new Error(`Blocked link-local address: ${hostname}`);
+  }
+
+  // Block private ranges
+  if (isPrivateIPv4(lower)) {
+    throw new Error(`Blocked private network: ${hostname}`);
+  }
+}
+
+async function validateResolvedIP(hostname) {
+  // Skip DNS lookup for bare IPs (already checked by validateHostname)
+  if (isBareIPv4(hostname)) return;
+
+  try {
+    const { lookup } = await import("node:dns/promises");
+    const { address } = await lookup(hostname, { family: 4 });
+    if (isPrivateIPv4(address) || address.startsWith("127.") || address === "0.0.0.0" || address.startsWith("169.254.")) {
+      throw new Error(`DNS resolved to internal address: ${hostname} → ${address}`);
+    }
+  } catch (err) {
+    if (err.message && err.message.includes("internal address")) throw err;
+    if (err.code === "ENOTFOUND" || err.code === "ENODATA") {
+      throw new Error(`Cannot resolve hostname: ${hostname}`);
+    }
+    // Other DNS errors (timeout, SERVFAIL) — allow through rather than blocking legitimate URLs
+  }
+}
+
+function isBareIPv4(hostname) {
+  const parts = hostname.split(".");
+  if (parts.length !== 4) return false;
+  return parts.every(p => /^\d+$/.test(p) && Number(p) >= 0 && Number(p) <= 255);
 }
 
 function sanitizeFilename(name) {

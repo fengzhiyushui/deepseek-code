@@ -211,3 +211,28 @@ test("memory write uses write_update category", async () => {
   // dynamic category → write_update → supervised = ask
   assert.equal(result.status, "approval_required");
 });
+
+test("web_fetch blocks IPv4-mapped IPv6 (::ffff:127.0.0.1)", async () => {
+  const registry = createToolRegistry({ permissionEngine: createPermissionEngine() });
+  // Node URL parser normalizes [::ffff:127.0.0.1] to ::ffff:127.0.0.1
+  const result = await registry.execute(
+    { id: "c_ipv6", tool: "web_fetch", category: "network", risk_level: "medium",
+      params: { url: "http://[::ffff:127.0.0.1]/secret" } },
+    testContext({ autonomy: "full-auto" })
+  );
+  assert.equal(result.status, "error");
+  assert.ok(result.content[0].text.includes("Blocked") || result.content[0].text.includes("IPv6"),
+    `Expected blocked/IPv6 error, got: ${result.content[0].text}`);
+});
+
+test("web_fetch blocks IPv6 literals", async () => {
+  const registry = createToolRegistry({ permissionEngine: createPermissionEngine() });
+  const result = await registry.execute(
+    { id: "c_ipv6b", tool: "web_fetch", category: "network", risk_level: "medium",
+      params: { url: "http://[::1]/secret" } },
+    testContext({ autonomy: "full-auto" })
+  );
+  assert.equal(result.status, "error");
+  assert.ok(result.content[0].text.includes("Blocked") || result.content[0].text.includes("IPv6") || result.content[0].text.includes("internal"),
+    `Expected blocked error, got: ${result.content[0].text}`);
+});
