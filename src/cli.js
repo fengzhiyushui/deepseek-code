@@ -296,9 +296,32 @@ async function detectTestCommand(root) {
     if (packageJson.scripts?.test) {
       return process.platform === "win32" ? ["cmd", "/d", "/s", "/c", "npm test"] : ["npm", "test"];
     }
-  } catch {
-    // 没有 package.json 或 JSON 无效时，回退到 node --test。
-  }
+  } catch {}
+
+  // pyproject.toml → pytest
+  try {
+    await fs.stat(path.join(root, "pyproject.toml"));
+    return ["pytest"];
+  } catch {}
+
+  // setup.cfg with pytest
+  try {
+    const setupCfg = await fs.readFile(path.join(root, "setup.cfg"), "utf8");
+    if (setupCfg.includes("[tool:pytest]")) return ["pytest"];
+  } catch {}
+
+  // Cargo.toml → cargo test
+  try {
+    await fs.stat(path.join(root, "Cargo.toml"));
+    return ["cargo", "test"];
+  } catch {}
+
+  // go.mod → go test ./...
+  try {
+    await fs.stat(path.join(root, "go.mod"));
+    return ["go", "test", "./..."];
+  } catch {}
+
   return ["node", "--test"];
 }
 
