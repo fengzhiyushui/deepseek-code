@@ -17,9 +17,9 @@ export function createToolExecutor({ registry, permissionEngine, eventBus = null
       }));
     }
 
-    let params;
+    let securedCall;
     try {
-      params = registry.normalizeParams(def.name, toolCall.params || {});
+      securedCall = registry.secureToolCall(toolCall);
     } catch (error) {
       return publishResult(createToolResult({
         callId: toolCall.id,
@@ -29,21 +29,10 @@ export function createToolExecutor({ registry, permissionEngine, eventBus = null
       }));
     }
 
-    const category = typeof def.resolveCategory === "function" ? def.resolveCategory(params) : def.category;
-    const securedCall = {
-      id: toolCall.id,
-      name: def.name,
-      params,
-      category,
-      risk_level: def.risk_level,
-      side_effect: def.side_effect,
-      requested_by_step_id: toolCall.requested_by_step_id
-    };
-
     publish("tool:call", { call: securedCall, tool: publicTool(def) });
 
     const permission = permissionEngine.decide(securedCall, context);
-    publish("permission:decision", { call_id: toolCall.id, tool: def.name, category, permission });
+    publish("permission:decision", { call_id: toolCall.id, tool: def.name, category: securedCall.category, permission });
 
     if (permission.decision === "deny") {
       return publishResult(createToolResult({
@@ -74,7 +63,7 @@ export function createToolExecutor({ registry, permissionEngine, eventBus = null
     }
 
     try {
-      const raw = await def.execute(params, context);
+      const raw = await def.execute(securedCall.params, context);
       return publishResult(createToolResult({
         callId: toolCall.id,
         status: raw.status || "success",

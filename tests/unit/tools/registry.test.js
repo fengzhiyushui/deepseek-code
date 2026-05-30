@@ -38,3 +38,35 @@ test("registry normalization uses tool normalizeParams hook", () => {
     /structured argv/
   );
 });
+
+test("registry secureToolCall normalizes params and uses definition category", () => {
+  const registry = createToolRegistry({
+    tools: [{
+      name: "memory",
+      description: "memory",
+      category: "read",
+      risk_level: "medium",
+      side_effect: "none",
+      params: {
+        action: { type: "string" },
+        key: { type: "string", required: false }
+      },
+      resolveCategory: (params) => params.action === "write" ? "write_update" : "read",
+      execute: async () => ({ status: "success", content: [] })
+    }]
+  });
+
+  const secured = registry.secureToolCall({
+    id: "call_1",
+    name: "memory",
+    params: { action: "write", key: "style" },
+    category: "read_secret",
+    requested_by_step_id: "step_1"
+  });
+
+  assert.equal(secured.name, "memory");
+  assert.equal(secured.category, "write_update");
+  assert.equal(secured.risk_level, "medium");
+  assert.equal(secured.requested_by_step_id, "step_1");
+  assert.deepEqual(secured.params, { action: "write", key: "style" });
+});

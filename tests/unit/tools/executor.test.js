@@ -119,3 +119,48 @@ test("executor redacts secrets from tool output", async () => {
 
   assert.equal(result.content[0].text, "Authorization: Bearer [REDACTED]");
 });
+
+test("executor uses registry secureToolCall helper for permission and events", async () => {
+  const calls = [];
+  const registry = {
+    resolve: () => ({
+      name: "custom",
+      description: "custom",
+      category: "read",
+      risk_level: "low",
+      side_effect: "none",
+      execute: async () => ({ status: "success", content: [{ type: "text", text: "ok" }] })
+    }),
+    secureToolCall(toolCall) {
+      calls.push(toolCall);
+      return {
+        id: toolCall.id,
+        name: "custom",
+        params: { path: "safe.txt" },
+        category: "write_update",
+        risk_level: "low",
+        side_effect: "none",
+        requested_by_step_id: toolCall.requested_by_step_id
+      };
+    }
+  };
+  const decisions = [];
+  const executor = createToolExecutor({
+    registry,
+    permissionEngine: {
+      decide: (call) => {
+        decisions.push(call);
+        return { decision: "allow", matched_rule: "test", source: "test" };
+      }
+    }
+  });
+
+  const result = await executor.execute(
+    createToolCall({ id: "call_1", name: "custom", params: {}, requestedByStepId: "step_1" }),
+    { autonomy: "gated" }
+  );
+
+  assert.equal(result.status, "success");
+  assert.equal(calls.length, 1);
+  assert.equal(decisions[0].category, "write_update");
+});

@@ -32,7 +32,23 @@ export function createToolRegistry({ tools = [] } = {}) {
     return listTools(filter).map(toDeepSeekToolSchema);
   }
 
-  return { register, resolve, listTools, normalizeParams, toDeepSeekTools };
+  function secureToolCall(toolCall) {
+    const def = resolve(toolCall.name);
+    if (!def) throw new Error(`Unknown tool: ${toolCall.name}`);
+    const params = normalizeParams(def.name, toolCall.params || {});
+    const category = typeof def.resolveCategory === "function" ? def.resolveCategory(params) : def.category;
+    return {
+      id: toolCall.id,
+      name: def.name,
+      params,
+      category,
+      risk_level: def.risk_level,
+      side_effect: def.side_effect,
+      requested_by_step_id: toolCall.requested_by_step_id
+    };
+  }
+
+  return { register, resolve, listTools, normalizeParams, toDeepSeekTools, secureToolCall };
 }
 
 function validateToolDefinition(toolDef) {
