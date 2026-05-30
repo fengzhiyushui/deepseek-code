@@ -1,0 +1,55 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createKernel } from "../../src/index.js";
+
+test("v2 createKernel exposes agent, session, context, and config facades", async () => {
+  const kernel = await createKernel(process.cwd(), {
+    sessionId: "sess_integration",
+    modelGateway: {
+      reply: async () => ({ content: "facade response" })
+    }
+  });
+
+  assert.equal(typeof kernel.agent.send, "function");
+  assert.equal(typeof kernel.agent.approve, "function");
+  assert.equal(typeof kernel.agent.interrupt, "function");
+  assert.equal(typeof kernel.session.subscribe, "function");
+  assert.equal(typeof kernel.session.getTimeline, "function");
+  assert.equal(typeof kernel.context.snapshot, "function");
+  assert.equal(typeof kernel.config.getPublicConfig, "function");
+});
+
+test("v2 kernel facade sends a turn and streams events to subscribers", async () => {
+  const kernel = await createKernel(process.cwd(), {
+    sessionId: "sess_integration",
+    modelGateway: {
+      reply: async ({ classification }) => ({
+        content: `facade ${classification.task_type}`
+      })
+    }
+  });
+
+  const events = [];
+  const sub = kernel.session.subscribe((event) => events.push(event));
+
+  const result = await kernel.agent.send("what is this?", { autonomy: "auto" });
+  sub.unsubscribe();
+
+  assert.equal(result.content, "facade query");
+  assert.ok(events.some((event) => event.type === "user:message"));
+  assert.ok(events.some((event) => event.type === "agent:turn_started"));
+  assert.ok(events.some((event) => event.type === "agent:step"));
+  assert.ok(events.some((event) => event.type === "agent:final"));
+});
+
+test("v2 kernel context and config return safe public data", async () => {
+  const kernel = await createKernel("C:/example/project", { sessionId: "sess_safe" });
+
+  const snapshot = await kernel.context.snapshot();
+  const publicConfig = kernel.config.getPublicConfig();
+
+  assert.equal(snapshot.snapshot_id, "v2_empty_snapshot");
+  assert.deepEqual(snapshot.units, []);
+  assert.equal(publicConfig.runtime, "v2");
+  assert.equal(publicConfig.has_api_key, false);
+});
