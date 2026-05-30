@@ -31,7 +31,23 @@ export async function createKernel(root, options = {}) {
     permissionEngine,
     eventBus
   });
-  const runtime = createAgentRuntime({ eventBus, sessionId, modelGateway });
+  const runtime = createAgentRuntime({
+    eventBus,
+    sessionId,
+    modelGateway,
+    toolSchemas: () => toolRegistry.toDeepSeekTools(),
+    executeTool: (toolCall, policyContext) => toolExecutor.execute(toolCall, policyContext),
+    createPolicyContext: (executionOptions = {}) => createPolicyContext({
+      autonomy: executionOptions.autonomy || "gated",
+      projectId: executionOptions.projectId || sessionId,
+      projectRoot: root,
+      trustStore: options.trustStore || { rules: [] },
+      projectRules: options.projectRules || [],
+      approvalCache,
+      memoryRoot: options.memoryRoot || null,
+      turnId: executionOptions.turnId
+    })
+  });
 
   const session = {
     subscribe(handler) {

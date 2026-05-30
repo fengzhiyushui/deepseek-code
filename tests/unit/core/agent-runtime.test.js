@@ -157,3 +157,25 @@ test("interrupted turn cleanup does not corrupt a new turn", async () => {
   assert.equal(resultB.status, "complete");
   assert.equal(resultB.content, "B");
 });
+
+test("agent runtime keeps query tasks on reply fast path", async () => {
+  let invokeCalled = false;
+  const runtime = createAgentRuntime({
+    sessionId: "sess_query_fast",
+    modelGateway: {
+      reply: async () => ({ content: "fast reply" }),
+      invoke: async () => {
+        invokeCalled = true;
+        return { content: "slow path" };
+      }
+    },
+    toolSchemas: () => [],
+    executeTool: async () => { throw new Error("query should not execute tools"); },
+    createPolicyContext: () => ({ autonomy: "gated" })
+  });
+
+  const result = await runtime.send("what is this?");
+
+  assert.equal(result.content, "fast reply");
+  assert.equal(invokeCalled, false);
+});
