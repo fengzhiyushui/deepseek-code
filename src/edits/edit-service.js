@@ -1,0 +1,133 @@
+import { createHash } from "node:crypto";
+import { applyUnifiedDiff } from "../patch.js";
+import {
+  assertDiffPathsSafe,
+  formatDiffSummary,
+  parseDiff
+} from "./diff-parser.js";
+import { createChangeStore } from "./change-store.js";
+import { createRollbackService } from "./rollback-service.js";
+
+export function createEditService({ projectRoot, eventBus = null, changeStore = null, rollbackService = null } = {}) {
+  if (!projectRoot) throw new Error("projectRoot is required");
+
+  const store = changeStore || createChangeStore({ projectRoot });
+  const rollback = rollbackService || createRollbackService({ projectRoot });
+
+  async function preview({ diff } = {}) {
+    const parsed = parseDiff(diff);
+    await assertDiffPathsSafe(projectRoot, parsed.patches);
+    const metadata = previewMetadata(parsed);
+    publish("file:diff_preview", {
+      summary: parsed.summary,
+      files: parsed.files,
+      diff_hash: metadata.diff_hash,
+      diff_size: metadata.diff_size
+    });
+    return {
+      status: "success",
+      content: [{ type: "text", text: formatDiffSummary(parsed.summary) }],
+      metadata
+    };
+  }
+
+  async function apply({ diff, prompt = "", approval_id = null } = {}) {
+    const parsed = parseDiff(diff);
+    await assertDiffPathsSafe(projectRoot, parsed.patches);
+    const plan = await store.capture({ diff: parsed.diff, prompt });
+    await applyUnifiedDiff(parsed.diff, projectRoot);
+    const record = await store.finalize(plan);
+    const metadata = {
+      change_id: record.id,
+      approval_id,
+      summary: record.summary,
+      files: record.summary.map((item) => item.path),
+      diff_hash: hashText(parsed.diff),
+      diff_size: Buffer.byteLength(parsed.diff, "utf8"),
+      change_record_path: `.deepseek-code/changes/${record.id}.json`
+    };
+    publish("file:diff_applied", {
+      change_id: record.id,
+      approval_id,
+      summary: record.summary,
+      files: metadata.files,
+      diff_hash: metadata.diff_hash,
+      diff_size: metadata.diff_size
+    });
+    return {
+      status: "success",
+      content: [{ type: "text", text: `Applied change ${record.id}\n${formatDiffSummary(record.summary)}` }],
+      metadata
+    };
+  }
+
+  async function rollbackChangeRecord({ change_id = "latest" } = {}) {
+    const record = await rollback.rollback({ change_id });
+    const files = record.summary.map((item) => item.path);
+    publish("file:rollback_applied", {
+      change_id: record.id,
+      summary: record.summary,
+      files
+    });
+    return {
+      status: "success",
+      content: [{ type: "text", text: `Rolled back change ${record.id}` }],
+      metadata: {
+        change_id: record.id,
+        summary: record.summary,
+        files
+      }
+    };
+  }
+
+  async function describe({ change_id = "latest" } = {}) {
+    const record = await store.describe({ change_id });
+    return {
+      status: "success",
+      content: [{ type: "text", text: `Change ${record.id}\n${formatDiffSummary(record.summary)}` }],
+      metadata: {
+        change_id: record.id,
+        prompt: record.prompt,
+        time: record.time,
+        summary: record.summary,
+        files: record.summary.map((item) => item.path)
+      }
+    };
+  }
+
+  async function list({ limit = 20 } = {}) {
+    const records = await store.list({ limit });
+    return {
+      status: "success",
+      content: [{ type: "text", text: records.map((record) => `${record.id} ${record.prompt}`).join("\n") }],
+      metadata: {
+        changes: records.map((record) => ({
+          change_id: record.id,
+          prompt: record.prompt,
+          time: record.time,
+          summary: record.summary
+        }))
+      }
+    };
+  }
+
+  function publish(type, data) {
+    eventBus?.publish?.(type, data);
+  }
+
+  return { preview, apply, rollback: rollbackChangeRecord, describe, list };
+}
+
+function previewMetadata(parsed) {
+  return {
+    summary: parsed.summary,
+    files: parsed.files,
+    patch_count: parsed.patches.length,
+    diff_hash: hashText(parsed.diff),
+    diff_size: Buffer.byteLength(parsed.diff, "utf8")
+  };
+}
+
+function hashText(text) {
+  return `sha256:${createHash("sha256").update(text).digest("hex")}`;
+}
