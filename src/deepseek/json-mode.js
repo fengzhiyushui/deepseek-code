@@ -1,5 +1,6 @@
 export function promptMentionsJson(messages = []) {
   return messages.some((message) => {
+    if (message.role !== "system" && message.role !== "user") return false;
     const content = typeof message.content === "string" ? message.content : "";
     return /\bjson\b/i.test(content);
   });
