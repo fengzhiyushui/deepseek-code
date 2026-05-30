@@ -3,6 +3,7 @@
   "use strict";
 
   var api = window.deepseek;
+  var adapter = window.DeepSeekEventAdapter;
   var currentLayer = "surface";
   var eventBuffer = [];
   var unsubKernel = null;
@@ -18,9 +19,8 @@
   }
 
   function updateStatusBar(event) {
-    if (event && event.state && event.state.entered) {
-      setText("status-channel", event.state.entered);
-    }
+    var status = adapter.statusFromEvent(event);
+    if (status.channel) setText("status-channel", status.channel);
   }
 
   function updateContextLayer() {
@@ -44,24 +44,16 @@
   }
 
   function eventIcon(type) {
-    var icons = { "user:message": "💬", "orchestrator:state": "🔄", "tool:call": "🔧", "tool:result": "✓", "permission:decision": "🔐", "agent:result": "✅", "agent:error": "❌" };
-    return icons[type] || "•";
+    return adapter.eventIcon(type);
   }
 
   function summarizeEvent(e) {
-    if (e.type === "user:message") return (e.content || "").slice(0, 60);
-    if (e.type === "orchestrator:state") return (e.state?.exited || "?") + " → " + (e.state?.entered || "?");
-    if (e.type === "tool:call") return e.tool || "";
-    if (e.type === "permission:decision") return e.decision || "";
-    if (e.type === "agent:result") return e.result?.status || "complete";
-    if (e.type === "agent:error") return "❌ " + (e.error || "");
-    return e.type;
+    return adapter.summarizeEvent(e);
   }
 
   function checkApprovalState(event) {
-    if (event && event.type === "orchestrator:state" && event.state?.entered === "awaitapproval") {
-      showApprovalBox(event);
-    }
+    var approval = adapter.getApproval(event);
+    if (approval) showApprovalBox(approval);
   }
 
   // ===== Three-layer control =====
@@ -115,8 +107,8 @@
 
   // ===== Approval =====
 
-  function showApprovalBox(event) {
-    showLayer("surface"); // return to surface to show the card
+  function showApprovalBox(approval) {
+    showLayer("surface");
     var box = document.getElementById("approval-box");
     box.className = "";
     clearChildren(box);
@@ -126,30 +118,30 @@
 
     var title = document.createElement("div");
     title.className = "approval-title";
-    title.textContent = "⚠ 需要确认";
+    title.textContent = "Approval required";
     card.appendChild(title);
 
     var typeDiv = document.createElement("div");
     typeDiv.className = "approval-type";
-    typeDiv.textContent = (event.transition?.approval?.type) || "plan";
+    typeDiv.textContent = approval.summary || approval.id;
     card.appendChild(typeDiv);
 
     var actions = document.createElement("div");
     actions.className = "approval-actions";
 
     var btnApprove = document.createElement("button");
-    btnApprove.textContent = "✓ 同意";
+    btnApprove.textContent = "Allow";
     btnApprove.onclick = function () {
-      api.approve("approval", "allow");
+      api.approve(approval.id, "allow");
       box.className = "hidden";
       clearChildren(box);
     };
     actions.appendChild(btnApprove);
 
     var btnDeny = document.createElement("button");
-    btnDeny.textContent = "✗ 拒绝";
+    btnDeny.textContent = "Deny";
     btnDeny.onclick = function () {
-      api.approve("approval", "deny");
+      api.approve(approval.id, "deny");
       box.className = "hidden";
       clearChildren(box);
     };
@@ -189,13 +181,17 @@
 
   unsubKernel = api.onKernelEvent(function (event) {
     adaptEvent(event);
-    // Handle agent result
+    // Handle V2 agent events
+    if (event.type === "agent:final") {
+      addMessage("assistant", event.content || "Done.");
+      showLayer("surface");
+    }
     if (event.type === "agent:result") {
       addMessage("assistant", event.result?.content || "Done.");
       showLayer("surface");
     }
     if (event.type === "agent:error") {
-      addMessage("assistant", "❌ " + (event.error || "Error"));
+      addMessage("assistant", "Error: " + (event.error || event.message || "Unknown error"));
       showLayer("surface");
     }
   });
