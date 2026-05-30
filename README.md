@@ -1,120 +1,109 @@
 # deepseek-code
 
-一个从零开始的 DeepSeek 专属本地编程助手。
+DeepSeek 专属本地编程助手 — v1.0
 
-当前版本是最小可用版：它能扫描项目、搜索代码、向 DeepSeek 提问、让模型生成补丁，并在你确认后应用修改。
+基于 DeepSeek V4 模型，提供 Agent Loop、双通道推理（Think/Act）、1M 上下文窗口、可编程权限系统、MCP 工具生态，以及 CLI / TUI / GUI 三种交互界面。
 
 ## 快速开始
 
 ```bash
 node bin/deepseek-code.js config init --api-key sk-xxx
 node bin/deepseek-code.js tui
-node bin/deepseek-code.js scan
-node bin/deepseek-code.js search "TODO"
 node bin/deepseek-code.js ask "解释这个项目的结构"
 node bin/deepseek-code.js chat
-node bin/deepseek-code.js edit "修复这个函数的边界条件" --file src/example.js
-node bin/deepseek-code.js changes list
+node bin/deepseek-code.js edit "修复边界条件" --file src/example.js
 ```
 
-也可以用环境变量：
+环境变量：
 
 ```bash
 set DEEPSEEK_API_KEY=sk-xxx
-set DEEPSEEK_MODEL=deepseek-v4-flash
+set DEEPSEEK_MODEL=deepseek-v4-pro
 set DEEPSEEK_BASE_URL=https://api.deepseek.com
-set DEEPSEEK_REASONING_EFFORT=high
+set DEEPSEEK_REASONING_EFFORT=max
 ```
 
-PowerShell：
+## 架构
 
-```powershell
-$env:DEEPSEEK_API_KEY="sk-xxx"
+```
+src/kernel/ (10 modules, 124 tests)
+├── event-bus.js            — 事件总线（publish/subscribe/once）
+├── session-log.js          — 追加日志（JSONL + hash chain）
+├── session-manager.js      — 事件持久化桥接
+├── config-provider.js      — 配置引擎（三层合并 + ModelProfile）
+├── kernel-api.js           — 内核统一入口
+├── model-provider.js       — DeepSeek 双通道适配（Think/Act/FIM）
+├── context-engine.js       — 三层上下文引擎（冷/温/热 + cache-aware）
+├── task-orchestrator.js    — 显式状态机（11 状态 + 4 级自治）
+├── permission-engine.js    — 权限引擎（8×4 矩阵 + 可编程规则）
+└── tool-registry.js        — 工具注册表（16 内置工具 + workspace 保护）
+
+gui/ (Electron 桌面应用)
+├── main.js                 — 主进程（kernel + 8 IPC handlers）
+├── preload.js              — 安全上下文桥接
+└── renderer/               — 渐进三层界面（Surface/Context/Control）
 ```
 
 ## 命令
 
 ```text
-deepseek-code tui
-deepseek-code ask "问题"
-deepseek-code chat [问题] [--reset]
-deepseek-code edit "修改需求" --file <path> [--dry-run] [--yes]
-deepseek-code scan
-deepseek-code search "关键词"
-deepseek-code test [command...]
-deepseek-code diff
-deepseek-code config init --api-key <key>
-deepseek-code config show
-deepseek-code config test
-deepseek-code changes list
-deepseek-code changes show latest
-deepseek-code rollback latest
-deepseek-code resume
+deepseek-code tui              # 交互式终端界面（状态栏 + 时间线）
+deepseek-code ask "问题"        # 基于项目上下文提问
+deepseek-code chat [--reset]   # 连续对话（REPL 模式）
+deepseek-code edit "需求" --file <path> [--dry-run] [--yes]  # 生成补丁
+deepseek-code scan             # 扫描项目文件
+deepseek-code search "关键词"    # 搜索代码
+deepseek-code test [command]   # 运行测试（自动检测框架）
+deepseek-code diff             # 查看 Git 差异
+deepseek-code config init      # 配置 API 密钥
+deepseek-code config show      # 查看配置
+deepseek-code config test      # 测试连接
+deepseek-code changes list     # 修改记录
+deepseek-code rollback latest  # 回退修改
+deepseek-code resume           # 查看会话记录
 ```
 
 ## TUI 界面
 
-```bash
-node bin/deepseek-code.js tui
-```
+方向键选择，回车执行，`q` 退出。功能包括：提问、连续对话、补丁修改、代码搜索、项目扫描、运行测试、Git diff、修改记录、回退、API 配置与测试。
 
-命令统一使用英文，TUI 界面选项使用中文。当前支持方向键选择：
+TUI 底部显示状态栏（autonomy / channel / token 用量 / cache hit rate）和最近事件时间线。
 
-- 向 DeepSeek 提问：基于项目上下文提问。
-- 连续对话：保留上下文进行多轮交流。
-- 生成补丁修改：输入修改需求和文件列表，生成补丁，确认后应用。
-- 搜索项目代码：搜索代码。
-- 扫描项目上下文：查看项目索引。
-- 运行测试：运行 `node --test`。
-- 查看 Git 差异：查看当前 Git diff。
-- 查看修改记录：查看最近补丁详情。
-- 回退最近修改：恢复最近一次已记录的修改。
-- 配置 API 密钥：写入 DeepSeek API 密钥、模型和接口地址。
-- 测试 API 连接：验证当前 DeepSeek 配置是否可用。
-
-按 `q` 退出，按方向键移动，按回车执行。
-
-## DeepSeek 调用配置
-
-项目按 DeepSeek 官方 OpenAI 兼容接口调用：
-
-- 默认接口地址：`https://api.deepseek.com`
-- 聊天接口：`/chat/completions`
-- 认证方式：`Authorization: Bearer <api-key>`
-- 默认模型：`deepseek-v4-flash`
-- 可选模型：`deepseek-v4-pro`
-- 默认推理强度：`high`
-
-CLI 配置示例：
+## GUI 桌面应用
 
 ```bash
-node bin/deepseek-code.js config init --api-key sk-xxx --model deepseek-v4-flash --reasoning-effort high
-node bin/deepseek-code.js config init --api-key sk-xxx --model deepseek-v4-pro --reasoning-effort max
-node bin/deepseek-code.js config test
+cd gui && npm install && npm start
 ```
 
-如果需要启用官方 `thinking` 参数：
+渐进三层界面：
+- **Surface**：聊天视图（零门槛）
+- **Context**：Agent 活动实时日志
+- **Control**：计划审查 / 权限确认全屏面板
 
-```bash
-node bin/deepseek-code.js config init --api-key sk-xxx --thinking
-```
+## 自治级别
+
+| 级别 | 行为 | 适用场景 |
+|------|------|----------|
+| **supervised** | 每步确认 | install/network |
+| **gated** (默认) | 计划确认 + 执行自动 | write/edit |
+| **auto** | 全自动执行 | read/query |
+| **full-auto** | 无确认 | 用户显式 --auto |
+
+## 权限类别
+
+8 类资源 × 4 级自治 = 32 项默认矩阵。支持用户策略（`~/.deepseek-code/permissions.json`）、项目规则（`.deepseek-code/permissions.json`）和可编程规则。
+
+## 工具系统
+
+16 个内置工具：`read`, `write`, `edit`, `delete`, `grep`, `glob`, `ls`, `shell`, `test`, `git_read`, `git_write`, `web_search`, `web_fetch`, `ask_user`, `memory`, `task`
+
+支持 MCP 协议（Model Context Protocol）和 JS 插件扩展。
 
 ## 设计边界
 
-- 默认不会直接改文件，`edit` 会展示补丁并等待确认。
-- 每次成功应用补丁后会写入 `.deepseek-code/changes/<id>.json`，用于查看详情和回退。
-- 连续对话历史保存在 `.deepseek-code/chat.json`，可用 `chat --reset` 重新开始。
-- 文件路径必须在当前项目根目录内。
-- `.git`、`node_modules`、`dist`、`build`、`.deepseek-code` 等目录会被项目扫描忽略。
-- 模型输出必须是 unified diff；如果上下文不够，建议加 `--file` 指定相关文件。
-
-## 下一步优化方案
-
-1. Agent Loop：让模型自动决定读取文件、搜索、生成补丁、运行测试，并根据测试错误继续修复。
-2. 权限系统：为 shell 命令、文件写入、依赖安装、Git 操作建立审批策略和白名单。
-3. 上下文选择：基于搜索结果、依赖图、最近修改记录动态挑选文件，而不是只靠项目扫描。
-4. 回退增强：支持按文件回退、回退前 diff 预览、回退后自动运行测试。
-5. 修改审查：新增 `review` 命令，对当前 git diff 或某个 change id 做风险检查。
-6. TUI 升级：增加左右分栏、底部输入框、任务状态、流式输出区域和快捷键。
-7. 测试集成：自动识别 npm/pytest/cargo/go test，并把失败摘要喂回模型继续处理。
-8. 配置分层：区分全局配置和项目配置，支持模型、温度、thinking、权限策略按项目覆盖。
+- 文件路径必须在项目根目录内（realpath 验证）
+- Shell 命令仅接受结构化 `argv`，不解析原始 shell 字符串
+- destructive 操作永不可自动允许
+- 模型 thinking/reasoning 内容不暴露给用户，不持久化
+- 配置分层：环境变量 > 项目本地 > 全局
+- 运行测试自动检测框架：npm test → pytest → cargo test → go test → node --test
