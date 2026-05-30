@@ -1,0 +1,13 @@
+{
+  "name": "deepseek-code-gui",
+  "version": "0.1.0",
+  "description": "DeepSeek Code Desktop",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "dependencies": {
+    "electron": "^30.0.0"
+  }
+}
