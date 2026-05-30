@@ -102,7 +102,7 @@ Runtime stores this under `approval.id`. On approve:
 3. Runtime grants the matching fingerprint into `approvalCache`.
 4. Runtime calls `resumeExecutorLoop(resume_state, dependencies)`.
 5. ToolExecutor runs normally. Permission now returns allow from approval cache.
-6. Runtime continues verification and finalization.
+6. Runtime runs the same verification/finalization gate used by the normal tool loop.
 
 On deny:
 
@@ -244,7 +244,7 @@ grantApprovalForToolCall = null
 - `"deny"` and `"reject"` are accepted as deny decisions.
 - Duplicate approval fails because `take()` removes the record.
 - During resume, runtime sets lifecycle to `execute`.
-- On final completion, runtime publishes `agent:final`.
+- On final completion, runtime runs verifier when edited files were produced, then publishes `agent:final`.
 - On denial, runtime publishes `agent:final` with status `cancelled`.
 
 `interrupt()` behavior:
@@ -302,6 +302,7 @@ Unit tests:
 - Resume handles remaining tool calls in order.
 - Runtime approve publishes `approval:resolved` and completes.
 - Runtime deny cancels without tool execution.
+- Runtime approval resume runs verifier after edit results.
 - Runtime rejects duplicate approvals.
 - Runtime rejects new send while paused.
 - Interrupt clears paused approvals.
