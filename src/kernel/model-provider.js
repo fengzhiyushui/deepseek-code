@@ -148,6 +148,11 @@ export function createModelProvider(config) {
 
   async function invoke(messages, channel, explicitModel) {
     const body = buildRequestBody(messages, channel, explicitModel);
+    // invoke() is non-streaming — force stream:false even if the channel
+    // default is stream:true (e.g., Act). Streaming responses are SSE,
+    // which response.json() cannot parse.
+    body.stream = false;
+    delete body.stream_options;
     const url = buildUrl("/chat/completions");
 
     const startTime = Date.now();
