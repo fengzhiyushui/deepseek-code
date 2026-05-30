@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test": "node --test test/**/*.test.js",
-    "check": "node --check bin/deepseek-code.js && node --check src/cli.js src/agent.js src/chat.js src/config.js src/context.js src/git.js src/patch.js src/changes.js src/provider.js src/search.js src/ui.js src/theme.js src/tui.js && node --check src/kernel/event-bus.js src/kernel/session-log.js src/kernel/config-provider.js src/kernel/kernel-api.js src/kernel/model-provider.js src/kernel/context-engine.js src/kernel/task-orchestrator.js src/kernel/permission-engine.js src/kernel/tool-registry.js src/kernel/session-manager.js"
+    "check": "node --check bin/deepseek-code.js && node --check src/cli.js src/agent.js src/chat.js src/config.js src/context.js src/git.js src/patch.js src/changes.js src/provider.js src/search.js src/ui.js src/theme.js src/tui.js && node --check src/kernel/event-bus.js src/kernel/session-log.js src/kernel/config-provider.js src/kernel/kernel-api.js src/kernel/model-provider.js src/kernel/context-engine.js src/kernel/task-orchestrator.js src/kernel/permission-engine.js src/kernel/tool-registry.js src/kernel/session-manager.js && node --check gui/main.js gui/preload.js gui/renderer/app.js"
   },
   "engines": {
     "node": ">=20"
