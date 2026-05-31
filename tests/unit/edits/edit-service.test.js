@@ -96,6 +96,41 @@ test("apply records before and after hashes in change metadata", async () => {
   assert.equal(record.transaction_id?.startsWith("tx_"), true);
 });
 
+test("rollback blocks dirty files and writes nothing by default", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-edit-service-dirty-"));
+  await writeFile(path.join(root, "a.txt"), "old\n");
+  const eventBus = createEventBus();
+  const conflicts = [];
+  eventBus.subscribe("file:rollback_conflict", (data) => conflicts.push(data));
+  const service = createEditService({ projectRoot: root, eventBus });
+
+  const applied = await service.apply({ diff: MODIFY_DIFF, prompt: "update a" });
+  await writeFile(path.join(root, "a.txt"), "manual change\n");
+  const result = await service.rollback({ change_id: applied.metadata.change_id });
+
+  assert.equal(result.status, "conflict");
+  assert.equal(await readFile(path.join(root, "a.txt"), "utf8"), "manual change\n");
+  assert.equal(result.metadata.conflicts.length, 1);
+  assert.equal(result.metadata.conflicts[0].path, "a.txt");
+  assert.equal(result.metadata.force_available, true);
+  assert.equal(conflicts.length, 1);
+});
+
+test("force rollback overwrites dirty files and reports conflicts", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-edit-service-force-"));
+  await writeFile(path.join(root, "a.txt"), "old\n");
+  const service = createEditService({ projectRoot: root });
+
+  const applied = await service.apply({ diff: MODIFY_DIFF, prompt: "update a" });
+  await writeFile(path.join(root, "a.txt"), "manual change\n");
+  const result = await service.rollback({ change_id: applied.metadata.change_id, force: true });
+
+  assert.equal(result.status, "success");
+  assert.equal(await readFile(path.join(root, "a.txt"), "utf8"), "old\n");
+  assert.equal(result.metadata.forced, true);
+  assert.equal(result.metadata.conflicts.length, 1);
+});
+
 test("apply rejects unsafe diff before writing", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "dsc-edit-service-"));
   const service = createEditService({ projectRoot: root });

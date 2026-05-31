@@ -98,13 +98,41 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
     };
   }
 
-  async function rollbackChangeRecord({ change_id = "latest" } = {}) {
-    const record = await rollback.rollback({ change_id });
+  async function rollbackChangeRecord({ change_id = "latest", force = false } = {}) {
+    const outcome = await rollback.rollback({ change_id, force: Boolean(force) });
+    const record = outcome.record;
     const files = record.summary.map((item) => item.path);
+    if (outcome.status === "conflict") {
+      publish("file:rollback_conflict", {
+        change_id: record.id,
+        files,
+        conflicts: outcome.conflicts,
+        force_available: true
+      });
+      return {
+        status: "conflict",
+        content: [{ type: "text", text: `Rollback blocked by dirty files for change ${record.id}` }],
+        metadata: {
+          change_id: record.id,
+          conflicts: outcome.conflicts,
+          force_available: true,
+          files
+        }
+      };
+    }
+    publish("file:transaction_rolled_back", {
+      change_id: record.id,
+      files,
+      restored_files: outcome.restored_files,
+      forced: outcome.forced,
+      conflicts: outcome.conflicts
+    });
     publish("file:rollback_applied", {
       change_id: record.id,
       summary: record.summary,
-      files
+      files,
+      forced: outcome.forced,
+      conflicts: outcome.conflicts
     });
     return {
       status: "success",
@@ -112,7 +140,10 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
       metadata: {
         change_id: record.id,
         summary: record.summary,
-        files
+        files,
+        restored_files: outcome.restored_files,
+        forced: outcome.forced,
+        conflicts: outcome.conflicts
       }
     };
   }

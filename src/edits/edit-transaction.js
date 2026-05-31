@@ -125,6 +125,54 @@ export function enhanceChangeRecord(record, { transaction_id = null } = {}) {
   };
 }
 
+export async function detectRollbackConflicts(projectRoot, record) {
+  const conflicts = [];
+  for (const file of record.files || []) {
+    const current = await readCurrentFile(projectRoot, file);
+    const expectedAfterHash = file.after_hash ?? (file.after == null ? null : hashContent(file.after).hash);
+    if (current.hash !== expectedAfterHash) {
+      conflicts.push({
+        path: file.path,
+        status: file.status,
+        expected_after_hash: expectedAfterHash,
+        current_hash: current.hash,
+        reason: "dirty"
+      });
+    }
+  }
+  return conflicts;
+}
+
+export async function applyRollbackRecord(projectRoot, record) {
+  const restored = [];
+  for (const file of record.files || []) {
+    const filePath = file.newPath === "/dev/null" ? file.oldPath : file.newPath;
+    const resolved = await resolveWorkspacePath(projectRoot, filePath, { mustExist: false });
+    if (file.status === "create") {
+      await fs.rm(resolved.absolute, { force: true });
+    } else {
+      await fs.mkdir(path.dirname(resolved.absolute), { recursive: true });
+      await fs.writeFile(resolved.absolute, file.before ?? "", "utf8");
+    }
+    restored.push(file.path);
+  }
+  return restored;
+}
+
+async function readCurrentFile(projectRoot, file) {
+  const filePath = file.newPath === "/dev/null" ? file.oldPath : file.newPath;
+  try {
+    const resolved = await resolveWorkspacePath(projectRoot, filePath, { mustExist: true });
+    const content = stripBom(await fs.readFile(resolved.real, "utf8"));
+    return hashContent(content);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return { hash: null, bytes: 0 };
+    }
+    throw error;
+  }
+}
+
 export function makeTransactionId() {
   return `tx_${Date.now().toString(36)}_${Math.random().toString(16).slice(2, 10)}`;
 }
