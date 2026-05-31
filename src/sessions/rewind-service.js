@@ -86,6 +86,46 @@ export function createRewindService({
     }
   }
 
+  async function restoreAfterConflict({
+    previewResult,
+    snapshots,
+    appliedRollbacks,
+    failedChangeId,
+    conflicts,
+    force
+  }) {
+    if (appliedRollbacks.length === 0) {
+      const conflict = {
+        status: "conflict",
+        current_branch_id: previewResult.current_branch_id,
+        attempted_branch_id: previewResult.planned_branch_id,
+        failed_change_id: failedChangeId,
+        applied_rollbacks: appliedRollbacks,
+        remaining_change_ids: previewResult.rollback_change_ids.slice(appliedRollbacks.length),
+        conflicts,
+        forced: Boolean(force)
+      };
+      publish("session:rewind_conflict", conflict);
+      return conflict;
+    }
+    const restored = await restoreAfterFailure({
+      previewResult,
+      snapshots,
+      appliedRollbacks,
+      phase: "rollback",
+      reason: "rollback_failed",
+      force
+    });
+    const conflictRestored = {
+      ...restored,
+      status: restored.status === "failed_unrestorable" ? "failed_unrestorable" : "conflict_restored",
+      failed_change_id: failedChangeId,
+      conflicts
+    };
+    publish("session:rewind_conflict", conflictRestored);
+    return conflictRestored;
+  }
+
   async function apply({ target, branch_id = null, force = false, label = "" } = {}) {
     if (typeof createBranch !== "function") throw new Error("createBranch is required for apply");
     if (typeof activateBranch !== "function") throw new Error("activateBranch is required for apply");
@@ -106,18 +146,14 @@ export function createRewindService({
     for (const changeId of previewResult.rollback_change_ids) {
       const result = await rollback({ change_id: changeId, force: Boolean(force), branch_id: previewResult.planned_branch_id });
       if (result.status === "conflict") {
-        const conflict = {
-          status: "conflict",
-          current_branch_id: currentBranchId,
-          attempted_branch_id: previewResult.planned_branch_id,
-          failed_change_id: changeId,
-          applied_rollbacks: appliedRollbacks,
-          remaining_change_ids: previewResult.rollback_change_ids.slice(appliedRollbacks.length),
+        return restoreAfterConflict({
+          previewResult,
+          snapshots,
+          appliedRollbacks,
+          failedChangeId: changeId,
           conflicts: result.metadata?.conflicts || [],
-          forced: Boolean(force)
-        };
-        publish("session:rewind_conflict", conflict);
-        return conflict;
+          force
+        });
       }
       if (result.status !== "success") {
         return restoreAfterFailure({

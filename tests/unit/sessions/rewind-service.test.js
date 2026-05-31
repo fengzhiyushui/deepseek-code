@@ -188,3 +188,76 @@ test("rewind apply restores files when activateBranch fails after branch creatio
   assert.equal(fileState, "after edit");
   assert.equal(activeBranch, "br_main");
 });
+
+test("rewind apply restores earlier rollbacks when later rollback fails", async () => {
+  let fileA = "after a";
+  let fileB = "after b";
+  const service = createRewindService({
+    projectRoot: "/virtual",
+    getTimeline: async () => [
+      { seq: 1, event_id: "evt_user_1", type: "user:message", turn_id: "turn_1", branch_id: "br_main" },
+      { seq: 2, event_id: "evt_apply_1", type: "file:diff_applied", change_id: "change_1", files: ["a.txt"], branch_id: "br_main" },
+      { seq: 3, event_id: "evt_apply_2", type: "file:diff_applied", change_id: "change_2", files: ["b.txt"], branch_id: "br_main" }
+    ],
+    getActiveBranchId: async () => "br_main",
+    captureSnapshots: async () => [
+      { path: "a.txt", existed_before: true, before: "after a" },
+      { path: "b.txt", existed_before: true, before: "after b" }
+    ],
+    restoreSnapshots: async () => { fileA = "after a"; fileB = "after b"; return ["a.txt", "b.txt"]; },
+    createBranch: async () => ({ branch_id: "br_unused" }),
+    activateBranch: async () => {},
+    rollback: async ({ change_id }) => {
+      if (change_id === "change_2") {
+        fileB = "before b";
+        return { status: "success", metadata: { change_id } };
+      }
+      return { status: "failed", content: [{ text: "raw secret rollback error" }] };
+    }
+  });
+
+  const result = await service.apply({ target: { turn_id: "turn_1" } });
+
+  assert.equal(result.status, "failed_restored");
+  assert.equal(result.phase, "rollback");
+  assert.equal(result.reason, "rollback_failed");
+  assert.deepEqual(result.applied_rollbacks, ["change_2"]);
+  assert.equal(fileA, "after a");
+  assert.equal(fileB, "after b");
+  assert.equal(JSON.stringify(result).includes("raw secret"), false);
+});
+
+test("rewind apply restores earlier rollbacks when later rollback conflicts", async () => {
+  let fileB = "after b";
+  const eventBus = createEventBus();
+  const restored = [];
+  eventBus.subscribe("session:rewind_restored", (data) => restored.push(data));
+  const service = createRewindService({
+    eventBus,
+    projectRoot: "/virtual",
+    getTimeline: async () => [
+      { seq: 1, event_id: "evt_user_1", type: "user:message", turn_id: "turn_1", branch_id: "br_main" },
+      { seq: 2, event_id: "evt_apply_1", type: "file:diff_applied", change_id: "change_1", files: ["a.txt"], branch_id: "br_main" },
+      { seq: 3, event_id: "evt_apply_2", type: "file:diff_applied", change_id: "change_2", files: ["b.txt"], branch_id: "br_main" }
+    ],
+    getActiveBranchId: async () => "br_main",
+    captureSnapshots: async () => [{ path: "b.txt", existed_before: true, before: "after b" }],
+    restoreSnapshots: async () => { fileB = "after b"; return ["b.txt"]; },
+    createBranch: async () => ({ branch_id: "br_unused" }),
+    activateBranch: async () => {},
+    rollback: async ({ change_id }) => {
+      if (change_id === "change_2") {
+        fileB = "before b";
+        return { status: "success", metadata: { change_id } };
+      }
+      return { status: "conflict", metadata: { change_id, conflicts: [{ path: "a.txt", reason: "dirty" }] } };
+    }
+  });
+
+  const result = await service.apply({ target: { turn_id: "turn_1" } });
+
+  assert.equal(result.status, "conflict_restored");
+  assert.deepEqual(result.applied_rollbacks, ["change_2"]);
+  assert.equal(fileB, "after b");
+  assert.equal(restored.length, 1);
+});
