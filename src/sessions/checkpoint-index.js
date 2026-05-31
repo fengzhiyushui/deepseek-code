@@ -8,14 +8,20 @@ export function buildCheckpointIndex(events = [], { branch_id = BR_MAIN } = {}) 
   const branchEvents = normalized.filter((event) => (event.branch_id || BR_MAIN) === branch_id);
   const changes = [];
   const checkpoints = [];
-  let prevHadChangeId = null;
+  let prevChangeType = null;
+  let prevChangeId = null;
   for (const event of branchEvents) {
     if (CHANGE_EVENTS.has(event.type) && event.change_id) {
-      if (event.change_id === prevHadChangeId) {
-        prevHadChangeId = null;
+      // Skip diff_applied when it duplicates the immediately-preceding transaction_committed
+      if (event.type === "file:diff_applied" &&
+          prevChangeType === "file:transaction_committed" &&
+          event.change_id === prevChangeId) {
+        prevChangeType = null;
+        prevChangeId = null;
         continue;
       }
-      prevHadChangeId = event.change_id;
+      prevChangeType = event.type;
+      prevChangeId = event.change_id;
       changes.push({
         change_id: event.change_id,
         seq: Number(event.seq || 0),
