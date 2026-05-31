@@ -261,3 +261,38 @@ test("rewind apply restores earlier rollbacks when later rollback conflicts", as
   assert.equal(fileB, "after b");
   assert.equal(restored.length, 1);
 });
+
+test("rewind recovery events do not include raw file content diff or exception text", async () => {
+  const eventBus = createEventBus();
+  const events = [];
+  for (const type of [
+    "session:rewind_restore_started",
+    "session:rewind_restored",
+    "session:rewind_failed",
+    "session:rewind_recovery_failed"
+  ]) {
+    eventBus.subscribe(type, (data) => events.push({ type, data }));
+  }
+  const service = createRewindService({
+    eventBus,
+    projectRoot: "/virtual",
+    getTimeline: async () => [
+      { seq: 1, event_id: "evt_user_1", type: "user:message", turn_id: "turn_1", branch_id: "br_main" },
+      { seq: 2, event_id: "evt_apply_1", type: "file:diff_applied", change_id: "change_1", files: ["secret.txt"], branch_id: "br_main" }
+    ],
+    getActiveBranchId: async () => "br_main",
+    captureSnapshots: async () => [{ path: "secret.txt", existed_before: true, before: "TOP_SECRET_CONTENT\n" }],
+    restoreSnapshots: async () => ["secret.txt"],
+    createBranch: async () => { throw new Error("diff --git a/secret.txt b/secret.txt @@ TOP_SECRET_CONTENT"); },
+    activateBranch: async () => {},
+    rollback: async () => ({ status: "success", metadata: { change_id: "change_1" } })
+  });
+
+  await service.apply({ target: { turn_id: "turn_1" } });
+
+  const serialized = JSON.stringify(events);
+  assert.equal(serialized.includes("TOP_SECRET_CONTENT"), false);
+  assert.equal(serialized.includes("diff --git"), false);
+  assert.equal(serialized.includes("@@"), false);
+  assert.equal(serialized.includes("before"), false);
+});
