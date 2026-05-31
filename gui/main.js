@@ -11,6 +11,7 @@ const IPC_CHANNELS = [
   "session:timeline", "session:branches", "session:branch-active", "session:checkpoints",
   "session:rewind-preview", "session:rewind-apply",
   "context:snapshot", "model:usage",
+  "gui:preferences-get", "gui:preferences-set",
   "config:get", "orchestrator:state"
 ];
 
@@ -86,6 +87,14 @@ function registerIpcHandlers() {
   });
   ipcMain.handle("context:snapshot", async () => host?.getSnapshot() || { units: [] });
   ipcMain.handle("model:usage", () => host?.getUsage() || {});
+  ipcMain.handle("gui:preferences-get", async () => {
+    try { return await host.getPreferences(); }
+    catch (error) { return { error: error.message }; }
+  });
+  ipcMain.handle("gui:preferences-set", async (_event, patch) => {
+    try { return await host.setPreferences(patch || {}); }
+    catch (error) { return { error: error.message }; }
+  });
   ipcMain.handle("config:get", () => host?.getConfig() || {});
   ipcMain.handle("orchestrator:state", () => host?.getState() || { current: "idle", channel: null });
 }

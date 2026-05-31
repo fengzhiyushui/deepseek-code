@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld("deepseek", {
   },
   getSnapshot: () => ipcRenderer.invoke("context:snapshot"),
   getUsage: () => ipcRenderer.invoke("model:usage"),
+  getPreferences: () => ipcRenderer.invoke("gui:preferences-get"),
+  setPreferences: (patch) => ipcRenderer.invoke("gui:preferences-set", patch || {}),
   getConfig: () => ipcRenderer.invoke("config:get"),
   getState: () => ipcRenderer.invoke("orchestrator:state"),
   listBranches: () => ipcRenderer.invoke("session:branches"),
