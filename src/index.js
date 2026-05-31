@@ -157,7 +157,34 @@ export async function createKernel(root, options = {}) {
     sessionManager,
     context,
     config,
-    tools
+    tools,
+    metrics: {
+      getUsage() {
+        return modelGateway?.getUsageStats?.() || zeroUsage();
+      },
+      getContext() {
+        return contextEngine.getStats();
+      },
+      getSnapshot(input = {}) {
+        return contextEngine.snapshot(input);
+      }
+    }
+  };
+}
+
+function zeroUsage() {
+  return {
+    requests: 0,
+    total_prompt_tokens: 0,
+    total_completion_tokens: 0,
+    total_reasoning_tokens: 0,
+    total_tokens: 0,
+    cache_hit_tokens: 0,
+    cache_miss_tokens: 0,
+    cache_hit_rate: 0,
+    avg_latency_ms: 0,
+    by_channel: {},
+    by_model: {}
   };
 }
 
