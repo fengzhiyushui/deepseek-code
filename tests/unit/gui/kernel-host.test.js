@@ -228,3 +228,67 @@ test("kernel host exposes active branch delegate", async () => {
 
   assert.deepEqual(await host.getActiveBranch(), { branch_id: "br_child" });
 });
+
+test("gui preferences normalize invalid values to safe defaults", () => {
+  const { normalizeGuiPreferences } = require("../../../gui/kernel-host.js");
+
+  assert.deepEqual(normalizeGuiPreferences({
+    schema: 99,
+    theme: "neon",
+    railMode: "unknown",
+    contextCollapsed: "yes",
+    transcript: "must not persist"
+  }), {
+    schema: 1,
+    theme: "night",
+    railMode: "chat",
+    contextCollapsed: false
+  });
+});
+
+test("gui preferences load missing corrupt and save sanitized values", async () => {
+  const { loadGuiPreferences, saveGuiPreferences } = require("../../../gui/kernel-host.js");
+  const { mkdtemp, readFile, writeFile } = require("node:fs/promises");
+  const os = require("node:os");
+  const path = require("node:path");
+
+  const root = await mkdtemp(path.join(os.tmpdir(), "dsc-gui-pref-"));
+  assert.equal((await loadGuiPreferences(root)).theme, "night");
+
+  await saveGuiPreferences(root, { theme: "day", railMode: "branches", contextCollapsed: true, secret: "x" });
+  assert.deepEqual(await loadGuiPreferences(root), {
+    schema: 1,
+    theme: "day",
+    railMode: "branches",
+    contextCollapsed: true
+  });
+
+  const raw = await readFile(path.join(root, ".deepseek-code", "gui-preferences.json"), "utf8");
+  assert.equal(raw.includes("secret"), false);
+
+  await writeFile(path.join(root, ".deepseek-code", "gui-preferences.json"), "{not json");
+  assert.equal((await loadGuiPreferences(root)).theme, "night");
+});
+
+test("kernel host exposes gui preference delegates", async () => {
+  const { createKernelHost } = require("../../../gui/kernel-host.js");
+  const { mkdtemp } = require("node:fs/promises");
+  const os = require("node:os");
+  const path = require("node:path");
+
+  const root = await mkdtemp(path.join(os.tmpdir(), "dsc-gui-host-pref-"));
+  const host = createKernelHost({
+    projectRoot: root,
+    kernelFactory: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }) },
+      context: { snapshot: () => ({ units: [] }) },
+      config: { getPublicConfig: () => ({}) },
+      runtime: { getState: () => ({ current: "idle" }) }
+    })
+  });
+  await host.init();
+
+  await host.setPreferences({ theme: "day", railMode: "timeline" });
+  assert.equal((await host.getPreferences()).theme, "day");
+  assert.equal((await host.getPreferences()).railMode, "timeline");
+});

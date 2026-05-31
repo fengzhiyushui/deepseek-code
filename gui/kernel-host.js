@@ -1,6 +1,16 @@
 // gui/kernel-host.js
+const fs = require("fs/promises");
 const path = require("path");
 const { pathToFileURL } = require("url");
+
+const GUI_PREFERENCE_DEFAULTS = Object.freeze({
+  schema: 1,
+  theme: "night",
+  railMode: "chat",
+  contextCollapsed: false
+});
+
+const GUI_RAIL_MODES = new Set(["chat", "context", "branches", "timeline", "settings"]);
 
 function resolveProjectRoot(argv = process.argv, fallback = path.resolve(__dirname, "..")) {
   const projectArg = argv.find((arg) => arg.startsWith("--project="));
@@ -21,6 +31,38 @@ function zeroUsage() {
     by_channel: {},
     by_model: {}
   };
+}
+
+function guiPreferencePath(projectRoot) {
+  return path.join(projectRoot, ".deepseek-code", "gui-preferences.json");
+}
+
+function normalizeGuiPreferences(value = {}) {
+  const input = value && typeof value === "object" ? value : {};
+  return {
+    schema: 1,
+    theme: input.theme === "day" ? "day" : "night",
+    railMode: GUI_RAIL_MODES.has(input.railMode) ? input.railMode : "chat",
+    contextCollapsed: typeof input.contextCollapsed === "boolean" ? input.contextCollapsed : false
+  };
+}
+
+async function loadGuiPreferences(projectRoot) {
+  try {
+    const raw = await fs.readFile(guiPreferencePath(projectRoot), "utf8");
+    return normalizeGuiPreferences(JSON.parse(raw));
+  } catch {
+    return { ...GUI_PREFERENCE_DEFAULTS };
+  }
+}
+
+async function saveGuiPreferences(projectRoot, patch = {}) {
+  const current = await loadGuiPreferences(projectRoot);
+  const next = normalizeGuiPreferences({ ...current, ...patch });
+  const target = guiPreferencePath(projectRoot);
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.writeFile(target, JSON.stringify(next, null, 2), "utf8");
+  return next;
 }
 
 async function loadLegacyConfig(projectRoot) {
@@ -137,13 +179,23 @@ function createKernelHost({
     return requireKernel().session.rewind.apply(options);
   }
 
+  async function getPreferences() {
+    return loadGuiPreferences(projectRoot);
+  }
+
+  async function setPreferences(patch = {}) {
+    return saveGuiPreferences(projectRoot, patch);
+  }
+
   function dispose() {
     subscription?.unsubscribe?.();
     subscription = null;
   }
 
   return { init, ready, send, approve, interrupt, getTimeline, getSnapshot, getUsage, getConfig, getState,
-           listBranches, listCheckpoints, rewindPreview, rewindApply, getActiveBranch, dispose };
+           listBranches, listCheckpoints, rewindPreview, rewindApply, getActiveBranch,
+           getPreferences, setPreferences, dispose };
 }
 
-module.exports = { createKernelHost, resolveProjectRoot, zeroUsage, buildKernelOptions };
+module.exports = { createKernelHost, resolveProjectRoot, zeroUsage, buildKernelOptions,
+  normalizeGuiPreferences, loadGuiPreferences, saveGuiPreferences };
