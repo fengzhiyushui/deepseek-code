@@ -15,11 +15,18 @@ import { buildKernelOptions } from "./apps/kernel-options.js";
 
 // --- Status Bar Helpers (if kernel available) ---
 
-function renderStatusLine(kernel) {
+export function renderTuiStatusLine(kernel) {
   if (!kernel) return "";
 
   const state = kernel.runtime?.getState?.() || { current: "idle", channel: null };
   const publicConfig = kernel.config?.getPublicConfig?.() || {};
+  const usage = kernel.metrics?.getUsage?.() || {
+    total_tokens: 0,
+    cache_hit_rate: 0,
+    cache_hit_tokens: 0,
+    cache_miss_tokens: 0
+  };
+  const cachePercent = `${((usage.cache_hit_rate || 0) * 100).toFixed(1)}%`;
 
   const parts = [
     color.dim("|"),
@@ -27,10 +34,14 @@ function renderStatusLine(kernel) {
     color.dim("|"),
     ` ${state.channel || "-"} `,
     color.dim("|"),
-    ` ${publicConfig.runtime || "v2"} `
+    ` ${publicConfig.runtime || "v2"} `,
+    color.dim("|"),
+    ` tokens:${usage.total_tokens || 0} `,
+    color.dim("|"),
+    ` cache:${cachePercent} `,
+    color.dim("|")
   ];
 
-  parts.push(color.dim("|"));
   return parts.join("");
 }
 
@@ -429,7 +440,7 @@ function render(state, kernel) {
   // Status line
   if (kernel) {
     console.log("");
-    console.log(renderStatusLine(kernel));
+    console.log(renderTuiStatusLine(kernel));
   }
 
   console.log(color.dim(state.message));
