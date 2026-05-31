@@ -121,6 +121,10 @@ function createKernelHost({
     return ready() ? requireKernel().session.branches?.list?.() || [] : [];
   }
 
+  async function getActiveBranch() {
+    return ready() ? requireKernel().session.branches?.getActive?.() || { branch_id: "br_main" } : { branch_id: "br_main" };
+  }
+
   async function listCheckpoints(options = {}) {
     return ready() ? requireKernel().session.checkpoints?.list?.(options) || [] : [];
   }
@@ -139,7 +143,7 @@ function createKernelHost({
   }
 
   return { init, ready, send, approve, interrupt, getTimeline, getSnapshot, getUsage, getConfig, getState,
-           listBranches, listCheckpoints, rewindPreview, rewindApply, dispose };
+           listBranches, listCheckpoints, rewindPreview, rewindApply, getActiveBranch, dispose };
 }
 
 module.exports = { createKernelHost, resolveProjectRoot, zeroUsage, buildKernelOptions };

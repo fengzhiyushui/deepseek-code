@@ -8,7 +8,9 @@ let ipcRegistered = false;
 
 const IPC_CHANNELS = [
   "agent:send", "agent:approve", "agent:interrupt",
-  "session:timeline", "context:snapshot", "model:usage",
+  "session:timeline", "session:branches", "session:branch-active", "session:checkpoints",
+  "session:rewind-preview", "session:rewind-apply",
+  "context:snapshot", "model:usage",
   "config:get", "orchestrator:state"
 ];
 
@@ -62,6 +64,26 @@ function registerIpcHandlers() {
     catch (error) { return { error: error.message }; }
   });
   ipcMain.handle("session:timeline", async (_event, count) => host?.getTimeline(count || 20) || []);
+  ipcMain.handle("session:branches", async () => {
+    try { return await host.listBranches(); }
+    catch (error) { return { error: error.message }; }
+  });
+  ipcMain.handle("session:branch-active", async () => {
+    try { return await host.getActiveBranch(); }
+    catch (error) { return { error: error.message }; }
+  });
+  ipcMain.handle("session:checkpoints", async (_event, options) => {
+    try { return await host.listCheckpoints(options || {}); }
+    catch (error) { return { error: error.message }; }
+  });
+  ipcMain.handle("session:rewind-preview", async (_event, options) => {
+    try { return await host.rewindPreview(options || {}); }
+    catch (error) { return { error: error.message }; }
+  });
+  ipcMain.handle("session:rewind-apply", async (_event, options) => {
+    try { return await host.rewindApply(options || {}); }
+    catch (error) { return { error: error.message }; }
+  });
   ipcMain.handle("context:snapshot", async () => host?.getSnapshot() || { units: [] });
   ipcMain.handle("model:usage", () => host?.getUsage() || {});
   ipcMain.handle("config:get", () => host?.getConfig() || {});

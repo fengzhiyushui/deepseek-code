@@ -15,4 +15,9 @@ contextBridge.exposeInMainWorld("deepseek", {
   getUsage: () => ipcRenderer.invoke("model:usage"),
   getConfig: () => ipcRenderer.invoke("config:get"),
   getState: () => ipcRenderer.invoke("orchestrator:state"),
+  listBranches: () => ipcRenderer.invoke("session:branches"),
+  getActiveBranch: () => ipcRenderer.invoke("session:branch-active"),
+  listCheckpoints: (options) => ipcRenderer.invoke("session:checkpoints", options || {}),
+  rewindPreview: (options) => ipcRenderer.invoke("session:rewind-preview", options || {}),
+  rewindApply: (options) => ipcRenderer.invoke("session:rewind-apply", options || {}),
 });

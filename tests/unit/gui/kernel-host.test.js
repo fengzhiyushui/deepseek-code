@@ -203,3 +203,28 @@ test("kernel host exposes branch and rewind delegates", async () => {
   assert.equal((await host.rewindPreview({ target: { seq: 1 } })).status, "success");
   assert.equal((await host.rewindApply({ target: { seq: 1 } })).status, "success");
 });
+
+test("kernel host exposes active branch delegate", async () => {
+  const host = createKernelHost({
+    projectRoot: "/repo",
+    kernelFactory: async () => ({
+      session: {
+        subscribe: () => ({ unsubscribe() {} }),
+        getTimeline: async () => [],
+        branches: {
+          list: async () => [{ branch_id: "br_main" }, { branch_id: "br_child" }],
+          getActive: async () => ({ branch_id: "br_child" })
+        }
+      },
+      agent: { send: async () => ({ status: "complete" }), approve: () => {}, interrupt: () => {} },
+      context: { snapshot: async () => ({ units: [] }) },
+      metrics: { getUsage: () => zeroUsage() },
+      config: { getPublicConfig: () => ({}) },
+      runtime: { getState: () => ({ current: "idle" }) }
+    }),
+    configLoader: async () => ({})
+  });
+  await host.init();
+
+  assert.deepEqual(await host.getActiveBranch(), { branch_id: "br_child" });
+});
