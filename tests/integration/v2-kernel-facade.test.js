@@ -47,13 +47,14 @@ test("v2 kernel facade sends a turn and streams events to subscribers", async ()
 test("v2 kernel context and config return safe public data", async () => {
   const kernel = await createKernel("C:/example/project", {
     sessionId: "sess_safe",
-    sessionLog: null
+    sessionLog: null,
+    context: { disabled: true }
   });
 
   const snapshot = await kernel.context.snapshot();
   const publicConfig = kernel.config.getPublicConfig();
 
-  assert.equal(snapshot.snapshot_id, "v2_empty_snapshot");
+  assert.equal(snapshot.snapshot_id, "v2_context_disabled");
   assert.deepEqual(snapshot.units, []);
   assert.equal(publicConfig.runtime, "v2");
   assert.equal(publicConfig.has_api_key, false);
