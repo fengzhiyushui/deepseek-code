@@ -128,6 +128,33 @@ test("repair loop saves repair context on pause for approval resume", async () =
   assert.equal(ctx.initial_verification.status, "failed");
 });
 
+test("repair loop passes context into repair messages", async () => {
+  let receivedMessages = null;
+  const result = await runRepairLoop({
+    turnId: "turn_repair_context",
+    userMessage: "modify a.txt",
+    classification: { task_type: "edit" },
+    modelGateway: {},
+    toolSchemas: [],
+    executeTool: async () => { throw new Error("no tools expected"); },
+    createPolicyContext: () => ({}),
+    verificationPolicy: { plan: () => ({ shouldVerify: false, mode: "off" }) },
+    initialVerification: { status: "failed", reason: "tests failed" },
+    initialToolResults: [],
+    context: { snapshot_id: "ctxsnap_repair", summary: "Project files:\n- a.txt" },
+    maxRepairAttempts: 1,
+    runRepairExecutorImpl: async ({ messages }) => {
+      receivedMessages = messages;
+      return { status: "complete", content: "no fix", toolResults: [] };
+    },
+    runVerifierImpl: async () => ({ status: "skipped", reason: "off" })
+  });
+
+  assert.equal(result.status, "complete");
+  const payload = JSON.parse(receivedMessages[1].content);
+  assert.equal(payload.context_summary.includes("a.txt"), true);
+});
+
 test("repair loop resumeAfterApproval verifies with original + resumed results then exhausts", async () => {
   // Simulate: repair paused for shell, shell approved and executed,
   // now resume repair loop. Verifier should see original edit + shell results.

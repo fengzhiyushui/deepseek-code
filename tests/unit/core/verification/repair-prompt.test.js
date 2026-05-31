@@ -41,3 +41,16 @@ test("summarizeRepairToolResults truncates long tool output", () => {
   assert.equal(summary[0].truncated, true);
   assert.deepEqual(summary[0].metadata, { path: "a.txt" });
 });
+
+test("repair prompt includes bounded context summary", () => {
+  const messages = buildRepairMessages({
+    userMessage: "fix a bug",
+    classification: { task_type: "edit" },
+    verification: { status: "failed", reason: "tests failed" },
+    toolResults: [],
+    context: { summary: "Project files:\n- src/index.js (P1 mentioned)\n--- src/index.js\nexport const x = 1;" }
+  });
+
+  const payload = JSON.parse(messages[1].content);
+  assert.equal(payload.context_summary.includes("src/index.js"), true);
+});

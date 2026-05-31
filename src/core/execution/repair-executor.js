@@ -67,7 +67,8 @@ export async function runRepairExecutor({
           tool_results: toolResults.slice(0, -1),
           tool_schemas: toolSchemas,
           max_iterations: options.maxToolIterations || 5,
-          options: { ...options, purpose: "repair" }
+          options: { ...options, purpose: "repair" },
+          context: options.context || null
         }
       };
     }

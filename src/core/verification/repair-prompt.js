@@ -6,11 +6,13 @@ export function buildRepairMessages({
   verification = {},
   toolResults = [],
   previousRepairAttempts = [],
-  maxRepairAttempts = 2
+  maxRepairAttempts = 2,
+  context = null
 } = {}) {
   const payload = {
     task: String(userMessage || ""),
     task_type: classification.task_type || "general",
+    context_summary: clip(context?.summary || "", 6000),
     verification: {
       status: verification.status || "unknown",
       reason: clip(verification.reason || "", 2000),

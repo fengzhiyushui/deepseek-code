@@ -308,6 +308,32 @@ test("resume after cross-iteration pause does not duplicate prior-iteration resu
   assert.ok(uniqueIds.has("call_edit"), "missing edit");
 });
 
+test("executor loop stores context in approval resume state", async () => {
+  const result = await runExecutorLoop({
+    message: "modify a.txt",
+    classification: { task_type: "edit" },
+    turnId: "turn_context_resume",
+    context: { snapshot_id: "ctxsnap_1", summary: "Project files:\n- a.txt" },
+    modelGateway: {
+      invoke: async () => ({
+        content: "",
+        tool_calls: [{ id: "call_edit", name: "edit", arguments: { diff: "d" } }]
+      })
+    },
+    toolSchemas: [],
+    executeTool: async (toolCall) => ({
+      call_id: toolCall.id,
+      status: "approval_required",
+      content: [{ type: "text", text: "approval" }],
+      metadata: { approval: { id: "approval_ctx" } }
+    }),
+    createPolicyContext: () => ({})
+  });
+
+  assert.equal(result.status, "awaiting_approval");
+  assert.equal(result.resume_state.context.snapshot_id, "ctxsnap_1");
+});
+
 test("resumeExecutorLoop can pause again on a remaining tool approval", async () => {
   const resumeState = {
     turn_id: "turn_resume_again",

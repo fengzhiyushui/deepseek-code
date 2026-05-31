@@ -74,6 +74,7 @@ export async function runExecutorLoop({
       toolSchemas,
       maxIterations,
       options,
+      context,
       executeTool,
       createPolicyContext
     });
@@ -101,6 +102,7 @@ async function continueToolIteration({
   toolSchemas,
   maxIterations,
   options,
+  context,
   executeTool,
   createPolicyContext
 }) {
@@ -131,7 +133,8 @@ async function continueToolIteration({
           tool_results: iterationResults.slice(0, -1),
           tool_schemas: toolSchemas,
           max_iterations: maxIterations,
-          options
+          options,
+          context
         }
       };
     }
@@ -187,7 +190,8 @@ export async function resumeExecutorLoop({
           tool_results: toolResults.slice(0, -1),
           tool_schemas: resumeState.tool_schemas || [],
           max_iterations: resumeState.max_iterations || 5,
-          options: resumeState.options || {}
+          options: resumeState.options || {},
+          context: resumeState.context || null
         }
       };
     }

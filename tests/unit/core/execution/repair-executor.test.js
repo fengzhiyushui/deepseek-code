@@ -61,6 +61,31 @@ test("repair executor returns awaiting_approval with V2-7 resume_state", async (
   assert.equal(result.resume_state.options.purpose, "repair");
 });
 
+test("repair executor stores context in approval resume state", async () => {
+  const result = await runRepairExecutor({
+    turnId: "turn_repair_context",
+    messages: [{ role: "user", content: "{}" }],
+    modelGateway: {
+      invoke: async () => ({
+        content: "",
+        tool_calls: [{ id: "call_shell", name: "shell", arguments: { argv: ["npm", "test"] } }]
+      })
+    },
+    toolSchemas: [],
+    executeTool: async (toolCall) => ({
+      call_id: toolCall.id,
+      status: "approval_required",
+      content: [{ type: "text", text: "approval" }],
+      metadata: { approval: { id: "approval_repair_ctx" } }
+    }),
+    createPolicyContext: () => ({}),
+    options: { context: { snapshot_id: "ctxsnap_repair", summary: "Project files:\n- a.txt" } }
+  });
+
+  assert.equal(result.status, "awaiting_approval");
+  assert.equal(result.resume_state.context.snapshot_id, "ctxsnap_repair");
+});
+
 test("repair executor returns final content when model has no tool calls", async () => {
   const result = await runRepairExecutor({
     turnId: "turn_repair_final",

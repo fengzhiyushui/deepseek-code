@@ -551,6 +551,59 @@ test("agent runtime throws when repair attempts are exhausted", async () => {
   );
 });
 
+test("agent runtime passes context to query fast path", async () => {
+  let receivedContext = null;
+  const runtime = createAgentRuntime({
+    sessionId: "sess_context_query",
+    createContextSnapshot: async ({ message, classification, channel }) => ({
+      snapshot_id: "ctxsnap_query",
+      message,
+      task_type: classification.task_type,
+      channel,
+      summary: "Project files:\n- README.md (P0 project-doc)"
+    }),
+    modelGateway: {
+      reply: async ({ context }) => {
+        receivedContext = context;
+        return { content: "answer" };
+      }
+    }
+  });
+
+  const result = await runtime.send("what is this project?");
+
+  assert.equal(result.status, "complete");
+  assert.equal(receivedContext.snapshot_id, "ctxsnap_query");
+  assert.equal(receivedContext.channel, "reply");
+});
+
+test("agent runtime passes context to executor loop model messages", async () => {
+  let firstMessages = null;
+  const runtime = createAgentRuntime({
+    sessionId: "sess_context_loop",
+    createContextSnapshot: async () => ({
+      snapshot_id: "ctxsnap_act",
+      channel: "act",
+      summary: "Project files:\n- src/index.js (P1 mentioned)"
+    }),
+    modelGateway: {
+      invoke: async (messages) => {
+        firstMessages = messages;
+        return { content: "done", tool_calls: [] };
+      },
+      reply: async () => ({ content: "fast" })
+    },
+    executeTool: async () => { throw new Error("no tools expected"); },
+    createPolicyContext: () => ({ autonomy: "gated" })
+  });
+
+  const result = await runtime.send("modify src/index.js");
+
+  assert.equal(result.status, "complete");
+  assert.ok(firstMessages[0].content.includes("Project context:"));
+  assert.ok(firstMessages[0].content.includes("src/index.js"));
+});
+
 test("agent runtime interrupt clears paused approvals", async () => {
   const runtime = createAgentRuntime({
     sessionId: "sess_interrupt_paused",

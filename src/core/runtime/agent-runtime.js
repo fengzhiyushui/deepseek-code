@@ -33,7 +33,8 @@ export function createAgentRuntime({
   verifyMode = "auto",
   testArgv = null,
   pausedTurnStore = createPausedTurnStore(),
-  grantApprovalForToolCall = async () => {}
+  grantApprovalForToolCall = async () => {},
+  createContextSnapshot = async () => null
 } = {}) {
   let lifecycle = createLifecycleState();
   let currentTurnId = null;
@@ -66,11 +67,19 @@ export function createAgentRuntime({
       publish(eventBus, "agent:step", { turn_id: turn.id, step: completedClassifyStep, classification });
       assertNotInterrupted(generation);
 
+      const context = await createContextSnapshot({
+        message,
+        classification,
+        channel: classification.task_type === "query" ? "reply" : "act",
+        phase: "execute",
+        options
+      });
+
       let response;
       if (classification.task_type === "query" || !modelGateway?.invoke || !executeTool) {
-        response = await runReplyFastPath({ message, classification, turn, options, signal: currentAbortController.signal });
+        response = await runReplyFastPath({ message, classification, turn, options, signal: currentAbortController.signal, context });
       } else {
-        response = await runToolLoopPath({ message, classification, turn, options, signal: currentAbortController.signal });
+        response = await runToolLoopPath({ message, classification, turn, options, signal: currentAbortController.signal, context });
       }
       assertNotInterrupted(generation);
 
@@ -121,22 +130,23 @@ export function createAgentRuntime({
     }
   }
 
-  async function runReplyFastPath({ message, classification, turn, options, signal }) {
+  async function runReplyFastPath({ message, classification, turn, options, signal, context = null }) {
     lifecycle = transitionLifecycle(lifecycle, { to: "complete", reason: "reply fast path", channel: "system" });
     const finalStep = completeAgentStep(createAgentStep({ turnId: turn.id, type: "final", channel: "system" }));
     const updatedTurn = addTurnStep(turn, finalStep);
     const response = modelGateway && typeof modelGateway.reply === "function"
-      ? await modelGateway.reply({ message, classification, turn, options, signal })
+      ? await modelGateway.reply({ message, classification, turn, options, signal, context })
       : { content: `V2-0 mock ${classification.task_type} response` };
-    return { status: "complete", content: response.content, turn: updatedTurn };
+    return { status: "complete", content: response.content, turn: updatedTurn, context };
   }
 
-  async function runToolLoopPath({ message, classification, turn, options, signal }) {
+  async function runToolLoopPath({ message, classification, turn, options, signal, context = null }) {
     lifecycle = transitionLifecycle(lifecycle, { to: "execute", reason: "tool loop started", channel: "act" });
     const loop = await runExecutorLoop({
       message,
       classification,
       turnId: turn.id,
+      context,
       modelGateway,
       toolSchemas: typeof toolSchemas === "function" ? toolSchemas() : toolSchemas,
       executeTool,
@@ -154,10 +164,10 @@ export function createAgentRuntime({
     });
     if (loop.status === "awaiting_approval") return loop;
 
-    return verifyAndMaybeRepair({ turn, message, classification, loop, options, signal });
+    return verifyAndMaybeRepair({ turn, message, classification, loop, options, signal, context });
   }
 
-  async function verifyAndMaybeRepair({ turn, message, classification, loop, options, signal }) {
+  async function verifyAndMaybeRepair({ turn, message, classification, loop, options, signal, context = null }) {
     lifecycle = transitionLifecycle(lifecycle, { to: "verify", reason: "tool loop complete", channel: "system" });
     const verificationPolicy = createVerificationPolicy({
       verifyMode: options.verifyMode || verifyMode,
@@ -211,7 +221,8 @@ export function createAgentRuntime({
         eventBus,
         signal,
         maxRepairAttempts: options.maxRepairAttempts || maxRepairAttempts,
-        options
+        options,
+        context
       });
       return repairLoop;
     }
@@ -305,6 +316,7 @@ export function createAgentRuntime({
           signal: currentAbortController.signal,
           maxRepairAttempts: ctx.max_repair_attempts,
           options: record.resume_state.options || {},
+          context: record.resume_state.context || record.resume_state.repair_context?.context || null,
           resumeAfterApproval: {
             all_tool_results: mergedToolResults,
             verification: ctx.verification,
@@ -354,7 +366,8 @@ export function createAgentRuntime({
         classification: record.resume_state.classification || { task_type: "edit" },
         loop,
         options: record.resume_state.options || {},
-        signal: currentAbortController.signal
+        signal: currentAbortController.signal,
+        context: record.resume_state.context || null
       });
       if (repaired.status === "awaiting_approval") {
         lifecycle = transitionLifecycle(lifecycle, { to: "awaiting_approval", reason: "repair approval required", channel: "system" });

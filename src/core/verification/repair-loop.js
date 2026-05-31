@@ -19,7 +19,8 @@ export async function runRepairLoop({
   options = {},
   runVerifierImpl = runVerifier,
   runRepairExecutorImpl = runRepairExecutor,
-  resumeAfterApproval = null
+  resumeAfterApproval = null,
+  context = null
 } = {}) {
   const attempts = resumeAfterApproval ? [...resumeAfterApproval.attempts] : [];
   let verification = resumeAfterApproval ? resumeAfterApproval.verification : initialVerification;
@@ -43,7 +44,8 @@ export async function runRepairLoop({
         verification,
         toolResults: allToolResults,
         previousRepairAttempts: attempts,
-        maxRepairAttempts
+        maxRepairAttempts,
+        context
       });
       const repairExec = await runRepairExecutorImpl({
         turnId,
@@ -54,7 +56,7 @@ export async function runRepairLoop({
         createPolicyContext,
         eventBus,
         signal,
-        options: { ...options, message: userMessage, classification }
+        options: { ...options, message: userMessage, classification, context }
       });
       if (repairExec.status === "awaiting_approval") {
         return {
@@ -69,7 +71,8 @@ export async function runRepairLoop({
               attempt,
               attempts: [...attempts],
               initial_verification: initialVerification,
-              max_repair_attempts: maxRepairAttempts
+              max_repair_attempts: maxRepairAttempts,
+              context
             }
           }
         };
