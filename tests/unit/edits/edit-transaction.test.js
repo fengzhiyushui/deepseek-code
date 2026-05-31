@@ -7,6 +7,7 @@ import {
   enhanceChangeRecord,
   hashContent,
   restoreSnapshots,
+  safeTransactionError,
   snapshotTouchedFiles
 } from "../../../src/edits/edit-transaction.js";
 import { parseDiff } from "../../../src/edits/diff-parser.js";
@@ -93,6 +94,60 @@ test("snapshotTouchedFiles refuses create patches when target already exists", a
     () => snapshotTouchedFiles(root, parsed.patches),
     /already exists/
   );
+});
+
+test("safeTransactionError returns category-only message, no raw content", () => {
+  const contentLeak = safeTransactionError(new Error("patch context mismatch: expected 'secret a', got 'old a'"));
+  assert.equal(contentLeak.includes("secret a"), false);
+  assert.equal(contentLeak.includes("old a"), false);
+  assert.match(contentLeak, /patch_failed/);
+
+  const finalizeErr = safeTransactionError(new Error("ENOENT: write failed"));
+  assert.match(finalizeErr, /transaction_finalize_failed/);
+
+  const restoreErr = safeTransactionError(new Error("something else"));
+  assert.match(restoreErr, /transaction_failed/);
+});
+
+test("detectRollbackConflicts treats non-file paths as dirty", async () => {
+  const { detectRollbackConflicts } = await import("../../../src/edits/edit-transaction.js");
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-edit-tx-eisdir-"));
+  // Create a directory at the file path to trigger EISDIR
+  await (await import("node:fs/promises")).mkdir(path.join(root, "a.txt"));
+
+  const record = {
+    id: "change_1",
+    files: [{ path: "a.txt", newPath: "a.txt", oldPath: "a.txt", status: "modify", before: "old\n", after: "new\n", after_hash: hashContent("new\n").hash }]
+  };
+  const conflicts = await detectRollbackConflicts(root, record);
+  assert.equal(conflicts.length, 1);
+  assert.equal(conflicts[0].path, "a.txt");
+  assert.equal(conflicts[0].reason, "dirty");
+});
+
+test("restoreSnapshots removes empty parent dirs created during apply", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-edit-tx-cleandir-"));
+  // Diff creates nested/new.txt
+  const parsed = parseDiff([
+    "diff --git a/deep/nested/new.txt b/deep/nested/new.txt",
+    "--- /dev/null",
+    "+++ b/deep/nested/new.txt",
+    "@@ -0,0 +1 @@",
+    "+created"
+  ].join("\n"));
+  const snapshots = await snapshotTouchedFiles(root, parsed.patches);
+  // Apply: create the nested file
+  const { resolveWorkspacePath } = await import("../../../src/workspace/path-safety.js");
+  const resolved = await resolveWorkspacePath(root, "deep/nested/new.txt", { mustExist: false });
+  await (await import("node:fs/promises")).mkdir(path.dirname(resolved.absolute), { recursive: true });
+  await writeFile(resolved.absolute, "created\n");
+
+  const restored = await restoreSnapshots(root, snapshots);
+  assert.deepEqual(restored, ["deep/nested/new.txt"]);
+  // All parent dirs should be cleaned up
+  const { stat } = await import("node:fs/promises");
+  await assert.rejects(() => stat(path.join(root, "deep", "nested")), /ENOENT/);
+  await assert.rejects(() => stat(path.join(root, "deep")), /ENOENT/);
 });
 
 test("enhanceChangeRecord adds before and after hashes to each file", () => {

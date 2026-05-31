@@ -9,7 +9,8 @@ import { createRollbackService } from "./rollback-service.js";
 import {
   applyDiffTransaction,
   makeTransactionId,
-  restoreSnapshots
+  restoreSnapshots,
+  safeTransactionError
 } from "./edit-transaction.js";
 
 export function createEditService({ projectRoot, eventBus = null, changeStore = null, rollbackService = null } = {}) {
@@ -56,7 +57,7 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
         files: parsed.files,
         restored_files: error.restored_files || [],
         restored: Boolean(error.restored),
-        message: String(error.message || error).slice(0, 500)
+        message: safeTransactionError(error)
       });
       throw error;
     }
@@ -70,7 +71,7 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
         files: parsed.files,
         restored_files: restoredFiles,
         restored: true,
-        message: String(error.message || error).slice(0, 500)
+        message: safeTransactionError(error)
       });
       throw error;
     }

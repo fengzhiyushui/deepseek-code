@@ -60,16 +60,32 @@ export async function snapshotTouchedFiles(projectRoot, patches = []) {
 
 export async function restoreSnapshots(projectRoot, snapshots = []) {
   const restored = [];
+  const createdDirs = new Set();
   for (const snapshot of snapshots) {
     const targetPath = snapshot.newPath === "/dev/null" ? snapshot.oldPath : snapshot.newPath;
     const resolved = await resolveWorkspacePath(projectRoot, targetPath, { mustExist: false });
     if (!snapshot.existed_before) {
       await fs.rm(resolved.absolute, { force: true });
+      // Track parent dirs to clean up
+      let dir = path.dirname(resolved.absolute);
+      while (dir !== path.resolve(projectRoot) && !createdDirs.has(dir)) {
+        createdDirs.add(dir);
+        dir = path.dirname(dir);
+      }
     } else {
       await fs.mkdir(path.dirname(resolved.absolute), { recursive: true });
       await fs.writeFile(resolved.absolute, snapshot.before ?? "", "utf8");
     }
     restored.push(snapshot.path);
+  }
+  // Clean up empty parent dirs from inside out
+  const sortedDirs = [...createdDirs].sort((a, b) => b.length - a.length);
+  for (const dir of sortedDirs) {
+    try {
+      await fs.rmdir(dir);
+    } catch {
+      // Directory not empty — skip
+    }
   }
   return restored;
 }
@@ -163,14 +179,30 @@ async function readCurrentFile(projectRoot, file) {
   const filePath = file.newPath === "/dev/null" ? file.oldPath : file.newPath;
   try {
     const resolved = await resolveWorkspacePath(projectRoot, filePath, { mustExist: true });
+    const stat = await fs.stat(resolved.real);
+    if (!stat.isFile()) {
+      return { hash: null, bytes: 0 };
+    }
     const content = stripBom(await fs.readFile(resolved.real, "utf8"));
     return hashContent(content);
   } catch (error) {
-    if (error.code === "ENOENT") {
+    if (error.code === "ENOENT" || error.code === "EISDIR" || error.code === "ENOTDIR") {
       return { hash: null, bytes: 0 };
     }
     throw error;
   }
+}
+
+export function safeTransactionError(error) {
+  const message = String(error?.message || "");
+  if (message.includes("patch") || message.includes("context") || message.includes("hunk") || message.includes("mismatch")) {
+    return "patch_failed";
+  }
+  if (message.includes("ENOENT") || message.includes("write") || message.includes("finalize")) {
+    return "transaction_finalize_failed";
+  }
+  if (error?.restored) return "transaction_failed_restored";
+  return "transaction_failed";
 }
 
 export function makeTransactionId() {
