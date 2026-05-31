@@ -83,6 +83,19 @@ test("apply restores earlier writes when a later patch fails", async () => {
   assert.equal(await readFile(path.join(root, "b.txt"), "utf8"), "old b\n");
 });
 
+test("apply records before and after hashes in change metadata", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-edit-service-hashes-"));
+  await writeFile(path.join(root, "a.txt"), "old\n");
+  const service = createEditService({ projectRoot: root });
+
+  const applied = await service.apply({ diff: MODIFY_DIFF, prompt: "hashes" });
+  const record = JSON.parse(await readFile(path.join(root, ".deepseek-code", "changes", `${applied.metadata.change_id}.json`), "utf8"));
+  assert.equal(record.files[0].before_hash?.startsWith("sha256:"), true);
+  assert.equal(record.files[0].after_hash?.startsWith("sha256:"), true);
+  assert.notEqual(record.files[0].before_hash, record.files[0].after_hash);
+  assert.equal(record.transaction_id?.startsWith("tx_"), true);
+});
+
 test("apply rejects unsafe diff before writing", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "dsc-edit-service-"));
   const service = createEditService({ projectRoot: root });

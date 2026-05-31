@@ -105,6 +105,26 @@ export async function applyDiffTransaction({
   }
 }
 
+export function enhanceChangeRecord(record, { transaction_id = null } = {}) {
+  const files = (record.files || []).map((file) => {
+    const beforeMeta = file.before == null ? { hash: null, bytes: 0 } : hashContent(file.before);
+    const afterMeta = file.after == null ? { hash: null, bytes: 0 } : hashContent(file.after);
+    return {
+      ...file,
+      before_hash: file.before_hash ?? beforeMeta.hash,
+      after_hash: file.after_hash ?? afterMeta.hash,
+      before_bytes: file.before_bytes ?? beforeMeta.bytes,
+      after_bytes: file.after_bytes ?? afterMeta.bytes,
+      transaction_id: file.transaction_id || transaction_id
+    };
+  });
+  return {
+    ...record,
+    transaction_id: record.transaction_id || transaction_id,
+    files
+  };
+}
+
 export function makeTransactionId() {
   return `tx_${Date.now().toString(36)}_${Math.random().toString(16).slice(2, 10)}`;
 }

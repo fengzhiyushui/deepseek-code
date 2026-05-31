@@ -4,6 +4,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
+  enhanceChangeRecord,
   hashContent,
   restoreSnapshots,
   snapshotTouchedFiles
@@ -92,4 +93,27 @@ test("snapshotTouchedFiles refuses create patches when target already exists", a
     () => snapshotTouchedFiles(root, parsed.patches),
     /already exists/
   );
+});
+
+test("enhanceChangeRecord adds before and after hashes to each file", () => {
+  const record = {
+    id: "change_1",
+    files: [
+      {
+        path: "a.txt",
+        oldPath: "a.txt",
+        newPath: "a.txt",
+        status: "modify",
+        before: "old\n",
+        after: "new\n"
+      }
+    ]
+  };
+  const enhanced = enhanceChangeRecord(record, { transaction_id: "tx_1" });
+
+  assert.equal(enhanced.transaction_id, "tx_1");
+  assert.equal(enhanced.files[0].before_hash, hashContent("old\n").hash);
+  assert.equal(enhanced.files[0].after_hash, hashContent("new\n").hash);
+  assert.equal(enhanced.files[0].before_bytes, Buffer.byteLength("old\n"));
+  assert.equal(enhanced.files[0].after_bytes, Buffer.byteLength("new\n"));
 });
