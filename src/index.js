@@ -6,6 +6,8 @@ import { SESSION_EVENT_TYPES } from "./sessions/event-types.js";
 import { createSessionEventLog, projectIdFromRoot } from "./sessions/event-log.js";
 import { createSessionManager } from "./sessions/session-manager.js";
 import { createBranchStore } from "./sessions/branch-store.js";
+import { createRewindService } from "./sessions/rewind-service.js";
+import { buildCheckpointIndex } from "./sessions/checkpoint-index.js";
 import { createDeepSeekGateway } from "./deepseek/model-gateway.js";
 import { createEditService } from "./edits/edit-service.js";
 import { createBuiltinTools } from "./tools/builtin/index.js";
@@ -135,6 +137,29 @@ export async function createKernel(root, options = {}) {
     activate: async () => { throw new Error("branch store unavailable"); }
   };
 
+  const rewind = branchStore ? createRewindService({
+    eventBus,
+    getTimeline: (input) => sessionManager.getTimeline(input),
+    getActiveBranchId: async () => activeBranchId,
+    createBranch: (input) => branchStore.createBranch(input),
+    activateBranch: async (branchId) => {
+      const branch = await branchStore.activateBranch(branchId);
+      activeBranchId = branch.branch_id;
+      return branch;
+    },
+    rollback: (input) => editService.rollback(input)
+  }) : {
+    preview: async () => { throw new Error("rewind unavailable: no branch store"); },
+    apply: async () => { throw new Error("rewind unavailable: no branch store"); }
+  };
+
+  const checkpoints = {
+    async list({ branch_id = activeBranchId } = {}) {
+      const timeline = await sessionManager.getTimeline({ count: 10000, branch_id });
+      return buildCheckpointIndex(timeline, { branch_id }).checkpoints;
+    }
+  };
+
   const session = {
     subscribe: sessionManager.subscribe,
     getTimeline: sessionManager.getTimeline,
@@ -144,7 +169,9 @@ export async function createKernel(root, options = {}) {
       await sessionManager.flush();
     },
     dispose: sessionManager.dispose,
-    branches
+    branches,
+    rewind,
+    checkpoints
   };
 
   const context = {

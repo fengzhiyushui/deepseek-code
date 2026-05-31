@@ -8,8 +8,14 @@ export function buildCheckpointIndex(events = [], { branch_id = BR_MAIN } = {}) 
   const branchEvents = normalized.filter((event) => (event.branch_id || BR_MAIN) === branch_id);
   const changes = [];
   const checkpoints = [];
+  let prevHadChangeId = null;
   for (const event of branchEvents) {
     if (CHANGE_EVENTS.has(event.type) && event.change_id) {
+      if (event.change_id === prevHadChangeId) {
+        prevHadChangeId = null;
+        continue;
+      }
+      prevHadChangeId = event.change_id;
       changes.push({
         change_id: event.change_id,
         seq: Number(event.seq || 0),
