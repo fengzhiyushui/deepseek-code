@@ -115,6 +115,37 @@ test("session getTimeline filters active branch while keeping br_main ancestors"
   assert.deepEqual(all.map((event) => event.seq), [1, 2, 3, 4, 5]);
 });
 
+test("session manager preserves payload branch_id on branch control events", async () => {
+  const eventBus = createEventBus();
+  const writes = [];
+  const session = createSessionManager({
+    eventBus,
+    eventLog: {
+      append: async (type, data) => writes.push({ type, data }),
+      flush: async () => {},
+      tail: async () => []
+    },
+    getActiveBranchId: () => "br_main"
+  });
+  const events = [];
+  const sub = session.subscribe((event) => events.push(event));
+
+  // Publish branch_created from a child branch BEFORE activation
+  eventBus.publish("session:branch_created", {
+    branch_id: "br_child",
+    parent_branch_id: "br_main",
+    forked_from_event_id: "evt_1",
+    forked_from_seq: 5
+  });
+  await session.flush();
+  sub.unsubscribe();
+
+  // Payload branch_id "br_child" must survive, not be overwritten to "br_main"
+  assert.equal(events[0].branch_id, "br_child");
+  assert.equal(writes[0].data.branch_id, "br_child");
+  assert.equal(writes[0].data.parent_branch_id, "br_main");
+});
+
 test("session manager dispose stops bridge writes", async () => {
   const eventBus = createEventBus();
   const writes = [];

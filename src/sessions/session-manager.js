@@ -16,7 +16,7 @@ export function createSessionManager({
   const pending = new Set();
   const bridgeSubscriptions = eventLog
     ? eventTypes.map((type) => eventBus.subscribe(type, (data, meta) => {
-        const stamped = stampBranch(data, getActiveBranchId);
+        const stamped = stampBranch(type, data, getActiveBranchId);
         const write = eventLog.append(type, stamped, meta).catch((error) => {
           try {
             onError(error, type);
@@ -32,7 +32,7 @@ export function createSessionManager({
   function subscribe(handler) {
     if (typeof handler !== "function") throw new Error("session subscriber must be a function");
     const subscriptions = eventTypes.map((type) => eventBus.subscribe(type, (data, meta) => {
-      handler({ ...stampBranch(data, getActiveBranchId), type, meta });
+      handler({ ...stampBranch(type, data, getActiveBranchId), type, meta });
     }));
     return {
       unsubscribe() {
@@ -102,7 +102,10 @@ export function filterTimelineForBranch(events, ancestry = []) {
   });
 }
 
-function stampBranch(data, getActiveBranchId) {
+function stampBranch(type, data, getActiveBranchId) {
+  if (type === "session:branch_created" || type === "session:branch_activated") {
+    return { ...data, branch_id: data?.branch_id || safeBranchId(getActiveBranchId()) };
+  }
   const branchId = safeBranchId(getActiveBranchId());
   return { ...data, branch_id: branchId };
 }

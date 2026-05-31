@@ -10,6 +10,8 @@ test("session event registry contains the v2 canonical events", () => {
   for (const type of [
     "session:start",
     "session:resume",
+    "session:branch_created",
+    "session:branch_activated",
     "user:message",
     "agent:turn_started",
     "agent:step",

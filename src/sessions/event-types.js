@@ -1,6 +1,8 @@
 export const SESSION_EVENT_TYPES = Object.freeze([
   "session:start",
   "session:resume",
+  "session:branch_created",
+  "session:branch_activated",
   "user:message",
   "agent:turn_started",
   "agent:step",
