@@ -148,6 +148,25 @@ test("gui preload and main expose preference ipc bridge", async () => {
   assert.ok(preload.includes("gui:preferences-set"));
 });
 
+test("renderer app loads persists preferences and binds keyboard shortcuts", async () => {
+  const app = await readFile("gui/renderer/app.js", "utf8");
+
+  for (const token of [
+    "loadPreferences",
+    "persistPreferences",
+    "bindKeyboardShortcuts",
+    "preferences_loaded",
+    "inspector_closed",
+    "Ctrl+K",
+    "event.ctrlKey",
+    "focusComposer",
+    "getPreferences",
+    "setPreferences"
+  ]) {
+    assert.ok(app.includes(token), `${token} missing`);
+  }
+});
+
 test("renderer files avoid unsafe html injection and garbled legacy labels", async () => {
   const html = await readFile("gui/renderer/index.html", "utf8");
   const app = await readFile("gui/renderer/app.js", "utf8");
