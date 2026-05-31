@@ -131,6 +131,38 @@ test("force rollback overwrites dirty files and reports conflicts", async () => 
   assert.equal(result.metadata.conflicts.length, 1);
 });
 
+test("transaction events do not include raw diff or file content", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-edit-service-event-privacy-"));
+  await writeFile(path.join(root, "a.txt"), "old secret text\n");
+  const eventBus = createEventBus();
+  const events = [];
+  for (const type of [
+    "file:transaction_started",
+    "file:transaction_committed",
+    "file:transaction_failed",
+    "file:transaction_rolled_back",
+    "file:rollback_conflict",
+    "file:diff_applied",
+    "file:rollback_applied"
+  ]) {
+    eventBus.subscribe(type, (data) => events.push({ type, data }));
+  }
+  const service = createEditService({ projectRoot: root, eventBus });
+
+  const applied = await service.apply({
+    diff: "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old secret text\n+new secret text",
+    prompt: "privacy"
+  });
+  await writeFile(path.join(root, "a.txt"), "manual secret text\n");
+  await service.rollback({ change_id: applied.metadata.change_id });
+
+  const raw = JSON.stringify(events);
+  assert.equal(raw.includes("old secret text"), false);
+  assert.equal(raw.includes("new secret text"), false);
+  assert.equal(raw.includes("manual secret text"), false);
+  assert.equal(raw.includes("@@ -1 +1 @@"), false);
+});
+
 test("apply rejects unsafe diff before writing", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "dsc-edit-service-"));
   const service = createEditService({ projectRoot: root });

@@ -83,6 +83,14 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
       diff_size: Buffer.byteLength(parsed.diff, "utf8"),
       change_record_path: `.deepseek-code/changes/${record.id}.json`
     };
+    publish("file:transaction_committed", {
+      transaction_id: transaction.transaction_id,
+      change_id: record.id,
+      summary: record.summary,
+      files: record.summary.map((item) => item.path),
+      diff_hash: hashText(parsed.diff),
+      diff_size: Buffer.byteLength(parsed.diff, "utf8")
+    });
     publish("file:diff_applied", {
       change_id: record.id,
       approval_id,
