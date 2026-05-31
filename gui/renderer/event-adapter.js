@@ -25,7 +25,17 @@
       "verification:result": "V",
       "agent:final": "F",
       "agent:result": "F",
-      "agent:error": "E"
+      "agent:error": "E",
+      "session:branch_created": "B",
+      "session:branch_activated": "B",
+      "session:rewind_preview": "W",
+      "session:rewind_started": "W",
+      "session:rewind_applied": "W",
+      "session:rewind_conflict": "!",
+      "session:rewind_failed": "!",
+      "session:rewind_restore_started": "W",
+      "session:rewind_restored": "W",
+      "session:rewind_recovery_failed": "!"
     };
     return icons[type] || "-";
   }
@@ -44,6 +54,16 @@
     if (event.type === "agent:final") return clip(event.content || "complete");
     if (event.type === "agent:result") return event.result?.status || "complete";
     if (event.type === "agent:error") return "error " + (event.error || event.message || "");
+    if (event.type === "session:branch_created") return "branch created " + (event.branch_id || "unknown");
+    if (event.type === "session:branch_activated") return "branch active " + (event.branch_id || "unknown");
+    if (event.type === "session:rewind_preview") return "rewind preview " + (event.rollback_count || event.rollback_change_ids?.length || 0) + " changes";
+    if (event.type === "session:rewind_started") return "rewind started " + ((event.rollback_change_ids || []).length) + " changes";
+    if (event.type === "session:rewind_applied") return "rewind applied " + (event.branch_id || "unknown");
+    if (event.type === "session:rewind_conflict") return "rewind conflict " + (event.failed_change_id || "unknown");
+    if (event.type === "session:rewind_failed") return "rewind failed " + (event.reason || event.failed_change_id || "unknown");
+    if (event.type === "session:rewind_restore_started") return "rewind restoring " + ((event.applied_rollbacks || []).length) + " changes";
+    if (event.type === "session:rewind_restored") return "rewind restored " + ((event.restored_files || []).length) + " files";
+    if (event.type === "session:rewind_recovery_failed") return "rewind recovery failed " + (event.reason || event.restore_error || "unknown");
     return event.type || "event";
   }
 
@@ -62,6 +82,8 @@
     if (event.type === "verification:result") return { channel: "verify" };
     if (event.type === "agent:final" || event.type === "agent:result") return { channel: "idle" };
     if (event.type === "agent:error") return { channel: "error" };
+    if (event.type === "session:rewind_preview" || event.type === "session:rewind_started" || event.type === "session:rewind_applied") return { channel: "rewind" };
+    if (event.type === "session:rewind_conflict" || event.type === "session:rewind_failed" || event.type === "session:rewind_recovery_failed") return { channel: "recovery" };
     return {};
   }
 
