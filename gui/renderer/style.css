@@ -583,13 +583,16 @@ button:disabled { cursor: default; opacity: 0.48; }
     overflow-y: auto;
   }
   #agent-session { grid-column: 2; }
+  .workbench-shell.inspector-open #context-panel {
+    display: none;
+  }
 }
 
 @media (max-width: 760px) {
-  body { overflow: auto; }
+  body { overflow: hidden; }
   .workbench-shell {
-    min-height: 100vh;
-    height: auto;
+    min-height: 0;
+    height: 100vh;
     grid-template-rows: auto auto minmax(0, 1fr) var(--status-height);
   }
   #command-bar {
@@ -603,7 +606,7 @@ button:disabled { cursor: default; opacity: 0.48; }
   .workbench-body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: 46px minmax(0, 1fr);
-    min-height: calc(100vh - 120px);
+    min-height: 0;
   }
   #activity-rail {
     grid-row: 1;
@@ -614,17 +617,20 @@ button:disabled { cursor: default; opacity: 0.48; }
   }
   #context-panel {
     top: 110px;
-    left: 0;
-    width: min(320px, 92vw);
+    left: var(--space-3);
+    right: var(--space-3);
+    width: auto;
   }
   #agent-session {
     grid-row: 2;
     grid-column: 1;
-    min-height: calc(100vh - 174px);
+    min-height: 0;
   }
   #contextual-inspector {
     top: 110px;
-    width: min(340px, 92vw);
+    left: var(--space-3);
+    right: var(--space-3);
+    width: auto;
   }
   .empty-actions { grid-template-columns: 1fr; }
   .message { max-width: 96%; }

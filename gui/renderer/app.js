@@ -9,20 +9,25 @@
   var state = model.createInitialState();
 
   function dispatch(action) {
-    state = model.applyWorkbenchAction(state, action);
+    var next = model.applyWorkbenchAction(state, action);
+    if (isCompactViewport() && next.inspectorMode !== "activity" && next.contextCollapsed === false) {
+      next = model.applyWorkbenchAction(next, { type: "context_collapsed_changed", collapsed: true });
+    }
+    state = next;
     render();
   }
 
   function init() {
     bindDom();
     bindKeyboardShortcuts();
-    if (window.matchMedia && window.matchMedia("(max-width: 900px)").matches) {
+    if (isCompactViewport()) {
       state = model.applyWorkbenchAction(state, { type: "context_collapsed_changed", collapsed: true });
       render();
     }
     loadPreferences();
     if (!hasBridge) {
       reportError("runtime", "GUI bridge unavailable. Workbench is running in preview mode.");
+      dispatch({ type: "inspector_closed" });
     }
     refreshWorkbench();
     if (typeof api.onKernelEvent !== "function") {
@@ -80,7 +85,9 @@
     if (typeof api.getPreferences !== "function") return;
     api.getPreferences().then(function (preferences) {
       if (preferences && preferences.error) throw new Error(preferences.error);
-      dispatch({ type: "preferences_loaded", preferences: preferences || {} });
+      var next = preferences || {};
+      if (isCompactViewport()) next = Object.assign({}, next, { contextCollapsed: true });
+      dispatch({ type: "preferences_loaded", preferences: next });
     }).catch(function (error) {
       reportError("preferences", error);
     });
@@ -125,7 +132,7 @@
       focusComposer();
       return true;
     }
-    if (state.contextCollapsed === false && window.matchMedia && window.matchMedia("(max-width: 900px)").matches) {
+    if (state.contextCollapsed === false && isCompactViewport()) {
       dispatch({ type: "context_collapsed_changed", collapsed: true });
       persistPreferences();
       focusComposer();
@@ -148,6 +155,10 @@
     if (!target) return false;
     var tag = String(target.tagName || "").toLowerCase();
     return tag === "input" || tag === "textarea" || target.isContentEditable;
+  }
+
+  function isCompactViewport() {
+    return Boolean(window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
   }
 
   function refreshWorkbench() {
@@ -258,7 +269,13 @@
 
   function renderTheme() {
     var app = document.getElementById("app");
-    if (app) app.setAttribute("data-theme", state.theme);
+    if (app) {
+      var classes = ["workbench-shell"];
+      if (state.inspectorMode !== "activity") classes.push("inspector-open");
+      if (!state.contextCollapsed) classes.push("context-open");
+      app.className = classes.join(" ");
+      app.setAttribute("data-theme", state.theme);
+    }
     setText("theme-toggle", state.theme === "night" ? "Night" : "Day");
   }
 

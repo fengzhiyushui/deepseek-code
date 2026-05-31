@@ -24,6 +24,8 @@ if (process.env.DEEPSEEK_CODE_GUI_SMOKE === "1") {
   app.commandLine.appendSwitch("disable-gpu-compositing");
   app.commandLine.appendSwitch("disable-gpu-rasterization");
   app.commandLine.appendSwitch("disable-gpu-sandbox");
+  app.commandLine.appendSwitch("no-sandbox");
+  app.commandLine.appendSwitch("disable-features", "UseSkiaRenderer,VizDisplayCompositor");
 }
 
 async function createWindow() {

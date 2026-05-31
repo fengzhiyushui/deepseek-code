@@ -31,6 +31,8 @@ test("gui electron shell starts against a temp project", { timeout: 20000 }, asy
     "--disable-gpu-compositing",
     "--disable-gpu-rasterization",
     "--disable-gpu-sandbox",
+    "--no-sandbox",
+    "--disable-features=UseSkiaRenderer,VizDisplayCompositor",
     ".",
     `--project=${projectRoot}`
   ], {

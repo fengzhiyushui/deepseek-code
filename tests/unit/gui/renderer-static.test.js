@@ -179,6 +179,18 @@ test("renderer exposes explicit inspector close control", async () => {
   assert.ok(app.includes("focusInspector"));
 });
 
+test("renderer compact layout prevents overlapping drawers", async () => {
+  const css = await readFile("gui/renderer/style.css", "utf8");
+  const app = await readFile("gui/renderer/app.js", "utf8");
+
+  assert.ok(css.includes(".workbench-shell.inspector-open #context-panel"));
+  assert.ok(css.includes("right: var(--space-3)"));
+  assert.ok(css.includes("left: var(--space-3)"));
+  assert.ok(css.includes("body { overflow: hidden; }"));
+  assert.ok(app.includes("isCompactViewport"));
+  assert.ok(app.includes("inspector-open"));
+});
+
 test("renderer files avoid unsafe html injection and garbled legacy labels", async () => {
   const html = await readFile("gui/renderer/index.html", "utf8");
   const app = await readFile("gui/renderer/app.js", "utf8");
