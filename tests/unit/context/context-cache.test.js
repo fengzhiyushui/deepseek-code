@@ -74,6 +74,19 @@ test("scanContextWithCache skips its own manifest and cache root", async () => {
   assert.equal(paths.some((p) => p.includes(".context-cache")), false);
 });
 
+test("scanContextWithCache resolves relative cacheRoot against project root", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-context-relroot-"));
+  await writeFile(path.join(root, "README.md"), "# demo\n");
+
+  // Pass a relative cacheRoot — must resolve under root, not cwd
+  const result = await scanContextWithCache({ root, options: { cacheRoot: ".context-cache-rel" } });
+
+  assert.ok(result.records.has("README.md"));
+  assert.ok(result.manifestPath);
+  assert.ok(result.manifestPath.startsWith(root));
+  assert.equal(result.manifestPath.includes(".context-cache-rel"), true);
+});
+
 test("hydrateContextRecords reads snippets lazily and skips unreadable selected files", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "dsc-context-hydrate-"));
   await writeFile(path.join(root, "README.md"), "# demo\n");

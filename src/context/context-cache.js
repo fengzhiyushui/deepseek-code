@@ -143,9 +143,12 @@ export async function hydrateContextRecords({ root, records = [], options = {} }
 
 export function normalizeCacheOptions(root, options = {}) {
   const settings = { ...DEFAULT_OPTIONS, ...options };
+  const cacheRoot = settings.cacheRoot
+    ? path.resolve(root, settings.cacheRoot)
+    : path.join(root, ".deepseek-code", "v2", "context");
   return {
     ...settings,
-    cacheRoot: settings.cacheRoot || path.join(root, ".deepseek-code", "v2", "context")
+    cacheRoot
   };
 }
 
