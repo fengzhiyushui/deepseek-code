@@ -117,12 +117,29 @@ function createKernelHost({
     return ready() ? requireKernel().runtime.getState() : { current: "idle", channel: null };
   }
 
+  async function listBranches() {
+    return ready() ? requireKernel().session.branches?.list?.() || [] : [];
+  }
+
+  async function listCheckpoints(options = {}) {
+    return ready() ? requireKernel().session.checkpoints?.list?.(options) || [] : [];
+  }
+
+  async function rewindPreview(options = {}) {
+    return requireKernel().session.rewind.preview(options);
+  }
+
+  async function rewindApply(options = {}) {
+    return requireKernel().session.rewind.apply(options);
+  }
+
   function dispose() {
     subscription?.unsubscribe?.();
     subscription = null;
   }
 
-  return { init, ready, send, approve, interrupt, getTimeline, getSnapshot, getUsage, getConfig, getState, dispose };
+  return { init, ready, send, approve, interrupt, getTimeline, getSnapshot, getUsage, getConfig, getState,
+           listBranches, listCheckpoints, rewindPreview, rewindApply, dispose };
 }
 
 module.exports = { createKernelHost, resolveProjectRoot, zeroUsage, buildKernelOptions };

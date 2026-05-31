@@ -170,3 +170,36 @@ test("kernel host getUsage prefers metrics over modelGateway when both exist", a
 
   assert.deepEqual(host.getUsage(), metricsUsage);
 });
+
+test("kernel host exposes branch and rewind delegates", async () => {
+  const host = createKernelHost({
+    projectRoot: "/repo",
+    kernelFactory: async () => ({
+      session: {
+        subscribe: () => ({ unsubscribe() {} }),
+        getTimeline: async () => [],
+        branches: {
+          list: async () => [{ branch_id: "br_main" }],
+          getActive: async () => ({ branch_id: "br_main" })
+        },
+        checkpoints: { list: async () => [{ checkpoint_id: "cp_1" }] },
+        rewind: {
+          preview: async () => ({ status: "success" }),
+          apply: async () => ({ status: "success" })
+        }
+      },
+      agent: { send: async () => ({ status: "complete" }), approve: () => {}, interrupt: () => {} },
+      context: { snapshot: async () => ({ units: [] }) },
+      metrics: { getUsage: () => zeroUsage() },
+      config: { getPublicConfig: () => ({}) },
+      runtime: { getState: () => ({ current: "idle" }) }
+    }),
+    configLoader: async () => ({})
+  });
+  await host.init();
+
+  assert.deepEqual(await host.listBranches(), [{ branch_id: "br_main" }]);
+  assert.deepEqual(await host.listCheckpoints(), [{ checkpoint_id: "cp_1" }]);
+  assert.equal((await host.rewindPreview({ target: { seq: 1 } })).status, "success");
+  assert.equal((await host.rewindApply({ target: { seq: 1 } })).status, "success");
+});

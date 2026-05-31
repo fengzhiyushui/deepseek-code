@@ -12,6 +12,12 @@ export function summarizeKernelEvent(event = {}) {
   if (event.type === "verification:result") return `verification ${event.result?.status || event.status || "unknown"}`;
   if (event.type === "agent:final") return `final ${clip(event.content || "")}`.trim();
   if (event.type === "agent:error") return `error ${clip(event.message || event.error || "")}`.trim();
+  if (event.type === "session:branch_created") return `branch created ${event.branch_id || "unknown"}`;
+  if (event.type === "session:branch_activated") return `branch active ${event.branch_id || "unknown"}`;
+  if (event.type === "session:rewind_preview") return `rewind preview ${event.rollback_count || event.rollback_change_ids?.length || 0} changes`;
+  if (event.type === "session:rewind_applied") return `rewind applied ${event.branch_id || "unknown"} ${(event.rollback_change_ids || []).length} changes`;
+  if (event.type === "session:rewind_conflict") return `rewind conflict ${event.failed_change_id || "unknown"}`;
+  if (event.type === "session:rewind_failed") return `rewind failed ${event.failed_change_id || event.reason || "unknown"}`;
   return event.type || "event";
 }
 

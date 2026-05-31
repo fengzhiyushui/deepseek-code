@@ -46,3 +46,30 @@ test("createEventRenderer writes only useful progress events", () => {
 
   assert.deepEqual(lines, ["- user hi", "- tool result success"]);
 });
+
+test("summarizeKernelEvent renders branch and rewind events", () => {
+  assert.equal(
+    summarizeKernelEvent({ type: "session:branch_created", branch_id: "br_child" }),
+    "branch created br_child"
+  );
+  assert.equal(
+    summarizeKernelEvent({ type: "session:branch_activated", branch_id: "br_child" }),
+    "branch active br_child"
+  );
+  assert.equal(
+    summarizeKernelEvent({ type: "session:rewind_preview", rollback_count: 3 }),
+    "rewind preview 3 changes"
+  );
+  assert.equal(
+    summarizeKernelEvent({ type: "session:rewind_applied", branch_id: "br_child", rollback_change_ids: ["a", "b"] }),
+    "rewind applied br_child 2 changes"
+  );
+  assert.equal(
+    summarizeKernelEvent({ type: "session:rewind_conflict", failed_change_id: "change_1" }),
+    "rewind conflict change_1"
+  );
+  assert.equal(
+    summarizeKernelEvent({ type: "session:rewind_failed", failed_change_id: "change_2" }),
+    "rewind failed change_2"
+  );
+});
