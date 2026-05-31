@@ -114,11 +114,21 @@ export function createContextRecord({
 }
 
 export function hydrateContextUnit(record, content, { maxSnippetBytes = 4000, now = nowIso() } = {}) {
+  const fresh = createContextUnit({
+    path: record.path,
+    content,
+    reason: record.reason,
+    priority: record.priority,
+    maxSnippetBytes,
+    now
+  });
   return {
     ...record,
-    bytes: Buffer.byteLength(content),
-    token_count: estimateTokens(clipSnippet(content, maxSnippetBytes)),
-    snippet: clipSnippet(content, maxSnippetBytes),
+    id: fresh.id,
+    hash: fresh.hash,
+    bytes: fresh.bytes,
+    token_count: fresh.token_count,
+    snippet: fresh.snippet,
     updated_at: now
   };
 }
