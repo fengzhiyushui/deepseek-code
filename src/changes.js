@@ -140,7 +140,9 @@ function changePath(root, id) {
 }
 
 function makeChangeId() {
-  return new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+  const ts = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+  const rand = Math.random().toString(16).slice(2, 8);
+  return `${ts}-${rand}`;
 }
 
 function translateStatus(status) {

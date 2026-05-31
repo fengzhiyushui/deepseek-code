@@ -42,7 +42,7 @@ test("kernel diff_apply writes a file and emits edit events", async () => {
 
   assert.equal(result.status, "success");
   assert.equal(await readFile(path.join(root, "a.txt"), "utf8"), "new\n");
-  assert.match(result.metadata.change_id, /^\d{14}$/);
+  assert.match(result.metadata.change_id, /^\d{14}-[a-f0-9]{6}$/);
   assert.ok(events.some((event) => event.type === "tool:call"));
   assert.ok(events.some((event) => event.type === "file:diff_applied"));
   assert.ok(events.some((event) => event.type === "tool:result"));

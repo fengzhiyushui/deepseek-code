@@ -33,7 +33,7 @@ test("apply writes files finalizes change and publishes event without raw diff",
 
   assert.equal(result.status, "success");
   assert.equal(await readFile(path.join(root, "a.txt"), "utf8"), "new\n");
-  assert.match(result.metadata.change_id, /^\d{14}$/);
+  assert.match(result.metadata.change_id, /^\d{14}-[a-f0-9]{6}$/);
   assert.equal(result.metadata.approval_id, "appr_1");
   assert.equal(events.length, 1);
   assert.equal(events[0].change_id, result.metadata.change_id);
