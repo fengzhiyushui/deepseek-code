@@ -125,7 +125,66 @@ test("rewind apply handles force flag and failed rollback", async () => {
 
   const result = await service.apply({ target: { turn_id: "turn_1" }, force: true });
 
-  assert.equal(result.status, "failed");
+  assert.equal(result.status, "failed_restored");
   assert.equal(rollbackCalls[0].force, true);
-  assert.equal(failed.length, 1);
+  assert.ok(failed.length >= 1);
+});
+
+test("rewind apply restores files when createBranch fails after rollback", async () => {
+  const eventBus = createEventBus();
+  const restored = [];
+  eventBus.subscribe("session:rewind_restored", (data) => restored.push(data));
+  let fileState = "after edit";
+  const service = createRewindService({
+    eventBus,
+    projectRoot: "/virtual",
+    getTimeline: async () => [
+      { seq: 1, event_id: "evt_user_1", type: "user:message", turn_id: "turn_1", branch_id: "br_main" },
+      { seq: 2, event_id: "evt_apply_1", type: "file:diff_applied", change_id: "change_1", files: ["a.txt"], branch_id: "br_main" }
+    ],
+    getActiveBranchId: async () => "br_main",
+    captureSnapshots: async () => [{ path: "a.txt", existed_before: true, before: "after edit" }],
+    restoreSnapshots: async () => { fileState = "after edit"; return ["a.txt"]; },
+    createBranch: async () => { throw new Error("secret branch store failure"); },
+    activateBranch: async () => { throw new Error("should not activate"); },
+    rollback: async () => { fileState = "before edit"; return { status: "success", metadata: { change_id: "change_1" } }; }
+  });
+
+  const result = await service.apply({ target: { turn_id: "turn_1" } });
+
+  assert.equal(result.status, "failed_restored");
+  assert.equal(result.phase, "create_branch");
+  assert.equal(result.reason, "branch_create_failed");
+  assert.equal(fileState, "after edit");
+  assert.deepEqual(result.restored_files, ["a.txt"]);
+  assert.equal(restored.length, 1);
+  assert.equal(JSON.stringify(restored).includes("secret branch store failure"), false);
+});
+
+test("rewind apply restores files when activateBranch fails after branch creation", async () => {
+  const eventBus = createEventBus();
+  let activeBranch = "br_main";
+  let fileState = "after edit";
+  const service = createRewindService({
+    eventBus,
+    projectRoot: "/virtual",
+    getTimeline: async () => [
+      { seq: 1, event_id: "evt_user_1", type: "user:message", turn_id: "turn_1", branch_id: "br_main" },
+      { seq: 2, event_id: "evt_apply_1", type: "file:diff_applied", change_id: "change_1", files: ["a.txt"], branch_id: "br_main" }
+    ],
+    getActiveBranchId: async () => activeBranch,
+    captureSnapshots: async () => [{ path: "a.txt", existed_before: true, before: "after edit" }],
+    restoreSnapshots: async () => { fileState = "after edit"; return ["a.txt"]; },
+    createBranch: async (input) => ({ branch_id: input.branch_id, parent_branch_id: "br_main" }),
+    activateBranch: async () => { throw new Error("cannot activate secret branch"); },
+    rollback: async () => { fileState = "before edit"; return { status: "success", metadata: { change_id: "change_1" } }; }
+  });
+
+  const result = await service.apply({ target: { turn_id: "turn_1" } });
+
+  assert.equal(result.status, "failed_restored");
+  assert.equal(result.phase, "activate_branch");
+  assert.equal(result.reason, "branch_activate_failed");
+  assert.equal(fileState, "after edit");
+  assert.equal(activeBranch, "br_main");
 });

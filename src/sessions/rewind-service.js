@@ -4,14 +4,22 @@ import {
   computeRollbackPlan,
   resolveRewindTarget
 } from "./checkpoint-index.js";
+import {
+  captureRewindSnapshots,
+  restoreRewindSnapshots,
+  safeRewindError
+} from "./rewind-transaction.js";
 
 export function createRewindService({
   eventBus = null,
+  projectRoot = null,
   getTimeline,
   getActiveBranchId,
   createBranch = null,
   activateBranch = null,
-  rollback
+  rollback,
+  captureSnapshots = captureRewindSnapshots,
+  restoreSnapshots = restoreRewindSnapshots
 } = {}) {
   if (typeof getTimeline !== "function") throw new Error("getTimeline is required");
   if (typeof getActiveBranchId !== "function") throw new Error("getActiveBranchId is required");
@@ -38,6 +46,46 @@ export function createRewindService({
     return result;
   }
 
+  async function restoreAfterFailure({
+    previewResult,
+    snapshots,
+    appliedRollbacks,
+    phase,
+    reason,
+    force
+  }) {
+    const base = {
+      current_branch_id: previewResult.current_branch_id,
+      attempted_branch_id: previewResult.planned_branch_id,
+      phase,
+      applied_rollbacks: appliedRollbacks,
+      forced: Boolean(force),
+      reason
+    };
+    publish("session:rewind_restore_started", base);
+    try {
+      const restoredFiles = projectRoot ? await restoreSnapshots(projectRoot, snapshots) : [];
+      const restored = {
+        status: "failed_restored",
+        ...base,
+        restored_files: restoredFiles
+      };
+      publish("session:rewind_restored", restored);
+      publish("session:rewind_failed", restored);
+      return restored;
+    } catch (restoreError) {
+      const failed = {
+        status: "failed_unrestorable",
+        ...base,
+        restored_files: [],
+        restore_error: safeRewindError(restoreError, "restore")
+      };
+      publish("session:rewind_recovery_failed", failed);
+      publish("session:rewind_failed", failed);
+      return failed;
+    }
+  }
+
   async function apply({ target, branch_id = null, force = false, label = "" } = {}) {
     if (typeof createBranch !== "function") throw new Error("createBranch is required for apply");
     if (typeof activateBranch !== "function") throw new Error("activateBranch is required for apply");
@@ -49,6 +97,10 @@ export function createRewindService({
       rollback_change_ids: previewResult.rollback_change_ids,
       forced: Boolean(force)
     });
+
+    const snapshots = projectRoot
+      ? await captureSnapshots(projectRoot, previewResult.files)
+      : [];
 
     const appliedRollbacks = [];
     for (const changeId of previewResult.rollback_change_ids) {
@@ -68,27 +120,38 @@ export function createRewindService({
         return conflict;
       }
       if (result.status !== "success") {
-        const failed = {
-          status: "failed",
-          current_branch_id: currentBranchId,
-          failed_change_id: changeId,
-          applied_rollbacks: appliedRollbacks,
-          reason: result.content?.[0]?.text || result.status || "rollback failed"
-        };
-        publish("session:rewind_failed", failed);
-        return failed;
+        return restoreAfterFailure({
+          previewResult,
+          snapshots,
+          appliedRollbacks,
+          phase: "rollback",
+          reason: safeRewindError(new Error("rollback failed"), "rollback"),
+          force
+        });
       }
       appliedRollbacks.push(changeId);
     }
 
-    const branch = await createBranch({
-      parent_branch_id: currentBranchId,
-      forked_from_event_id: previewResult.target.event_id,
-      forked_from_seq: previewResult.target.seq,
-      forked_from_turn_id: previewResult.target.turn_id,
-      label: label || `rewind to ${previewResult.target.turn_id || previewResult.target.event_id || previewResult.target.seq}`,
-      branch_id: previewResult.planned_branch_id
-    });
+    let branch;
+    try {
+      branch = await createBranch({
+        parent_branch_id: currentBranchId,
+        forked_from_event_id: previewResult.target.event_id,
+        forked_from_seq: previewResult.target.seq,
+        forked_from_turn_id: previewResult.target.turn_id,
+        label: label || `rewind to ${previewResult.target.turn_id || previewResult.target.event_id || previewResult.target.seq}`,
+        branch_id: previewResult.planned_branch_id
+      });
+    } catch (error) {
+      return restoreAfterFailure({
+        previewResult,
+        snapshots,
+        appliedRollbacks,
+        phase: "create_branch",
+        reason: safeRewindError(error, "create_branch"),
+        force
+      });
+    }
     publish("session:branch_created", {
       branch_id: branch.branch_id,
       parent_branch_id: branch.parent_branch_id,
@@ -96,7 +159,18 @@ export function createRewindService({
       forked_from_seq: branch.forked_from_seq,
       forked_from_turn_id: branch.forked_from_turn_id
     });
-    await activateBranch(branch.branch_id);
+    try {
+      await activateBranch(branch.branch_id);
+    } catch (error) {
+      return restoreAfterFailure({
+        previewResult,
+        snapshots,
+        appliedRollbacks,
+        phase: "activate_branch",
+        reason: safeRewindError(error, "activate_branch"),
+        force
+      });
+    }
     publish("session:branch_activated", {
       branch_id: branch.branch_id,
       parent_branch_id: branch.parent_branch_id
