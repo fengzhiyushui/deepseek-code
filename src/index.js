@@ -13,6 +13,7 @@ import { createToolExecutor } from "./tools/executor.js";
 import { createPermissionEngine } from "./tools/permissions/permission-engine.js";
 import { createApprovalCache } from "./tools/permissions/approval-cache.js";
 import { createPolicyContext } from "./tools/permissions/policy-loader.js";
+import { createContextEngine } from "./context/index.js";
 
 export async function createKernel(root, options = {}) {
   const eventBus = options.eventBus || createEventBus();
@@ -52,6 +53,15 @@ export async function createKernel(root, options = {}) {
     permissionEngine,
     eventBus
   });
+  const contextEngine = options.contextEngine || createContextEngine({
+    root,
+    eventBus,
+    options: options.context || {}
+  });
+  if (!options.contextEngine) {
+    await contextEngine.scan();
+  }
+
   const runtime = createAgentRuntime({
     eventBus,
     sessionId,
@@ -71,6 +81,7 @@ export async function createKernel(root, options = {}) {
     verifyMode: options.verifyMode || "auto",
     testArgv: options.testArgv || null,
     maxRepairAttempts: options.maxRepairAttempts ?? 2,
+    createContextSnapshot: (input) => contextEngine.snapshot(input),
     grantApprovalForToolCall: async (toolCall, approvalContext = {}) => {
       const securedCall = toolRegistry.secureToolCall(toolCall);
       const policyContext = createPolicyContext({
@@ -100,11 +111,11 @@ export async function createKernel(root, options = {}) {
   };
 
   const context = {
-    async snapshot() {
-      return { snapshot_id: "v2_empty_snapshot", root, units: [], budget: { allocated: 0, used: 0 } };
-    },
-    pin(p) { eventBus.publish("context:pin", { path: p }); },
-    unpin(p) { eventBus.publish("context:unpin", { path: p }); }
+    snapshot: (input = {}) => contextEngine.snapshot(input),
+    pin: (p) => contextEngine.pin(p),
+    unpin: (p) => contextEngine.unpin(p),
+    warm: (p, reason) => contextEngine.warm(p, reason),
+    getStats: () => contextEngine.getStats()
   };
 
   const config = {
