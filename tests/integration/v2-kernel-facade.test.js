@@ -1,11 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { createKernel } from "../../src/index.js";
 
 test("v2 createKernel exposes agent, session, context, and config facades", async () => {
   const kernel = await createKernel(process.cwd(), {
     sessionId: "sess_integration",
     sessionLog: null,
+    branchStore: null,
     context: { disabled: true },
     modelGateway: {
       reply: async () => ({ content: "facade response" })
@@ -25,6 +29,7 @@ test("v2 kernel facade sends a turn and streams events to subscribers", async ()
   const kernel = await createKernel(process.cwd(), {
     sessionId: "sess_integration",
     sessionLog: null,
+    branchStore: null,
     context: { disabled: true },
     modelGateway: {
       reply: async ({ classification }) => ({
@@ -50,6 +55,7 @@ test("v2 kernel context and config return safe public data", async () => {
   const kernel = await createKernel("C:/example/project", {
     sessionId: "sess_safe",
     sessionLog: null,
+    branchStore: null,
     context: { disabled: true }
   });
 
@@ -66,6 +72,7 @@ test("session subscriber event type is never overwritten by payload fields", asy
   const kernel = await createKernel(process.cwd(), {
     sessionId: "sess_type_test",
     sessionLog: null,
+    branchStore: null,
     context: { disabled: true },
     modelGateway: { reply: async () => ({ content: "ok", type: "payload_overwrite" }) }
   });
@@ -81,4 +88,33 @@ test("session subscriber event type is never overwritten by payload fields", asy
   assert.equal(finalEvent.type, "agent:final");
   assert.equal(finalEvent.content, "done");
   assert.equal(finalEvent.turn_id, "t1");
+});
+
+test("v2 kernel exposes branch facade and stamps active branch events", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-v2-branch-facade-"));
+  const kernel = await createKernel(root, {
+    sessionId: "sess_branch_facade",
+    sessionRoot: path.join(root, ".sessions"),
+    context: { disabled: true },
+    modelGateway: { reply: async () => ({ content: "ok" }) }
+  });
+
+  assert.equal(typeof kernel.session.branches.list, "function");
+  assert.equal(typeof kernel.session.branches.getActive, "function");
+  const active = await kernel.session.branches.getActive();
+  assert.equal(active.branch_id, "br_main");
+
+  const child = await kernel.session.branches.create({
+    parent_branch_id: "br_main",
+    forked_from_seq: 1,
+    label: "test branch"
+  });
+  await kernel.session.branches.activate(child.branch_id);
+
+  const events = [];
+  const sub = kernel.session.subscribe((event) => events.push(event));
+  await kernel.agent.send("hello?", { autonomy: "auto" });
+  sub.unsubscribe();
+
+  assert.ok(events.some((event) => event.type === "user:message" && event.branch_id === child.branch_id));
 });

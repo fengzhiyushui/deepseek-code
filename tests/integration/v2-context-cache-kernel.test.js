@@ -30,11 +30,15 @@ test("kernel context cache reuses unchanged records after reopen", async () => {
   await writeFile(path.join(root, "README.md"), "# demo\n");
   await createKernel(root, {
     sessionRoot: path.join(root, ".sessions-a"),
+    sessionLog: null,
+    branchStore: null,
     context: { cacheRoot },
     modelGateway: { reply: async () => ({ content: "ok" }) }
   });
   const second = await createKernel(root, {
     sessionRoot: path.join(root, ".sessions-b"),
+    sessionLog: null,
+    branchStore: null,
     context: { cacheRoot },
     modelGateway: { reply: async () => ({ content: "ok" }) }
   });

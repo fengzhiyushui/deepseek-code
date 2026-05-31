@@ -5,6 +5,7 @@ import { createAgentRuntime } from "./core/runtime/agent-runtime.js";
 import { SESSION_EVENT_TYPES } from "./sessions/event-types.js";
 import { createSessionEventLog, projectIdFromRoot } from "./sessions/event-log.js";
 import { createSessionManager } from "./sessions/session-manager.js";
+import { createBranchStore } from "./sessions/branch-store.js";
 import { createDeepSeekGateway } from "./deepseek/model-gateway.js";
 import { createEditService } from "./edits/edit-service.js";
 import { createBuiltinTools } from "./tools/builtin/index.js";
@@ -30,10 +31,20 @@ export async function createKernel(root, options = {}) {
             meta: { root, runtime: "v2" }
           })
         : null);
+  const branchStore = options.branchStore !== undefined
+    ? options.branchStore
+    : (sessionLog !== null ? await createBranchStore({
+        sessionRoot,
+        projectId,
+        sessionId
+      }) : null);
+  let activeBranchId = branchStore ? await branchStore.getActiveBranchId() : "br_main";
   const sessionManager = options.sessionManager || createSessionManager({
     eventBus,
     eventLog: sessionLog,
-    eventTypes: SESSION_EVENT_TYPES
+    eventTypes: SESSION_EVENT_TYPES,
+    getActiveBranchId: () => activeBranchId,
+    getBranchAncestry: (branchId) => branchStore ? branchStore.getAncestry(branchId) : Promise.resolve([{ branch_id: branchId || "br_main", forked_from_seq: 0 }])
   });
   const modelGateway = resolveModelGateway(options);
   const approvalCache = options.approvalCache || createApprovalCache();
@@ -99,6 +110,31 @@ export async function createKernel(root, options = {}) {
     }
   });
 
+  const branches = branchStore ? {
+    list: () => branchStore.listBranches(),
+    async getActive() {
+      return branchStore.getBranch(activeBranchId);
+    },
+    async create(input = {}) {
+      return branchStore.createBranch(input);
+    },
+    async activate(branch_id) {
+      const branch = await branchStore.activateBranch(branch_id);
+      activeBranchId = branch.branch_id;
+      eventBus.publish("session:branch_activated", {
+        branch_id: branch.branch_id,
+        parent_branch_id: branch.parent_branch_id
+      });
+      await sessionManager.flush();
+      return branch;
+    }
+  } : {
+    list: async () => [],
+    getActive: async () => ({ branch_id: "br_main", parent_branch_id: null, forked_from_event_id: null, forked_from_seq: 0, forked_from_turn_id: null, created_at: new Date().toISOString(), label: "main" }),
+    create: async () => { throw new Error("branch store unavailable"); },
+    activate: async () => { throw new Error("branch store unavailable"); }
+  };
+
   const session = {
     subscribe: sessionManager.subscribe,
     getTimeline: sessionManager.getTimeline,
@@ -107,7 +143,8 @@ export async function createKernel(root, options = {}) {
       eventBus.publish("session:resume", { session_id: id, root });
       await sessionManager.flush();
     },
-    dispose: sessionManager.dispose
+    dispose: sessionManager.dispose,
+    branches
   };
 
   const context = {
