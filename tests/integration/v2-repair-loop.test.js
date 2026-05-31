@@ -128,6 +128,7 @@ test("query fast path does not enter repair loop", async () => {
   let invokeCalled = false;
   const kernel = await createKernel(process.cwd(), {
     sessionLog: null,
+    context: { disabled: true },
     modelGateway: {
       reply: async () => ({ content: "query answer" }),
       invoke: async () => {

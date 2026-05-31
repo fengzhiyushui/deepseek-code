@@ -7,6 +7,7 @@ test("createKernel creates DeepSeek gateway from options.deepseek", async () => 
   const kernel = await createKernel(process.cwd(), {
     sessionId: "sess_ds",
     sessionLog: null,
+    context: { disabled: true },
     deepseek: {
       apiKey: "key",
       fetchImpl: async (url, init) => {
@@ -47,6 +48,7 @@ test("runtime passes AbortSignal to model gateway and aborts on interrupt", asyn
   const kernel = await createKernel(process.cwd(), {
     sessionId: "sess_ab",
     sessionLog: null,
+    context: { disabled: true },
     modelGateway: {
       reply: async ({ signal }) => {
         seenSignal = signal;

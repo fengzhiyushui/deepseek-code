@@ -6,6 +6,7 @@ test("v2 createKernel exposes agent, session, context, and config facades", asyn
   const kernel = await createKernel(process.cwd(), {
     sessionId: "sess_integration",
     sessionLog: null,
+    context: { disabled: true },
     modelGateway: {
       reply: async () => ({ content: "facade response" })
     }
@@ -24,6 +25,7 @@ test("v2 kernel facade sends a turn and streams events to subscribers", async ()
   const kernel = await createKernel(process.cwd(), {
     sessionId: "sess_integration",
     sessionLog: null,
+    context: { disabled: true },
     modelGateway: {
       reply: async ({ classification }) => ({
         content: `facade ${classification.task_type}`
@@ -64,6 +66,7 @@ test("session subscriber event type is never overwritten by payload fields", asy
   const kernel = await createKernel(process.cwd(), {
     sessionId: "sess_type_test",
     sessionLog: null,
+    context: { disabled: true },
     modelGateway: { reply: async () => ({ content: "ok", type: "payload_overwrite" }) }
   });
 
