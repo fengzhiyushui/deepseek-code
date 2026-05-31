@@ -63,3 +63,35 @@ test("shouldSkipContextPath blocks generated and secret names", () => {
   assert.equal(shouldSkipContextPath("certs/server.key"), true);
   assert.equal(shouldSkipContextPath("src/index.js"), false);
 });
+
+test("shouldSkipContextPath blocks hidden config dirs and credential-like files", () => {
+  assert.equal(shouldSkipContextPath(".claude/settings.local.json"), true);
+  assert.equal(shouldSkipContextPath(".cursor/rules.md"), true);
+  assert.equal(shouldSkipContextPath(".vscode/settings.json"), true);
+  assert.equal(shouldSkipContextPath(".idea/workspace.xml"), true);
+  assert.equal(shouldSkipContextPath(".codex/config.toml"), true);
+  assert.equal(shouldSkipContextPath(".gemini/settings.yaml"), true);
+  assert.equal(shouldSkipContextPath(".npmrc"), true);
+  assert.equal(shouldSkipContextPath(".pypirc"), true);
+  assert.equal(shouldSkipContextPath("config/credentials.json"), true);
+  assert.equal(shouldSkipContextPath("secrets/token.txt"), true);
+  assert.equal(shouldSkipContextPath("auth/apikey.yml"), true);
+  assert.equal(shouldSkipContextPath(".github/workflows/ci.yml"), false);
+  assert.equal(shouldSkipContextPath(".config/app.yaml"), false);
+});
+
+test("indexWorkspace skips hidden tool directories", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-context-hidden-"));
+  await writeFile(path.join(root, "README.md"), "# demo\n");
+  await mkdir(path.join(root, ".claude"), { recursive: true });
+  await writeFile(path.join(root, ".claude", "settings.local.json"), "{}");
+  await mkdir(path.join(root, ".vscode"), { recursive: true });
+  await writeFile(path.join(root, ".vscode", "settings.json"), "{}");
+
+  const result = await indexWorkspace({ root });
+
+  assert.ok(result.units.has("README.md"));
+  assert.equal(result.units.has(".claude/settings.local.json"), false);
+  assert.equal(result.units.has(".vscode/settings.json"), false);
+  assert.ok(result.stats.skipped_files >= 2);
+});

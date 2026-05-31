@@ -27,6 +27,22 @@ const IGNORED_SEGMENTS = new Set([
   "__pycache__"
 ]);
 
+const HIDDEN_TOOL_DIRS = new Set([
+  ".claude",
+  ".cursor",
+  ".vscode",
+  ".idea",
+  ".codex",
+  ".gemini"
+]);
+
+const CREDENTIAL_BASENAMES = new Set([
+  ".npmrc",
+  ".pypirc"
+]);
+
+const CREDENTIAL_TOKENS = ["credentials", "token", "apikey", "auth"];
+
 const SECRET_SUFFIXES = [".pem", ".key", ".p12", ".pfx"];
 
 export async function indexWorkspace({ root, options = {} } = {}) {
@@ -77,6 +93,12 @@ function skipReason(inputPath) {
   const base = segments[segments.length - 1] || "";
 
   if (segments.some((segment) => IGNORED_SEGMENTS.has(segment))) return "ignored-directory";
+  if (segments.some((segment) => HIDDEN_TOOL_DIRS.has(segment))) return "hidden-tool-dir";
+  if (CREDENTIAL_BASENAMES.has(base)) return "credential-file";
+  if (CREDENTIAL_TOKENS.some((token) => lower.includes(token)) &&
+      (base.endsWith(".json") || base.endsWith(".txt") || base.endsWith(".yml") || base.endsWith(".yaml") || base.endsWith(".toml") || base.endsWith(".ini") || base.endsWith(".cfg"))) {
+    return "credential-file";
+  }
   if (base === ".env" || base.startsWith(".env.")) return "secret-file";
   if (SECRET_SUFFIXES.some((suffix) => base.endsWith(suffix))) return "secret-file";
   if (base.includes("secret") && (base.endsWith(".json") || base.endsWith(".txt") || base.endsWith(".yml") || base.endsWith(".yaml"))) {
