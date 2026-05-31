@@ -62,6 +62,59 @@ test("session manager isolates persistence failures from live subscribers", asyn
   assert.equal(events[0].type, "user:message");
 });
 
+test("session manager stamps active branch id on live and persisted events", async () => {
+  const eventBus = createEventBus();
+  const writes = [];
+  const session = createSessionManager({
+    eventBus,
+    eventLog: {
+      append: async (type, data) => writes.push({ type, data }),
+      flush: async () => {},
+      tail: async () => writes.map((entry, index) => ({ seq: index + 1, type: entry.type, ...entry.data }))
+    },
+    getActiveBranchId: () => "br_feature"
+  });
+  const events = [];
+  const sub = session.subscribe((event) => events.push(event));
+
+  eventBus.publish("user:message", { content: "hi" });
+  await session.flush();
+  sub.unsubscribe();
+
+  assert.equal(events[0].branch_id, "br_feature");
+  assert.equal(writes[0].data.branch_id, "br_feature");
+});
+
+test("session getTimeline filters active branch while keeping br_main ancestors", async () => {
+  const eventBus = createEventBus();
+  const timeline = [
+    { seq: 1, type: "session:start", branch_id: "br_main" },
+    { seq: 2, type: "agent:final", branch_id: "br_main" },
+    { seq: 3, type: "session:branch_created", branch_id: "br_child", parent_branch_id: "br_main" },
+    { seq: 4, type: "agent:final", branch_id: "br_child" },
+    { seq: 5, type: "agent:final", branch_id: "br_other" }
+  ];
+  const session = createSessionManager({
+    eventBus,
+    eventLog: {
+      append: async () => {},
+      flush: async () => {},
+      tail: async () => timeline
+    },
+    getActiveBranchId: () => "br_child",
+    getBranchAncestry: async () => [
+      { branch_id: "br_main", forked_from_seq: 0 },
+      { branch_id: "br_child", forked_from_seq: 2 }
+    ]
+  });
+
+  const active = await session.getTimeline({ count: 20 });
+  assert.deepEqual(active.map((event) => event.seq), [1, 2, 3, 4]);
+
+  const all = await session.getTimeline({ count: 20, all_branches: true });
+  assert.deepEqual(all.map((event) => event.seq), [1, 2, 3, 4, 5]);
+});
+
 test("session manager dispose stops bridge writes", async () => {
   const eventBus = createEventBus();
   const writes = [];
