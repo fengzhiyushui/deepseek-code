@@ -33,8 +33,12 @@ test("kernel metrics exposes real DeepSeek usage stats", async () => {
 
   assert.deepEqual(kernel.metrics.getUsage(), usage);
   assert.equal(kernel.metrics.getContext().indexed_paths, 1);
-  const snapshot = await kernel.metrics.getSnapshot({ channel: "reply", classification: { task_type: "query" } });
-  assert.ok(snapshot.summary.includes("README.md"));
+  const redacted = await kernel.metrics.getSnapshot({ channel: "reply", classification: { task_type: "query" } });
+  assert.equal(redacted.summary, undefined);
+  assert.ok(redacted.units.some((u) => u.path === "README.md"));
+  // Full snapshot (kernel.context) still has summary
+  const full = await kernel.context.snapshot({ channel: "reply", classification: { task_type: "query" } });
+  assert.ok(full.summary.includes("README.md"));
 });
 
 test("kernel metrics returns zero usage when gateway has no stats", async () => {

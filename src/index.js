@@ -165,11 +165,21 @@ export async function createKernel(root, options = {}) {
       getContext() {
         return contextEngine.getStats();
       },
-      getSnapshot(input = {}) {
-        return contextEngine.snapshot(input);
+      getSnapshot: async (input = {}) => {
+        const snap = await contextEngine.snapshot(input);
+        return redactSnapshot(snap);
       }
     }
   };
+}
+
+function redactSnapshot(snap) {
+  const { summary, ...rest } = snap;
+  const cleanUnits = (snap.units || []).map((unit) => {
+    const { snippet, ...restUnit } = unit;
+    return restUnit;
+  });
+  return { ...rest, summary: undefined, units: cleanUnits };
 }
 
 function zeroUsage() {
