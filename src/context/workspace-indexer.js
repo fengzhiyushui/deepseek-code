@@ -82,6 +82,10 @@ export async function indexWorkspace({ root, options = {} } = {}) {
   return { units, stats };
 }
 
+export function contextSkipReason(inputPath) {
+  return skipReason(inputPath);
+}
+
 export function shouldSkipContextPath(inputPath) {
   return Boolean(skipReason(inputPath));
 }

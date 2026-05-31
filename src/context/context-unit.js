@@ -88,7 +88,39 @@ export function estimateTokens(text) {
 
 export function clipSnippet(text, maxChars = 4000) {
   const value = String(text || "");
+  if (maxChars <= 0) return "";
   return value.length > maxChars ? value.slice(0, maxChars) : value;
+}
+
+export function createContextRecord({
+  path,
+  content,
+  stat = {},
+  reason = null,
+  priority = null,
+  maxSnippetBytes = 4000,
+  now = nowIso(),
+  policyVersion = "v2-10"
+} = {}) {
+  const unit = createContextUnit({ path, content, reason, priority, maxSnippetBytes, now });
+  const { snippet, ...record } = unit;
+  return {
+    ...record,
+    mtime_ms: stat.mtimeMs ?? stat.mtime_ms ?? 0,
+    size: stat.size ?? record.bytes,
+    indexed_at: now,
+    policy_version: policyVersion
+  };
+}
+
+export function hydrateContextUnit(record, content, { maxSnippetBytes = 4000, now = nowIso() } = {}) {
+  return {
+    ...record,
+    bytes: Buffer.byteLength(content),
+    token_count: estimateTokens(clipSnippet(content, maxSnippetBytes)),
+    snippet: clipSnippet(content, maxSnippetBytes),
+    updated_at: now
+  };
 }
 
 export function normalizeContextPath(inputPath) {
