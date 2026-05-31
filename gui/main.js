@@ -15,6 +15,17 @@ const IPC_CHANNELS = [
   "config:get", "orchestrator:state"
 ];
 
+if (process.env.DEEPSEEK_CODE_GUI_SMOKE === "1") {
+  if (process.env.DEEPSEEK_CODE_GUI_USER_DATA) {
+    app.setPath("userData", process.env.DEEPSEEK_CODE_GUI_USER_DATA);
+  }
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch("disable-gpu");
+  app.commandLine.appendSwitch("disable-gpu-compositing");
+  app.commandLine.appendSwitch("disable-gpu-rasterization");
+  app.commandLine.appendSwitch("disable-gpu-sandbox");
+}
+
 async function createWindow() {
   const win = new BrowserWindow({
     width: 900,
@@ -45,6 +56,19 @@ async function createWindow() {
 
   registerIpcHandlers();
   win.loadFile(path.join(__dirname, "renderer", "index.html"));
+  if (process.env.DEEPSEEK_CODE_GUI_SMOKE === "1") {
+    win.webContents.once("did-finish-load", async () => {
+      const ready = await win.webContents.executeJavaScript(`
+        Boolean(document.querySelector("#command-bar") &&
+          document.querySelector("#activity-rail") &&
+          document.querySelector("#agent-session") &&
+          document.querySelector("#statusline") &&
+          document.querySelector("#theme-toggle"))
+      `);
+      console.log(ready ? "GUI_SMOKE_READY" : "GUI_SMOKE_FAILED");
+      app.quit();
+    });
+  }
   return win;
 }
 
