@@ -20,7 +20,12 @@ export function createChangeStore({ projectRoot } = {}) {
       if (!transaction) return record;
       const enhanced = enhanceChangeRecord(record, { transaction_id: transaction.transaction_id });
       const target = path.join(projectRoot, ".deepseek-code", "changes", `${enhanced.id}.json`);
-      await fs.writeFile(target, `${JSON.stringify(enhanced, null, 2)}\n`, "utf8");
+      try {
+        await fs.writeFile(target, `${JSON.stringify(enhanced, null, 2)}\n`, "utf8");
+      } catch (error) {
+        await fs.rm(target, { force: true });
+        throw error;
+      }
       return enhanced;
     },
     list({ limit = 20 } = {}) {
