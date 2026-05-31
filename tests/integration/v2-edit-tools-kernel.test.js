@@ -79,3 +79,55 @@ test("kernel edit tool returns approval_required under supervised autonomy", asy
   assert.equal(result.status, "approval_required");
   assert.equal(await readFile(path.join(root, "a.txt"), "utf8"), "old\n");
 });
+
+test("kernel diff_rollback blocks dirty file without force", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-kernel-edit-dirty-"));
+  await writeFile(path.join(root, "a.txt"), "old\n");
+  const kernel = await createKernel(root, {
+    sessionId: "sess_edit_dirty",
+    sessionLog: null,
+    context: { disabled: true }
+  });
+  const applied = await kernel.tools.execute(
+    createToolCall({ name: "edit", params: { diff: MODIFY_DIFF, prompt: "update a" }, requestedByStepId: "step_1" }),
+    { autonomy: "gated", turnId: "turn_1" }
+  );
+  await writeFile(path.join(root, "a.txt"), "manual change\n");
+
+  const rolledBack = await kernel.tools.execute(
+    createToolCall({ name: "diff_rollback", params: { change_id: applied.metadata.change_id }, requestedByStepId: "step_2" }),
+    { autonomy: "gated", turnId: "turn_1" }
+  );
+
+  assert.equal(rolledBack.status, "conflict");
+  assert.equal(await readFile(path.join(root, "a.txt"), "utf8"), "manual change\n");
+  assert.equal(rolledBack.metadata.conflicts.length, 1);
+});
+
+test("kernel diff_rollback force restores dirty file", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-kernel-edit-force-"));
+  await writeFile(path.join(root, "a.txt"), "old\n");
+  const kernel = await createKernel(root, {
+    sessionId: "sess_edit_force",
+    sessionLog: null,
+    context: { disabled: true }
+  });
+  const applied = await kernel.tools.execute(
+    createToolCall({ name: "edit", params: { diff: MODIFY_DIFF, prompt: "update a" }, requestedByStepId: "step_1" }),
+    { autonomy: "gated", turnId: "turn_1" }
+  );
+  await writeFile(path.join(root, "a.txt"), "manual change\n");
+
+  const rolledBack = await kernel.tools.execute(
+    createToolCall({
+      name: "diff_rollback",
+      params: { change_id: applied.metadata.change_id, force: true },
+      requestedByStepId: "step_2"
+    }),
+    { autonomy: "gated", turnId: "turn_1" }
+  );
+
+  assert.equal(rolledBack.status, "success");
+  assert.equal(await readFile(path.join(root, "a.txt"), "utf8"), "old\n");
+  assert.equal(rolledBack.metadata.forced, true);
+});

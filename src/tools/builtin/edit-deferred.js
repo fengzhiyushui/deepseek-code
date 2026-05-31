@@ -9,7 +9,8 @@ export function createDeferredEditTools({ editService = null } = {}) {
       approval_id: { type: "string", required: false, default: "" }
     }, editService, "apply"),
     deferred("diff_rollback", "Rollback a previous change", "write_update", {
-      change_id: { type: "string", required: false, default: "latest" }
+      change_id: { type: "string", required: false, default: "latest" },
+      force: { type: "boolean", required: false, default: false }
     }, editService, "rollback"),
     deferred("edit", "Apply a unified diff through the edit service", "write_update", {
       diff: { type: "string" },
