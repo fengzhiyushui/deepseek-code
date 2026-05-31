@@ -34,6 +34,10 @@ export function buildContextSnapshot({
     stats: {
       indexed_files: stats.indexed_files || 0,
       skipped_files: stats.skipped_files || 0,
+      reused_files: stats.reused_files || 0,
+      changed_files: stats.changed_files || 0,
+      hydrated_files: stats.hydrated_files || 0,
+      hydrate_skipped_files: stats.hydrate_skipped_files || 0,
       selected_files: units.length
     }
   };

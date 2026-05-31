@@ -76,6 +76,51 @@ test("disabled context engine returns empty disabled snapshot", async () => {
   assert.equal(snapshot.summary, "");
 });
 
+test("context engine reuses manifest metadata and hydrates snippets lazily", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-context-engine-cache-"));
+  const cacheRoot = path.join(root, ".context-cache");
+  await writeFile(path.join(root, "README.md"), "# demo\n");
+  await mkdir(path.join(root, "src"));
+  await writeFile(path.join(root, "src", "index.js"), "export const demo = true;\n");
+
+  const first = createContextEngine({ root, options: { cacheRoot, budgets: { act: 1000 } } });
+  await first.scan();
+  const second = createContextEngine({ root, options: { cacheRoot, budgets: { act: 1000 } } });
+  const stats = await second.scan();
+  const snapshot = await second.snapshot({
+    message: "modify src/index.js",
+    classification: { task_type: "edit" },
+    channel: "act"
+  });
+
+  assert.ok(stats.reused_files >= 2);
+  assert.ok(snapshot.summary.includes("export const demo"));
+  assert.equal(snapshot.stats.hydrated_files > 0, true);
+});
+
+test("context engine cache events do not contain snippets", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-context-cache-events-"));
+  await writeFile(path.join(root, "README.md"), "# secret text must stay out of events\n");
+  const bus = createEventBus();
+  const events = [];
+  for (const type of ["context:cache_loaded", "context:cache_saved", "context:cache_reused"]) {
+    bus.subscribe(type, (event) => events.push({ type, event }));
+  }
+
+  const engine = createContextEngine({
+    root,
+    eventBus: bus,
+    options: { cacheRoot: path.join(root, ".context-cache") }
+  });
+  await engine.scan();
+  await engine.scan();
+
+  const raw = JSON.stringify(events);
+  assert.ok(events.some((entry) => entry.type === "context:cache_saved"));
+  assert.equal(raw.includes("secret text"), false);
+  assert.equal(raw.includes("Relevant snippets"), false);
+});
+
 test("context engine rejects unsafe control paths", async () => {
   const engine = createContextEngine({ root: process.cwd(), options: { disabled: true } });
 

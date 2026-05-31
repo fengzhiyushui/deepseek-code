@@ -1,23 +1,22 @@
-import { resolveWorkspacePath } from "../workspace/path-safety.js";
 import path from "node:path";
 import { budgetForChannel } from "./token-budget.js";
-import { indexWorkspace } from "./workspace-indexer.js";
 import { selectContextUnits } from "./context-selector.js";
 import { buildContextSnapshot } from "./context-snapshot.js";
+import { hydrateContextRecords, scanContextWithCache } from "./context-cache.js";
 
 export function createContextEngine({ root, eventBus = null, options = {} } = {}) {
   if (!root) throw new Error("root is required");
   const disabled = options.disabled === true;
-  let units = new Map();
-  let stats = { indexed_files: 0, skipped_files: 0 };
+  let records = new Map();
+  let stats = { indexed_files: 0, skipped_files: 0, reused_files: 0, changed_files: 0 };
   const pinned = new Set();
   const warmed = new Map();
 
   async function scan() {
     if (disabled) return getStats();
-    const indexed = await indexWorkspace({ root, options });
-    units = indexed.units;
-    stats = indexed.stats;
+    const scanned = await scanContextWithCache({ root, options, eventBus });
+    records = scanned.records;
+    stats = scanned.stats;
     return getStats();
   }
 
@@ -34,23 +33,32 @@ export function createContextEngine({ root, eventBus = null, options = {} } = {}
         stats: { ...stats, selected_files: 0 }
       };
     }
-    if (units.size === 0) await scan();
+    if (records.size === 0) await scan();
     const channelBudget = budgetForChannel(input.channel || "reply", { ...(options.budgets || {}), ...(input.budget ? { [input.channel || "reply"]: input.budget } : {}) });
     const selected = selectContextUnits({
-      units,
+      units: records,
       message: input.message || "",
       pinned,
       warmed,
       classification: input.classification || {},
       budget: channelBudget.allocated
     });
+    const hydrated = await hydrateContextRecords({
+      root,
+      records: selected.selected,
+      options
+    });
     const snap = buildContextSnapshot({
       root,
       channel: channelBudget.channel,
       taskType: input.classification?.task_type || "general",
-      selected: selected.selected,
-      budget: selected.budget,
-      stats
+      selected: hydrated.units,
+      budget: {
+        ...selected.budget,
+        used: hydrated.units.reduce((sum, unit) => sum + unit.token_count, 0),
+        remaining: Math.max(0, selected.budget.allocated - hydrated.units.reduce((sum, unit) => sum + unit.token_count, 0))
+      },
+      stats: { ...stats, ...hydrated.stats }
     });
     eventBus?.publish?.("context:snapshot", {
       snapshot_id: snap.snapshot_id,
@@ -84,7 +92,7 @@ export function createContextEngine({ root, eventBus = null, options = {} } = {}
 
   function invalidate(inputPath) {
     const relative = normalizeControlPath(inputPath);
-    units.delete(relative);
+    records.delete(relative);
     warmed.delete(relative);
     pinned.delete(relative);
   }
@@ -94,7 +102,7 @@ export function createContextEngine({ root, eventBus = null, options = {} } = {}
       ...stats,
       pinned_files: pinned.size,
       warmed_files: warmed.size,
-      indexed_paths: units.size
+      indexed_paths: records.size
     };
   }
 
@@ -107,8 +115,4 @@ export function createContextEngine({ root, eventBus = null, options = {} } = {}
   }
 
   return { scan, snapshot, pin, unpin, warm, invalidate, getStats };
-}
-
-export async function assertContextPathInside(root, inputPath) {
-  return resolveWorkspacePath(root, inputPath, { mustExist: true });
 }
