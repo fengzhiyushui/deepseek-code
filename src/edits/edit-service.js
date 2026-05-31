@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { applyUnifiedDiff } from "../patch.js";
 import {
   assertDiffPathsSafe,
   formatDiffSummary,
@@ -7,6 +6,11 @@ import {
 } from "./diff-parser.js";
 import { createChangeStore } from "./change-store.js";
 import { createRollbackService } from "./rollback-service.js";
+import {
+  applyDiffTransaction,
+  makeTransactionId,
+  restoreSnapshots
+} from "./edit-transaction.js";
 
 export function createEditService({ projectRoot, eventBus = null, changeStore = null, rollbackService = null } = {}) {
   if (!projectRoot) throw new Error("projectRoot is required");
@@ -35,8 +39,41 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
     const parsed = parseDiff(diff);
     await assertDiffPathsSafe(projectRoot, parsed.patches);
     const plan = await store.capture({ diff: parsed.diff, prompt });
-    await applyUnifiedDiff(parsed.diff, projectRoot);
-    const record = await store.finalize(plan);
+    let transaction;
+    const transaction_id = makeTransactionId();
+    publish("file:transaction_started", {
+      transaction_id,
+      files: parsed.files,
+      summary: parsed.summary,
+      diff_hash: hashText(parsed.diff),
+      diff_size: Buffer.byteLength(parsed.diff, "utf8")
+    });
+    try {
+      transaction = await applyDiffTransaction({ projectRoot, parsed, transaction_id });
+    } catch (error) {
+      publish("file:transaction_failed", {
+        transaction_id: error.transaction_id || null,
+        files: parsed.files,
+        restored_files: error.restored_files || [],
+        restored: Boolean(error.restored),
+        message: String(error.message || error).slice(0, 500)
+      });
+      throw error;
+    }
+    let record;
+    try {
+      record = await store.finalize(plan, { transaction });
+    } catch (error) {
+      const restoredFiles = await restoreSnapshots(projectRoot, transaction.snapshots);
+      publish("file:transaction_failed", {
+        transaction_id,
+        files: parsed.files,
+        restored_files: restoredFiles,
+        restored: true,
+        message: String(error.message || error).slice(0, 500)
+      });
+      throw error;
+    }
     const metadata = {
       change_id: record.id,
       approval_id,

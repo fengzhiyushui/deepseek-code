@@ -57,6 +57,32 @@ test("rollback restores change and publishes rollback event", async () => {
   assert.equal(rollbacks[0].change_id, applied.metadata.change_id);
 });
 
+test("apply restores earlier writes when a later patch fails", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-edit-service-tx-fail-"));
+  await writeFile(path.join(root, "a.txt"), "old a\n");
+  await writeFile(path.join(root, "b.txt"), "old b\n");
+  const service = createEditService({ projectRoot: root });
+  const diff = [
+    "diff --git a/a.txt b/a.txt",
+    "--- a/a.txt",
+    "+++ b/a.txt",
+    "@@ -1 +1 @@",
+    "-old a",
+    "+new a",
+    "diff --git a/b.txt b/b.txt",
+    "--- a/b.txt",
+    "+++ b/b.txt",
+    "@@ -1 +1 @@",
+    "-not the current content",
+    "+new b"
+  ].join("\n");
+
+  await assert.rejects(() => service.apply({ diff, prompt: "partial failure" }), /上下文不匹配|context|mismatch/i);
+
+  assert.equal(await readFile(path.join(root, "a.txt"), "utf8"), "old a\n");
+  assert.equal(await readFile(path.join(root, "b.txt"), "utf8"), "old b\n");
+});
+
 test("apply rejects unsafe diff before writing", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "dsc-edit-service-"));
   const service = createEditService({ projectRoot: root });

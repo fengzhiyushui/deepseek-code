@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { resolveWorkspacePath } from "../workspace/path-safety.js";
+import { applyUnifiedDiff } from "../patch.js";
 
 export function hashContent(content) {
   const value = String(content ?? "");
@@ -75,6 +76,37 @@ export async function restoreSnapshots(projectRoot, snapshots = []) {
 
 function stripBom(value) {
   return value.charCodeAt(0) === 0xFEFF ? value.slice(1) : value;
+}
+
+export async function applyDiffTransaction({
+  projectRoot,
+  parsed,
+  transaction_id = makeTransactionId(),
+  applyDiff = applyUnifiedDiff
+} = {}) {
+  if (!projectRoot) throw new Error("projectRoot is required");
+  if (!parsed?.diff || !Array.isArray(parsed.patches)) throw new Error("parsed diff is required");
+  const snapshots = await snapshotTouchedFiles(projectRoot, parsed.patches);
+  try {
+    const applied = await applyDiff(parsed.diff, projectRoot);
+    return {
+      transaction_id,
+      snapshots,
+      applied,
+      restored_on_failure: false
+    };
+  } catch (error) {
+    const restoredFiles = await restoreSnapshots(projectRoot, snapshots);
+    error.transaction_id = transaction_id;
+    error.restored = true;
+    error.restored_files = restoredFiles;
+    error.failed_files = parsed.files || snapshots.map((item) => item.path);
+    throw error;
+  }
+}
+
+export function makeTransactionId() {
+  return `tx_${Date.now().toString(36)}_${Math.random().toString(16).slice(2, 10)}`;
 }
 
 async function fileExists(target) {
