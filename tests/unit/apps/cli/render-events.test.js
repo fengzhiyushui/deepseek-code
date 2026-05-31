@@ -73,3 +73,18 @@ test("summarizeKernelEvent renders branch and rewind events", () => {
     "rewind failed change_2"
   );
 });
+
+test("summarizeKernelEvent renders rewind recovery events", () => {
+  assert.equal(
+    summarizeKernelEvent({ type: "session:rewind_restore_started", applied_rollbacks: ["a", "b"] }),
+    "rewind restoring 2 changes"
+  );
+  assert.equal(
+    summarizeKernelEvent({ type: "session:rewind_restored", restored_files: ["a.txt"] }),
+    "rewind restored 1 files"
+  );
+  assert.equal(
+    summarizeKernelEvent({ type: "session:rewind_recovery_failed", reason: "restore_failed" }),
+    "rewind recovery failed restore_failed"
+  );
+});

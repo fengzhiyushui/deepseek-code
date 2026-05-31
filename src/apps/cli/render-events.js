@@ -18,6 +18,9 @@ export function summarizeKernelEvent(event = {}) {
   if (event.type === "session:rewind_applied") return `rewind applied ${event.branch_id || "unknown"} ${(event.rollback_change_ids || []).length} changes`;
   if (event.type === "session:rewind_conflict") return `rewind conflict ${event.failed_change_id || "unknown"}`;
   if (event.type === "session:rewind_failed") return `rewind failed ${event.failed_change_id || event.reason || "unknown"}`;
+  if (event.type === "session:rewind_restore_started") return `rewind restoring ${(event.applied_rollbacks || []).length} changes`;
+  if (event.type === "session:rewind_restored") return `rewind restored ${(event.restored_files || []).length} files`;
+  if (event.type === "session:rewind_recovery_failed") return `rewind recovery failed ${event.reason || event.restore_error || "unknown"}`;
   return event.type || "event";
 }
 
