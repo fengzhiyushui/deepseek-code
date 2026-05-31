@@ -240,6 +240,7 @@ export async function resumeExecutorLoop({
       toolSchemas: resumeState.tool_schemas || [],
       maxIterations: resumeState.max_iterations || 5,
       options: resumeState.options || {},
+      context: resumeState.context || null,
       executeTool,
       createPolicyContext
     });

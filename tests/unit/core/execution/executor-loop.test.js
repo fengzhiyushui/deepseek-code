@@ -334,6 +334,62 @@ test("executor loop stores context in approval resume state", async () => {
   assert.equal(result.resume_state.context.snapshot_id, "ctxsnap_1");
 });
 
+test("resumeExecutorLoop preserves context through model-iteration re-pause", async () => {
+  // After pending+remaining tools succeed, model returns more tool calls,
+  // and one of them requires approval. Context must survive this re-pause too.
+  const resumeState = {
+    turn_id: "turn_resume_ctx_iter",
+    message: "edit then check",
+    classification: { task_type: "edit" },
+    messages: [{ role: "user", content: "edit then check" }],
+    model_result: { content: "", tool_calls: [
+      { id: "call_edit", name: "edit", arguments: { diff: "d" } }
+    ] },
+    raw_tool_calls: [
+      { id: "call_edit", name: "edit", arguments: { diff: "d" } }
+    ],
+    pending_tool_call: { id: "call_edit", name: "edit", params: { diff: "d" }, requested_by_step_id: "model:turn_resume_ctx_iter:0" },
+    remaining_tool_calls: [],
+    iteration: 0,
+    tool_results: [],
+    tool_schemas: [],
+    max_iterations: 5,
+    options: {},
+    context: { snapshot_id: "ctxsnap_iter_pause", summary: "Project files:\n- a.txt" }
+  };
+
+  const result = await resumeExecutorLoop({
+    resumeState,
+    modelGateway: {
+      invoke: async () => ({
+        content: "",
+        tool_calls: [
+          { id: "call_shell_new", name: "shell", arguments: { argv: ["npm", "test"] } },
+          { id: "call_grep", name: "grep", arguments: { pattern: "TODO" } }
+        ]
+      })
+    },
+    executeTool: async (toolCall) => {
+      if (toolCall.name === "shell") {
+        return {
+          call_id: toolCall.id,
+          status: "approval_required",
+          content: [{ type: "text", text: "shell requires approval" }],
+          metadata: { approval: { id: "approval_iter_ctx" } }
+        };
+      }
+      return { call_id: toolCall.id, status: "success", content: [{ type: "text", text: `${toolCall.name} ok` }] };
+    },
+    createPolicyContext: () => ({ autonomy: "supervised" })
+  });
+
+  assert.equal(result.status, "awaiting_approval");
+  assert.equal(result.approval.id, "approval_iter_ctx");
+  assert.equal(result.resume_state.pending_tool_call.name, "shell");
+  // Context must survive model-iteration re-pause
+  assert.equal(result.resume_state.context.snapshot_id, "ctxsnap_iter_pause");
+});
+
 test("resumeExecutorLoop can pause again on a remaining tool approval", async () => {
   const resumeState = {
     turn_id: "turn_resume_again",
