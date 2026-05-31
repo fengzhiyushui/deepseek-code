@@ -1,0 +1,114 @@
+import { resolveWorkspacePath } from "../workspace/path-safety.js";
+import path from "node:path";
+import { budgetForChannel } from "./token-budget.js";
+import { indexWorkspace } from "./workspace-indexer.js";
+import { selectContextUnits } from "./context-selector.js";
+import { buildContextSnapshot } from "./context-snapshot.js";
+
+export function createContextEngine({ root, eventBus = null, options = {} } = {}) {
+  if (!root) throw new Error("root is required");
+  const disabled = options.disabled === true;
+  let units = new Map();
+  let stats = { indexed_files: 0, skipped_files: 0 };
+  const pinned = new Set();
+  const warmed = new Map();
+
+  async function scan() {
+    if (disabled) return getStats();
+    const indexed = await indexWorkspace({ root, options });
+    units = indexed.units;
+    stats = indexed.stats;
+    return getStats();
+  }
+
+  async function snapshot(input = {}) {
+    if (disabled) {
+      return {
+        snapshot_id: "v2_context_disabled",
+        root,
+        channel: input.channel || "reply",
+        task_type: input.classification?.task_type || "general",
+        summary: "",
+        units: [],
+        budget: { allocated: 0, used: 0, remaining: 0 },
+        stats: { ...stats, selected_files: 0 }
+      };
+    }
+    if (units.size === 0) await scan();
+    const channelBudget = budgetForChannel(input.channel || "reply", { ...(options.budgets || {}), ...(input.budget ? { [input.channel || "reply"]: input.budget } : {}) });
+    const selected = selectContextUnits({
+      units,
+      message: input.message || "",
+      pinned,
+      warmed,
+      classification: input.classification || {},
+      budget: channelBudget.allocated
+    });
+    const snap = buildContextSnapshot({
+      root,
+      channel: channelBudget.channel,
+      taskType: input.classification?.task_type || "general",
+      selected: selected.selected,
+      budget: selected.budget,
+      stats
+    });
+    eventBus?.publish?.("context:snapshot", {
+      snapshot_id: snap.snapshot_id,
+      channel: snap.channel,
+      task_type: snap.task_type,
+      unit_count: snap.units.length,
+      unit_paths: snap.units.map((unit) => unit.path),
+      budget: snap.budget,
+      stats: snap.stats
+    });
+    return snap;
+  }
+
+  function pin(inputPath) {
+    const relative = normalizeControlPath(inputPath);
+    pinned.add(relative);
+    eventBus?.publish?.("context:pin", { path: relative });
+  }
+
+  function unpin(inputPath) {
+    const relative = normalizeControlPath(inputPath);
+    pinned.delete(relative);
+    eventBus?.publish?.("context:unpin", { path: relative });
+  }
+
+  function warm(inputPath, reason = "warm") {
+    const relative = normalizeControlPath(inputPath);
+    warmed.set(relative, reason);
+    eventBus?.publish?.("context:warm", { path: relative, reason });
+  }
+
+  function invalidate(inputPath) {
+    const relative = normalizeControlPath(inputPath);
+    units.delete(relative);
+    warmed.delete(relative);
+    pinned.delete(relative);
+  }
+
+  function getStats() {
+    return {
+      ...stats,
+      pinned_files: pinned.size,
+      warmed_files: warmed.size,
+      indexed_paths: units.size
+    };
+  }
+
+  function normalizeControlPath(inputPath) {
+    const relative = String(inputPath || "").replace(/\\/g, "/").replace(/^\.\/+/, "");
+    if (!relative) throw new Error("context path is required");
+    if (path.isAbsolute(relative)) throw new Error("context path must be relative");
+    if (relative.split("/").includes("..")) throw new Error("context path escapes project root");
+    return relative;
+  }
+
+  return { scan, snapshot, pin, unpin, warm, invalidate, getStats };
+}
+
+export async function assertContextPathInside(root, inputPath) {
+  return resolveWorkspacePath(root, inputPath, { mustExist: true });
+}
