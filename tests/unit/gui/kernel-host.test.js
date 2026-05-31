@@ -118,3 +118,34 @@ test("kernel host approve awaits V2 runtime approval result", async () => {
   assert.deepEqual(calls, [["approval_1", "approve"]]);
   assert.deepEqual(result, { ok: true, result: { status: "complete", content: "resumed" } });
 });
+
+test("kernel host getUsage prefers kernel metrics facade", async () => {
+  const usage = {
+    requests: 1,
+    total_prompt_tokens: 10,
+    total_completion_tokens: 2,
+    total_reasoning_tokens: 0,
+    total_tokens: 12,
+    cache_hit_tokens: 7,
+    cache_miss_tokens: 3,
+    cache_hit_rate: 0.7,
+    avg_latency_ms: 5,
+    by_channel: {},
+    by_model: {}
+  };
+  const host = createKernelHost({
+    projectRoot: "/repo",
+    kernelFactory: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }), getTimeline: async () => [] },
+      agent: { send: async () => ({ status: "complete" }), approve: () => {}, interrupt: () => {} },
+      context: { snapshot: async () => ({ units: [] }) },
+      metrics: { getUsage: () => usage },
+      config: { getPublicConfig: () => ({ runtime: "v2" }) },
+      runtime: { getState: () => ({ current: "idle", channel: null }) }
+    })
+  });
+
+  await host.init();
+
+  assert.deepEqual(host.getUsage(), usage);
+});
