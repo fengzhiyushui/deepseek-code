@@ -106,7 +106,7 @@ function createKernelHost({
   }
 
   function getUsage() {
-    return kernel?.modelGateway?.getUsageStats?.() || kernel?.metrics?.getUsage?.() || zeroUsage();
+    return kernel?.metrics?.getUsage?.() || kernel?.modelGateway?.getUsageStats?.() || zeroUsage();
   }
 
   function getConfig() {

@@ -149,3 +149,24 @@ test("kernel host getUsage prefers kernel metrics facade", async () => {
 
   assert.deepEqual(host.getUsage(), usage);
 });
+
+test("kernel host getUsage prefers metrics over modelGateway when both exist", async () => {
+  const metricsUsage = { total_tokens: 999, requests: 1 };
+  const gatewayUsage = { total_tokens: 111, requests: 1 };
+  const host = createKernelHost({
+    projectRoot: "/repo",
+    kernelFactory: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }), getTimeline: async () => [] },
+      agent: { send: async () => ({ status: "complete" }), approve: () => {}, interrupt: () => {} },
+      context: { snapshot: async () => ({ units: [] }) },
+      metrics: { getUsage: () => metricsUsage },
+      config: { getPublicConfig: () => ({ runtime: "v2" }) },
+      runtime: { getState: () => ({ current: "idle", channel: null }) },
+      modelGateway: { getUsageStats: () => gatewayUsage }
+    })
+  });
+
+  await host.init();
+
+  assert.deepEqual(host.getUsage(), metricsUsage);
+});
