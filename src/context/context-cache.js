@@ -51,8 +51,15 @@ export async function scanContextWithCache({ root, options = {}, eventBus = null
   }
 
   const files = await walkWorkspaceFiles(root, ".", { maxFiles: settings.maxFiles });
+  const cacheRootRel = settings.persistent
+    ? normalizeRelativePath(path.relative(root, settings.cacheRoot)) + "/"
+    : null;
   for (const file of files) {
     stats.scanned_files += 1;
+    if (cacheRootRel && normalizeRelativePath(file).startsWith(cacheRootRel)) {
+      recordSkip(stats, "cache-root");
+      continue;
+    }
     const skip = contextSkipReason(file);
     if (skip) {
       recordSkip(stats, skip);

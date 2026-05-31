@@ -58,6 +58,22 @@ test("scanContextWithCache does not persist hidden config or credential files", 
   assert.equal(raw.includes("_authToken"), false);
 });
 
+test("scanContextWithCache skips its own manifest and cache root", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-context-cache-self-"));
+  const cacheRoot = path.join(root, ".context-cache");
+  await writeFile(path.join(root, "README.md"), "# demo\n");
+
+  // First scan writes manifest inside cacheRoot
+  await scanContextWithCache({ root, options: { cacheRoot } });
+  // Second scan must NOT include the manifest as a context file
+  const second = await scanContextWithCache({ root, options: { cacheRoot } });
+
+  const paths = [...second.records.keys()];
+  assert.ok(paths.includes("README.md"));
+  assert.equal(paths.some((p) => p.includes("manifest.json")), false);
+  assert.equal(paths.some((p) => p.includes(".context-cache")), false);
+});
+
 test("hydrateContextRecords reads snippets lazily and skips unreadable selected files", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "dsc-context-hydrate-"));
   await writeFile(path.join(root, "README.md"), "# demo\n");
