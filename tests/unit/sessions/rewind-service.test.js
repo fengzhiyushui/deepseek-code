@@ -54,7 +54,7 @@ test("rewind apply rolls back changes creates and activates child branch", async
       { seq: 3, event_id: "evt_apply_2", type: "file:diff_applied", change_id: "change_2", files: ["b.txt"], branch_id: "br_main" }
     ],
     getActiveBranchId: async () => activeBranch,
-    createBranch: async (input) => ({ branch_id: "br_child", ...input }),
+    createBranch: async (input) => ({ branch_id: input.branch_id || "br_child", ...input }),
     activateBranch: async (branchId) => { activeBranch = branchId; return { branch_id: branchId }; },
     rollback: async (input) => {
       rollbackCalls.push(input);
@@ -66,9 +66,12 @@ test("rewind apply rolls back changes creates and activates child branch", async
 
   assert.equal(result.status, "success");
   assert.deepEqual(rollbackCalls.map((call) => call.change_id), ["change_2", "change_1"]);
-  // Rollback calls carry the planned child branch id so file events land on the new branch
-  assert.ok(rollbackCalls.every((call) => call.branch_id?.startsWith("br_")), "rollback calls must carry planned branch_id");
-  assert.equal(activeBranch, "br_child");
+  // Rollback events must carry the actual created branch id, not a phantom one
+  const actualBranchId = result.branch_id;
+  assert.ok(actualBranchId.startsWith("br_"), "branch id must be valid");
+  assert.equal(rollbackCalls[0].branch_id, actualBranchId);
+  assert.equal(rollbackCalls[1].branch_id, actualBranchId);
+  assert.equal(activeBranch, actualBranchId);
   assert.equal(published.some((event) => event.type === "session:rewind_applied"), true);
 });
 

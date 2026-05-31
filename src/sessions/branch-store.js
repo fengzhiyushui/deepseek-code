@@ -40,11 +40,15 @@ export async function createBranchStore({ sessionRoot, projectId, sessionId } = 
     forked_from_event_id = null,
     forked_from_seq = 0,
     forked_from_turn_id = null,
-    label = ""
+    label = "",
+    branch_id = null
   } = {}) {
     await getBranch(parent_branch_id);
+    const id = (branch_id && /^br_[a-zA-Z0-9._-]+$/.test(branch_id))
+      ? branch_id
+      : makeId("br");
     const branch = {
-      branch_id: makeId("br"),
+      branch_id: id,
       parent_branch_id,
       forked_from_event_id,
       forked_from_seq: Number(forked_from_seq || 0),

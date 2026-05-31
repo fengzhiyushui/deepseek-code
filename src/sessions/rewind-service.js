@@ -86,7 +86,8 @@ export function createRewindService({
       forked_from_event_id: previewResult.target.event_id,
       forked_from_seq: previewResult.target.seq,
       forked_from_turn_id: previewResult.target.turn_id,
-      label: label || `rewind to ${previewResult.target.turn_id || previewResult.target.event_id || previewResult.target.seq}`
+      label: label || `rewind to ${previewResult.target.turn_id || previewResult.target.event_id || previewResult.target.seq}`,
+      branch_id: previewResult.planned_branch_id
     });
     publish("session:branch_created", {
       branch_id: branch.branch_id,
