@@ -139,14 +139,11 @@ export async function createKernel(root, options = {}) {
 
   const rewind = branchStore ? createRewindService({
     eventBus,
+    projectRoot: root,
     getTimeline: (input) => sessionManager.getTimeline(input),
     getActiveBranchId: async () => activeBranchId,
-    createBranch: (input) => branchStore.createBranch(input),
-    activateBranch: async (branchId) => {
-      const branch = await branchStore.activateBranch(branchId);
-      activeBranchId = branch.branch_id;
-      return branch;
-    },
+    createBranch: (input) => branches.create(input),
+    activateBranch: (branchId) => branches.activate(branchId),
     rollback: (input) => editService.rollback(input)
   }) : {
     preview: async () => { throw new Error("rewind unavailable: no branch store"); },
