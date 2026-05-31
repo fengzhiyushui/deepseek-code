@@ -107,7 +107,7 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
     };
   }
 
-  async function rollbackChangeRecord({ change_id = "latest", force = false } = {}) {
+  async function rollbackChangeRecord({ change_id = "latest", force = false, branch_id = null } = {}) {
     const outcome = await rollback.rollback({ change_id, force: Boolean(force) });
     const record = outcome.record;
     const files = record.summary.map((item) => item.path);
@@ -116,7 +116,8 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
         change_id: record.id,
         files,
         conflicts: outcome.conflicts,
-        force_available: true
+        force_available: true,
+        ...(branch_id ? { branch_id } : {})
       });
       return {
         status: "conflict",
@@ -134,14 +135,16 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
       files,
       restored_files: outcome.restored_files,
       forced: outcome.forced,
-      conflicts: outcome.conflicts
+      conflicts: outcome.conflicts,
+      ...(branch_id ? { branch_id } : {})
     });
     publish("file:rollback_applied", {
       change_id: record.id,
       summary: record.summary,
       files,
       forced: outcome.forced,
-      conflicts: outcome.conflicts
+      conflicts: outcome.conflicts,
+      ...(branch_id ? { branch_id } : {})
     });
     return {
       status: "success",

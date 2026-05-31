@@ -103,7 +103,12 @@ export function filterTimelineForBranch(events, ancestry = []) {
 }
 
 function stampBranch(type, data, getActiveBranchId) {
-  if (type === "session:branch_created" || type === "session:branch_activated") {
+  // Branch control events and rewind rollback events carry their own branch_id
+  if (type === "session:branch_created" ||
+      type === "session:branch_activated" ||
+      type === "file:transaction_rolled_back" ||
+      type === "file:rollback_applied" ||
+      type === "file:rollback_conflict") {
     return { ...data, branch_id: data?.branch_id || safeBranchId(getActiveBranchId()) };
   }
   const branchId = safeBranchId(getActiveBranchId());

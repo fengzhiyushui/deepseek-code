@@ -66,6 +66,8 @@ test("rewind apply rolls back changes creates and activates child branch", async
 
   assert.equal(result.status, "success");
   assert.deepEqual(rollbackCalls.map((call) => call.change_id), ["change_2", "change_1"]);
+  // Rollback calls carry the planned child branch id so file events land on the new branch
+  assert.ok(rollbackCalls.every((call) => call.branch_id?.startsWith("br_")), "rollback calls must carry planned branch_id");
   assert.equal(activeBranch, "br_child");
   assert.equal(published.some((event) => event.type === "session:rewind_applied"), true);
 });

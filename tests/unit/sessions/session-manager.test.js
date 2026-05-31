@@ -146,6 +146,41 @@ test("session manager preserves payload branch_id on branch control events", asy
   assert.equal(writes[0].data.parent_branch_id, "br_main");
 });
 
+test("session manager preserves payload branch_id on rollback file events", async () => {
+  const eventBus = createEventBus();
+  const writes = [];
+  const session = createSessionManager({
+    eventBus,
+    eventLog: {
+      append: async (type, data) => writes.push({ type, data }),
+      flush: async () => {},
+      tail: async () => []
+    },
+    getActiveBranchId: () => "br_main"
+  });
+  const events = [];
+  const sub = session.subscribe((event) => events.push(event));
+
+  // Rollback events during rewind carry the planned child branch_id
+  eventBus.publish("file:transaction_rolled_back", {
+    branch_id: "br_child",
+    change_id: "change_1",
+    files: ["a.txt"]
+  });
+  eventBus.publish("file:rollback_applied", {
+    branch_id: "br_child",
+    change_id: "change_1",
+    files: ["a.txt"]
+  });
+  await session.flush();
+  sub.unsubscribe();
+
+  assert.equal(events[0].branch_id, "br_child");
+  assert.equal(events[1].branch_id, "br_child");
+  assert.equal(writes[0].data.branch_id, "br_child");
+  assert.equal(writes[1].data.branch_id, "br_child");
+});
+
 test("session manager dispose stops bridge writes", async () => {
   const eventBus = createEventBus();
   const writes = [];

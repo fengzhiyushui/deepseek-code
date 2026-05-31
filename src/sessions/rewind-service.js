@@ -52,7 +52,7 @@ export function createRewindService({
 
     const appliedRollbacks = [];
     for (const changeId of previewResult.rollback_change_ids) {
-      const result = await rollback({ change_id: changeId, force: Boolean(force) });
+      const result = await rollback({ change_id: changeId, force: Boolean(force), branch_id: previewResult.planned_branch_id });
       if (result.status === "conflict") {
         const conflict = {
           status: "conflict",
