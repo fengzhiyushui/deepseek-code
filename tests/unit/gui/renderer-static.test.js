@@ -38,6 +38,23 @@ test("renderer css defines stable workbench layout without decorative gradients"
   assert.equal(css.includes("linear-gradient"), false);
 });
 
+test("renderer app wires branch checkpoint and rewind api methods", async () => {
+  const app = await readFile("gui/renderer/app.js", "utf8");
+
+  for (const token of [
+    "listBranches",
+    "getActiveBranch",
+    "listCheckpoints",
+    "rewindPreview",
+    "rewindApply",
+    "renderBranches",
+    "renderCheckpoints",
+    "renderRewindPreview"
+  ]) {
+    assert.ok(app.includes(token), `${token} missing`);
+  }
+});
+
 test("renderer files avoid unsafe html injection and garbled legacy labels", async () => {
   const html = await readFile("gui/renderer/index.html", "utf8");
   const app = await readFile("gui/renderer/app.js", "utf8");
