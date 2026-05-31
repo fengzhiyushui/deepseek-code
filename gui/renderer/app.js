@@ -59,6 +59,10 @@
       renderRewindPreview();
     };
     document.getElementById("rewind-apply").onclick = applyRewind;
+    document.getElementById("inspector-close").onclick = function () {
+      dispatch({ type: "inspector_closed" });
+      focusComposer();
+    };
     document.querySelectorAll("[data-rail]").forEach(function (button) {
       button.onclick = function () {
         dispatch({ type: "rail_mode_changed", mode: button.getAttribute("data-rail") });
@@ -135,6 +139,11 @@
     if (input) input.focus();
   }
 
+  function focusInspector() {
+    var close = document.getElementById("inspector-close");
+    if (close && state.inspectorMode !== "activity") close.focus();
+  }
+
   function isTextEditing(target) {
     if (!target) return false;
     var tag = String(target.tagName || "").toLowerCase();
@@ -201,6 +210,7 @@
     api.rewindPreview({ target: model.targetFromCheckpoint(checkpoint) }).then(function (preview) {
       if (preview && preview.error) throw new Error(preview.error);
       dispatch({ type: "rewind_preview_loaded", preview: preview });
+      focusInspector();
       dispatch({ type: "loading_changed", key: "rewind", value: false });
     }).catch(function (error) {
       reportError("rewind", error);
@@ -429,6 +439,7 @@
 
   function showApprovalBox(approval) {
     dispatch({ type: "approval_loaded", approval: approval });
+    focusInspector();
     var box = document.getElementById("approval-box");
     box.className = "";
     clearChildren(box);

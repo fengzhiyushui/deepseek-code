@@ -167,6 +167,18 @@ test("renderer app loads persists preferences and binds keyboard shortcuts", asy
   }
 });
 
+test("renderer exposes explicit inspector close control", async () => {
+  const html = await readFile("gui/renderer/index.html", "utf8");
+  const css = await readFile("gui/renderer/style.css", "utf8");
+  const app = await readFile("gui/renderer/app.js", "utf8");
+
+  assert.ok(html.includes('id="inspector-close"'));
+  assert.ok(html.includes('aria-label="Close inspector"'));
+  assert.ok(css.includes(".inspector-close"));
+  assert.ok(app.includes("inspector-close"));
+  assert.ok(app.includes("focusInspector"));
+});
+
 test("renderer files avoid unsafe html injection and garbled legacy labels", async () => {
   const html = await readFile("gui/renderer/index.html", "utf8");
   const app = await readFile("gui/renderer/app.js", "utf8");

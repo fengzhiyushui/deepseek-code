@@ -2,74 +2,134 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
   <title>DeepSeek Code</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="app" class="workbench">
-    <aside id="sidebar" class="panel sidebar">
-      <header class="panel-header">
+  <div id="app" class="workbench-shell" data-theme="night">
+    <div id="error-strip" class="error-strip hidden" role="status" aria-live="polite"></div>
+
+    <header id="command-bar" class="command-bar">
+      <div class="command-identity">
+        <div class="brand-mark" aria-hidden="true">D</div>
         <div>
           <div class="brand">DeepSeek Code</div>
-          <div class="subtle">Local agent workbench</div>
+          <div id="command-branch" class="meta-text">br_main</div>
         </div>
-      </header>
-      <section class="panel-section">
-        <div class="section-title">Branches</div>
-        <div id="branch-list" class="branch-list"></div>
-      </section>
-      <section class="panel-section metrics">
-        <div class="section-title">Metrics</div>
-        <div class="metric-grid">
-          <div class="metric-tile"><span>Tokens</span><strong id="metric-tokens">0</strong></div>
-          <div class="metric-tile"><span>Cache hit</span><strong id="metric-cache">0%</strong></div>
-          <div class="metric-tile"><span>Avg latency</span><strong id="metric-latency">0ms</strong></div>
-          <div class="metric-tile"><span>Requests</span><strong id="metric-requests">0</strong></div>
+      </div>
+      <div class="command-center">
+        <div id="command-task" class="command-task">Ready for local work</div>
+        <div id="command-detail" class="meta-text">Agent session idle</div>
+      </div>
+      <div class="command-actions">
+        <div class="traffic-row" aria-live="polite">
+          <span id="traffic-light" class="traffic-light" data-tone="ready" aria-hidden="true"></span>
+          <span id="traffic-light-label" class="traffic-light-label">Ready</span>
         </div>
-      </section>
-    </aside>
+        <button id="theme-toggle" class="icon-button text-button" type="button" aria-label="Toggle color theme">Night</button>
+        <button id="btn-refresh" class="icon-button" type="button" aria-label="Refresh workbench">R</button>
+      </div>
+    </header>
 
-    <main id="conversation" class="conversation">
-      <header class="topbar">
-        <div>
-          <div class="view-title">Conversation</div>
-          <div id="status-branch" class="subtle">br_main</div>
-        </div>
-        <button id="btn-refresh" class="ghost-button" type="button">Refresh</button>
-      </header>
-      <div id="messages" class="messages"></div>
-      <div id="approval-box" class="hidden"></div>
-      <form id="composer" class="composer">
-        <input type="text" id="msg-input" placeholder="Ask the local agent..." autocomplete="off" autofocus>
-        <button id="btn-send" type="submit">Send</button>
-      </form>
-    </main>
+    <div id="workbench-body" class="workbench-body">
+      <nav id="activity-rail" class="activity-rail" aria-label="Activity navigation">
+        <button id="rail-chat" class="rail-button selected" type="button" data-rail="chat" aria-label="Chat">C</button>
+        <button id="rail-context" class="rail-button" type="button" data-rail="context" aria-label="Context">X</button>
+        <button id="rail-branches" class="rail-button" type="button" data-rail="branches" aria-label="Branches">B</button>
+        <button id="rail-timeline" class="rail-button" type="button" data-rail="timeline" aria-label="Timeline">T</button>
+        <button id="rail-settings" class="rail-button" type="button" data-rail="settings" aria-label="Settings">S</button>
+      </nav>
 
-    <aside id="inspector" class="panel inspector">
-      <section class="panel-section">
-        <div class="section-title">Activity</div>
-        <div id="activity-log" class="activity-log"></div>
-      </section>
-      <section class="panel-section checkpoints">
-        <div class="section-title">Checkpoints</div>
-        <div id="checkpoint-list" class="checkpoint-list"></div>
-      </section>
-      <section class="panel-section rewind">
-        <div class="section-title">Rewind</div>
-        <div id="rewind-preview" class="rewind-preview empty">Select a checkpoint to preview rewind.</div>
-        <label class="force-row">
-          <input id="rewind-force" type="checkbox">
-          <span>Force dirty rollback</span>
-        </label>
-        <button id="rewind-apply" class="danger-button" type="button" disabled>Apply rewind</button>
-      </section>
-    </aside>
+      <aside id="context-panel" class="context-panel" aria-label="Context panel">
+        <header class="pane-header">
+          <div>
+            <div id="context-panel-title" class="pane-title">Chat Context</div>
+            <div id="context-panel-subtitle" class="meta-text">Branch, cache, and approvals</div>
+          </div>
+          <button id="context-collapse" class="icon-button" type="button" aria-label="Collapse context panel">L</button>
+        </header>
+        <section class="context-section context-summary" aria-label="Session summary">
+          <div class="metric-grid">
+            <div class="metric-tile"><span>Tokens</span><strong id="metric-tokens">0</strong></div>
+            <div class="metric-tile"><span>Cache hit</span><strong id="metric-cache">0%</strong></div>
+            <div class="metric-tile"><span>Avg latency</span><strong id="metric-latency">0ms</strong></div>
+            <div class="metric-tile"><span>Requests</span><strong id="metric-requests">0</strong></div>
+          </div>
+        </section>
+        <section id="context-mode-panel" class="context-section">
+          <div id="context-mode-copy" class="mode-copy">Select a mode from the activity rail.</div>
+        </section>
+        <section class="context-section branches-section">
+          <div class="section-row">
+            <div class="section-title">Branches</div>
+            <div id="active-branch-pill" class="pill">br_main</div>
+          </div>
+          <div id="branch-list" class="branch-list"></div>
+        </section>
+      </aside>
 
-    <footer id="status-bar" class="status-bar">
+      <main id="agent-session" class="agent-session" aria-label="Agent session">
+        <section id="empty-state" class="empty-state" aria-label="Workbench overview">
+          <div class="empty-kicker">Local Agent Workbench</div>
+          <h1>Start a turn, inspect execution, or rewind from a checkpoint.</h1>
+          <p>The workbench keeps conversation, tools, approvals, branches, usage, and recovery visible without leaving the session.</p>
+          <div class="empty-actions" aria-label="Session facts">
+            <div><span>Branch</span><strong id="empty-branch">br_main</strong></div>
+            <div><span>Runtime</span><strong id="empty-runtime">idle</strong></div>
+            <div><span>Cache</span><strong id="empty-cache">0%</strong></div>
+          </div>
+        </section>
+        <div id="messages" class="messages"></div>
+        <div id="approval-box" class="hidden"></div>
+        <form id="composer" class="composer">
+          <label class="sr-only" for="msg-input">Message the local agent</label>
+          <input type="text" id="msg-input" placeholder="Ask the local agent..." autocomplete="off" autofocus>
+          <button id="btn-send" type="submit">Send</button>
+        </form>
+      </main>
+
+      <aside id="contextual-inspector" class="contextual-inspector" aria-label="Contextual inspector">
+        <header class="pane-header">
+          <div>
+            <div id="inspector-title" class="pane-title">Activity</div>
+            <div id="inspector-subtitle" class="meta-text">Recent agent events</div>
+          </div>
+          <button id="inspector-close" class="icon-button inspector-close" type="button" aria-label="Close inspector">X</button>
+        </header>
+        <nav id="inspector-tabs" class="inspector-tabs" aria-label="Inspector views">
+          <button type="button" data-inspector="activity" class="inspector-tab selected">Activity</button>
+          <button type="button" data-inspector="checkpoints" class="inspector-tab">Checkpoints</button>
+          <button type="button" data-inspector="rewind" class="inspector-tab">Rewind</button>
+        </nav>
+        <section id="inspector-activity" class="inspector-section">
+          <div class="section-title">Activity</div>
+          <div id="activity-log" class="activity-log"></div>
+        </section>
+        <section id="inspector-checkpoints" class="inspector-section">
+          <div class="section-title">Checkpoints</div>
+          <div id="checkpoint-list" class="checkpoint-list"></div>
+        </section>
+        <section id="inspector-rewind" class="inspector-section">
+          <div class="section-title">Rewind</div>
+          <div id="rewind-preview" class="rewind-preview empty">Select a checkpoint to preview rewind.</div>
+          <label class="force-row">
+            <input id="rewind-force" type="checkbox">
+            <span>Force dirty rollback</span>
+          </label>
+          <button id="rewind-apply" class="danger-button" type="button" disabled>Apply rewind</button>
+        </section>
+      </aside>
+    </div>
+
+    <footer id="statusline" class="statusline">
       <span id="status-autonomy">gated</span>
       <span id="status-channel">idle</span>
       <span id="status-runtime">idle</span>
+      <span id="statusline-branch">br_main</span>
+      <span id="statusline-cache">cache 0%</span>
+      <span id="statusline-latency">0ms</span>
     </footer>
   </div>
   <script src="event-adapter.js"></script>
