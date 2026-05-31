@@ -39,7 +39,7 @@ test("rollback service restores a finalized change record", async () => {
   const record = await store.finalize(plan);
   const rolledBack = await rollback.rollback({ change_id: record.id });
 
-  assert.equal(rolledBack.id, record.id);
+  assert.equal(rolledBack.record.id, record.id);
   assert.equal(await readFile(path.join(root, "a.txt"), "utf8"), "old\n");
 });
 
