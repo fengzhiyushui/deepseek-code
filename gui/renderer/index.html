@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
@@ -7,53 +7,73 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="app">
-    <!-- Surface Layer: chat view -->
-    <div id="surface-layer" class="layer visible">
-      <div id="toolbar">
-        <span class="brand">DeepSeek Code</span>
-        <button id="btn-context" title="Agent activity">🔍</button>
-        <button id="btn-control" title="Full panels">📋</button>
-      </div>
-      <div id="messages"></div>
-      <div id="approval-box" class="hidden"></div>
-    </div>
-
-    <!-- Context Layer: agent activity log -->
-    <div id="context-layer" class="layer hidden">
-      <div class="layer-header">
-        <span>Agent Activity</span>
-        <button id="btn-close-context">✕</button>
-      </div>
-      <div id="activity-log"></div>
-    </div>
-
-    <!-- Control Layer: full panels overlay -->
-    <div id="control-overlay" class="overlay hidden">
-      <div id="control-content">
-        <div class="overlay-header">
-          <span id="control-title">Plan Review</span>
-          <button id="btn-close-control">✕</button>
+  <div id="app" class="workbench">
+    <aside id="sidebar" class="panel sidebar">
+      <header class="panel-header">
+        <div>
+          <div class="brand">DeepSeek Code</div>
+          <div class="subtle">Local agent workbench</div>
         </div>
-        <div id="control-body"></div>
-      </div>
-    </div>
+      </header>
+      <section class="panel-section">
+        <div class="section-title">Branches</div>
+        <div id="branch-list" class="branch-list"></div>
+      </section>
+      <section class="panel-section metrics">
+        <div class="section-title">Metrics</div>
+        <div class="metric-grid">
+          <div class="metric-tile"><span>Tokens</span><strong id="metric-tokens">0</strong></div>
+          <div class="metric-tile"><span>Cache hit</span><strong id="metric-cache">0%</strong></div>
+          <div class="metric-tile"><span>Avg latency</span><strong id="metric-latency">0ms</strong></div>
+          <div class="metric-tile"><span>Requests</span><strong id="metric-requests">0</strong></div>
+        </div>
+      </section>
+    </aside>
 
-    <!-- Input Bar -->
-    <div id="input-bar">
-      <input type="text" id="msg-input" placeholder="输入问题..." autofocus>
-      <button id="btn-send">发送</button>
-    </div>
+    <main id="conversation" class="conversation">
+      <header class="topbar">
+        <div>
+          <div class="view-title">Conversation</div>
+          <div id="status-branch" class="subtle">br_main</div>
+        </div>
+        <button id="btn-refresh" class="ghost-button" type="button">Refresh</button>
+      </header>
+      <div id="messages" class="messages"></div>
+      <div id="approval-box" class="hidden"></div>
+      <form id="composer" class="composer">
+        <input type="text" id="msg-input" placeholder="Ask the local agent..." autocomplete="off" autofocus>
+        <button id="btn-send" type="submit">Send</button>
+      </form>
+    </main>
 
-    <!-- Status Bar -->
-    <div id="status-bar">
-      <span id="status-autonomy">gated</span> |
-      <span id="status-channel">—</span> |
-      <span id="status-tokens">0 tokens</span> |
-      <span id="status-cache">cache —%</span>
-    </div>
+    <aside id="inspector" class="panel inspector">
+      <section class="panel-section">
+        <div class="section-title">Activity</div>
+        <div id="activity-log" class="activity-log"></div>
+      </section>
+      <section class="panel-section checkpoints">
+        <div class="section-title">Checkpoints</div>
+        <div id="checkpoint-list" class="checkpoint-list"></div>
+      </section>
+      <section class="panel-section rewind">
+        <div class="section-title">Rewind</div>
+        <div id="rewind-preview" class="rewind-preview empty">Select a checkpoint to preview rewind.</div>
+        <label class="force-row">
+          <input id="rewind-force" type="checkbox">
+          <span>Force dirty rollback</span>
+        </label>
+        <button id="rewind-apply" class="danger-button" type="button" disabled>Apply rewind</button>
+      </section>
+    </aside>
+
+    <footer id="status-bar" class="status-bar">
+      <span id="status-autonomy">gated</span>
+      <span id="status-channel">idle</span>
+      <span id="status-runtime">idle</span>
+    </footer>
   </div>
   <script src="event-adapter.js"></script>
+  <script src="workbench-state.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
