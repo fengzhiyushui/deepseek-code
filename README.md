@@ -10,7 +10,8 @@ V2 已经成为主要运行路径：
 - `deepseek-code edit` 使用 V2 runtime、V2 tool plane 和 V2 edit service。
 - `deepseek-code test` 使用 V2 test tool，并传播真实退出码。
 - TUI 和 GUI 订阅 V2 session events。
-- Legacy 命令仍保留：`chat`、`scan`、`search`、`diff`、`config`、`changes`、`rollback`、`resume`。
+- `deepseek-code chat` 使用 V2 kernel，默认 `read-only`，可在会话中用 `/mode` 切换到 `gated` 或 `auto`。
+- Legacy 命令仍保留：`scan`、`search`、`diff`、`config`、`changes`、`rollback`、`resume`。
 
 运行验证：
 
@@ -159,12 +160,12 @@ V2 session timeline 记录以下事件：
 
 ## 已知限制
 
-- 审批恢复流程尚未贯通：当前可以进入 `awaiting_approval`，批准后继续同一轮 tool loop 仍未实现。
-- verifier 当前以 detect-only 为主，不默认运行完整测试套件。
-- verification repair 会终止当前 turn，不会自动重新进入修复循环。
-- V2 context snapshot 仍是最小实现。
-- GUI usage stats 当前可能显示零值，真实 usage tracker 尚未接入 GUI 状态栏。
-- legacy 文件仍保留，用于兼容未迁移命令和旧变更记录。
+- 审批、repair、rewind 的恢复仍是进程内恢复，不保证 CLI 崩溃或机器重启后的完整恢复；崩溃安全恢复留给 V2-18。
+- repair executor 目前是单轮修复执行器，多轮自动诊断和更复杂的验证策略仍待扩展。
+- 会话、变更记录和分支/rewind 目前没有跨进程文件锁；不要同时在同一项目目录运行多个会写入状态的实例。
+- legacy `src/kernel/*`、`src/agent.js`、`src/provider.js` 仍保留，用于兼容未迁移命令和旧接口；完整删除和 `apps/` 目录收敛留给 V2-19。
+- GUI usage stats 在离线或未接入真实模型调用时可能显示零值。
+- `chat` 已走 V2 kernel，默认 `read-only`，可在会话中用 `/mode` 切换到 `gated` 或 `auto`。
 
 ## 目录导览
 

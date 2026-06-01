@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 
 export const DEFAULT_POLICY_MATRIX = Object.freeze({
+  "read-only": {
+    read: "allow", read_secret: "ask",
+    write_create: "deny", write_update: "deny", write_delete: "deny",
+    execute: "deny", network: "deny", destructive: "deny"
+  },
   supervised: {
     read: "allow", read_secret: "ask",
     write_create: "ask", write_update: "ask", write_delete: "ask",

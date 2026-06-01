@@ -22,7 +22,22 @@ test("TUI and GUI host do not import the old V1 kernel api", async () => {
   const guiHost = await source("gui/kernel-host.js");
 
   assert.match(tui, /from "\.\/index\.js"/);
+  assert.doesNotMatch(tui, /from "\.\/agent\.js"/);
   assert.doesNotMatch(tui, /kernel-api/);
   assert.doesNotMatch(guiMain, /src[\\/]+kernel[\\/]+kernel-api|kernel-api/);
   assert.doesNotMatch(guiHost, /src[\\/]+kernel[\\/]+kernel-api|kernel-api/);
+});
+
+test("CLI and TUI chat route through V2 kernel runner, not legacy chat or askDeepSeek", async () => {
+  const cli = await source("src/cli.js");
+  const tui = await source("src/tui.js");
+  const chat = await source("src/chat.js");
+
+  assert.match(cli, /runKernelChatCommand/);
+  assert.match(tui, /runKernelChatCommand/);
+  assert.doesNotMatch(cli, /from "\.\/chat\.js"/);
+  assert.doesNotMatch(tui, /from "\.\/chat\.js"/);
+  assert.doesNotMatch(cli, /askDeepSeek/);
+  assert.doesNotMatch(tui, /askDeepSeek/);
+  assert.doesNotMatch(chat, /askDeepSeek|chatHistoryPath|loadChatHistory|saveChatHistory|\.deepseek-code/);
 });

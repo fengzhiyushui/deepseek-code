@@ -7,10 +7,35 @@ import {
 } from "../../../src/tools/permissions/permission-engine.js";
 import { createPolicyContext } from "../../../src/tools/permissions/policy-loader.js";
 
-test("default matrix covers 8 categories across 4 autonomy levels", () => {
+test("default matrix covers 8 categories across 5 autonomy levels", () => {
   const categories = ["read", "read_secret", "write_create", "write_update", "write_delete", "execute", "network", "destructive"];
-  for (const autonomy of ["supervised", "gated", "auto", "full-auto"]) {
+  for (const autonomy of ["read-only", "supervised", "gated", "auto", "full-auto"]) {
     assert.deepEqual(Object.keys(DEFAULT_POLICY_MATRIX[autonomy]).sort(), categories.sort());
+  }
+});
+
+test("read-only allows reads, asks for secrets, and denies mutations and side effects", () => {
+  const engine = createPermissionEngine();
+  const expected = {
+    read: "allow",
+    read_secret: "ask",
+    write_create: "deny",
+    write_update: "deny",
+    write_delete: "deny",
+    execute: "deny",
+    network: "deny",
+    destructive: "deny"
+  };
+
+  for (const [category, decision] of Object.entries(expected)) {
+    const result = engine.decide(
+      { name: `tool_${category}`, category, params: {} },
+      createPolicyContext({ autonomy: "read-only" })
+    );
+    assert.equal(result.decision, decision, category);
+    if (category !== "destructive") {
+      assert.equal(result.matched_rule, `default:read-only:${category}`);
+    }
   }
 });
 

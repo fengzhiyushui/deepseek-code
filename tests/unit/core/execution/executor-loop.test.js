@@ -39,6 +39,35 @@ test("executor loop executes tool calls and feeds results back to model", async 
   assert.ok(calls[1].messages.some((entry) => entry.role === "tool"));
 });
 
+test("executor loop includes prior chat history in initial model messages", async () => {
+  const calls = [];
+  const result = await runExecutorLoop({
+    message: "modify after context",
+    classification: { task_type: "edit" },
+    turnId: "turn_history",
+    modelGateway: {
+      invoke: async (messages) => {
+        calls.push(messages);
+        return { content: "done", tool_calls: [] };
+      }
+    },
+    toolSchemas: [],
+    executeTool: async () => { throw new Error("no tools expected"); },
+    createPolicyContext: () => ({ autonomy: "gated" }),
+    options: {
+      history: [
+        { role: "user", content: "first request" },
+        { role: "assistant", content: "first answer" }
+      ]
+    }
+  });
+
+  assert.equal(result.status, "complete");
+  assert.deepEqual(calls[0].map((entry) => entry.role), ["system", "user", "assistant", "user"]);
+  assert.equal(calls[0][1].content, "first request");
+  assert.equal(calls[0][3].content, "modify after context");
+});
+
 test("executor loop stops on approval_required", async () => {
   const result = await runExecutorLoop({
     message: "edit file",

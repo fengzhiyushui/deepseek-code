@@ -1,6 +1,5 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { chatCommand } from "./chat.js";
 import { describeChange, formatChange, listChanges, rollbackChange } from "./changes.js";
 import { configureProject, DEFAULT_CONFIG, loadConfig } from "./config.js";
 import { buildProjectContext } from "./context.js";
@@ -9,7 +8,7 @@ import { testDeepSeekConnection } from "./provider.js";
 import { searchProject } from "./search.js";
 import { runTui } from "./tui.js";
 import { banner, commandLine, section, statusLine } from "./theme.js";
-import { buildEditPrompt, runKernelAgentCommand, runKernelTestCommand } from "./apps/cli/kernel-runner.js";
+import { buildEditPrompt, runKernelAgentCommand, runKernelChatCommand, runKernelTestCommand } from "./apps/cli/kernel-runner.js";
 
 export async function runCli(argv) {
   const root = process.cwd();
@@ -124,17 +123,11 @@ async function runAsk(root, args, flags) {
 
 async function runChat(root, args, flags) {
   const prompt = args.join(" ").trim();
-  const response = await chatCommand({
+  await runKernelChatCommand({
     root,
     prompt,
-    options: {
-      ...commonOptions(flags),
-      reset: boolFlag(flags, "reset")
-    }
+    sendOptions: commonOptions(flags)
   });
-  if (response) {
-    console.log(response);
-  }
 }
 
 async function runEdit(root, args, flags) {
@@ -273,42 +266,6 @@ async function runResume(root) {
     }
     throw error;
   }
-}
-
-async function detectTestCommand(root) {
-  const packagePath = path.join(root, "package.json");
-  try {
-    const packageJson = JSON.parse(await fs.readFile(packagePath, "utf8"));
-    if (packageJson.scripts?.test) {
-      return process.platform === "win32" ? ["cmd", "/d", "/s", "/c", "npm test"] : ["npm", "test"];
-    }
-  } catch {}
-
-  // pyproject.toml → pytest
-  try {
-    await fs.stat(path.join(root, "pyproject.toml"));
-    return ["pytest"];
-  } catch {}
-
-  // setup.cfg with pytest
-  try {
-    const setupCfg = await fs.readFile(path.join(root, "setup.cfg"), "utf8");
-    if (setupCfg.includes("[tool:pytest]")) return ["pytest"];
-  } catch {}
-
-  // Cargo.toml → cargo test
-  try {
-    await fs.stat(path.join(root, "Cargo.toml"));
-    return ["cargo", "test"];
-  } catch {}
-
-  // go.mod → go test ./...
-  try {
-    await fs.stat(path.join(root, "go.mod"));
-    return ["go", "test", "./..."];
-  } catch {}
-
-  return ["node", "--test"];
 }
 
 function commonOptions(flags) {

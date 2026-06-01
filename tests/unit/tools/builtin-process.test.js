@@ -6,6 +6,7 @@ import path from "node:path";
 import { createShellTool } from "../../../src/tools/builtin/shell.js";
 import { createTestTool } from "../../../src/tools/builtin/test.js";
 import { createGitTool } from "../../../src/tools/builtin/git.js";
+import { runProcess } from "../../../src/security/shell-policy.js";
 
 test("shell tool executes structured argv with shell false", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "dsc-shell-"));
@@ -65,4 +66,28 @@ test("git tool only allows read operations", async () => {
   const tool = createGitTool();
   assert.throws(() => tool.normalizeParams({ op: "commit" }), /unsupported git read op/);
   assert.deepEqual(tool.normalizeParams({ op: "status" }).argv, ["git", "status", "--short"]);
+});
+
+test("security shell policy exports shared runProcess primitive", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-run-process-"));
+  const result = await runProcess(
+    [process.execPath, "-e", "console.log('shared')"],
+    { cwd: root, timeoutMs: 30000 }
+  );
+
+  assert.equal(result.metadata.exit_code, 0);
+  assert.equal(result.stdout.trim(), "shared");
+});
+
+test("git tool uses honest process side-effect metadata and direct read execution", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "dsc-git-direct-"));
+  const tool = createGitTool();
+
+  assert.equal(tool.category, "read");
+  assert.equal(tool.side_effect, "process");
+
+  const result = await tool.execute({ op: "status" }, { projectRoot: root });
+
+  assert.ok(typeof result.metadata.exit_code === "number" || result.metadata.spawn_error != null);
+  assert.deepEqual(tool.normalizeParams({ op: "log" }).argv, ["git", "log", "--oneline", "-20"]);
 });

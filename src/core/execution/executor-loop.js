@@ -26,7 +26,8 @@ export async function runExecutorLoop({
     message,
     classification,
     context,
-    systemAddendum: "Use tools when needed. When tool results are sufficient, answer normally."
+    systemAddendum: "Use tools when needed. When tool results are sufficient, answer normally.",
+    history: options.history
   });
   const toolResults = [];
 

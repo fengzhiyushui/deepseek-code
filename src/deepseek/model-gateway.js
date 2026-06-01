@@ -49,8 +49,8 @@ export function createDeepSeekGateway({ apiKey = process.env.DEEPSEEK_API_KEY ||
     return result.content;
   }
 
-  async function reply({ message, classification, context, turn, signal, onDelta } = {}) {
-    const messages = assembleReplyMessages({ message, classification, context, turn });
+  async function reply({ message, classification, context, turn, options = {}, signal, onDelta } = {}) {
+    const messages = assembleReplyMessages({ message, classification, context, turn, history: options.history });
     const taskType = classification?.task_type || "general";
     const purpose = taskType === "query" ? "reply" : "plan";
     const result = await invoke(messages, { purpose, signal });

@@ -11,6 +11,25 @@ test("assembleReplyMessages uses stable system prefix and current user suffix", 
   assert.deepEqual(messages.at(-1), { role: "user", content: "What is this project?" });
 });
 
+test("assembleReplyMessages inserts sanitized history before current user message", () => {
+  const messages = assembleReplyMessages({
+    message: "What did I ask first?",
+    classification: { task_type: "query" },
+    history: [
+      { role: "system", content: "ignored system" },
+      { role: "user", content: "Remember alpha" },
+      { role: "assistant", content: "Alpha noted" },
+      { role: "tool", content: "ignored tool" },
+      { role: "assistant", content: "" }
+    ]
+  });
+
+  assert.deepEqual(messages.map((entry) => entry.role), ["system", "user", "assistant", "user"]);
+  assert.equal(messages[1].content, "Remember alpha");
+  assert.equal(messages[2].content, "Alpha noted");
+  assert.equal(messages[3].content, "What did I ask first?");
+});
+
 test("buildChatRequest keeps plain reply out of JSON mode", () => {
   const gateway = createDeepSeekGateway({ apiKey: "key" });
   const request = gateway.buildChatRequest([{ role: "user", content: "hello" }], { purpose: "reply", stream: false });
@@ -51,6 +70,35 @@ test("reply uses assembled messages and returns content", async () => {
   const gateway = createDeepSeekGateway({ apiKey: "key", fetchImpl: async () => jsonResponse(200, { choices: [{ finish_reason: "stop", message: { role: "assistant", content: "project answer" } }], usage: { prompt_tokens: 4, completion_tokens: 2, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 4 } }) });
   const result = await gateway.reply({ message: "what is this?", classification: { task_type: "query" } });
   assert.equal(result.content, "project answer");
+});
+
+test("reply forwards options history into assembled request messages", async () => {
+  const calls = [];
+  const gateway = createDeepSeekGateway({
+    apiKey: "key",
+    fetchImpl: async (_url, init) => {
+      calls.push(JSON.parse(init.body).messages);
+      return jsonResponse(200, {
+        choices: [{ finish_reason: "stop", message: { role: "assistant", content: "remembered" } }],
+        usage: { prompt_tokens: 4, completion_tokens: 2, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 4 }
+      });
+    }
+  });
+
+  await gateway.reply({
+    message: "second",
+    classification: { task_type: "query" },
+    options: {
+      history: [
+        { role: "user", content: "first" },
+        { role: "assistant", content: "one" }
+      ]
+    }
+  });
+
+  assert.deepEqual(calls[0].map((entry) => entry.role), ["system", "user", "assistant", "user"]);
+  assert.equal(calls[0][1].content, "first");
+  assert.equal(calls[0][3].content, "second");
 });
 
 function jsonResponse(status, payload) { return { ok: status >= 200 && status < 300, status, json: async () => payload, text: async () => JSON.stringify(payload) }; }

@@ -1,4 +1,5 @@
-import { createShellTool } from "./shell.js";
+import { runProcess } from "../../security/shell-policy.js";
+import { resolveWorkspacePath } from "../../workspace/path-safety.js";
 
 const GIT_READ_OPS = {
   status: ["git", "status", "--short"],
@@ -12,7 +13,7 @@ export function createGitTool() {
     name: "git",
     description: "Run safe git read operations",
     category: "read",
-    side_effect: "none",
+    side_effect: "process",
     risk_level: "low",
     source: "builtin",
     version: "2.0",
@@ -23,7 +24,8 @@ export function createGitTool() {
     normalizeParams,
     execute: async (params, context) => {
       const normalized = normalizeParams(params);
-      return createShellTool().execute({ argv: normalized.argv, cwd: "." }, context);
+      const cwd = await resolveWorkspacePath(context.projectRoot, ".", { mustExist: true });
+      return runProcess(normalized.argv, { cwd: cwd.real });
     }
   };
 }

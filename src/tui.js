@@ -1,8 +1,6 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import { askCommand, editCommand } from "./agent.js";
-import { chatCommand } from "./chat.js";
 import { formatChange, listChanges, rollbackChange } from "./changes.js";
 import { configureProject, DEFAULT_CONFIG, loadConfig } from "./config.js";
 import { buildProjectContext } from "./context.js";
@@ -12,6 +10,7 @@ import { searchProject } from "./search.js";
 import { banner, color, section, statusLine } from "./theme.js";
 import { createKernel } from "./index.js";
 import { buildKernelOptions } from "./apps/kernel-options.js";
+import { runKernelChatCommand } from "./apps/cli/kernel-runner.js";
 
 // --- Status Bar Helpers (if kernel available) ---
 
@@ -257,12 +256,13 @@ async function runAction(root, action, state, kernel) {
 
     if (action.id === "chat") {
       recordTimelineEvent("user:message", "开始连续对话");
-      const answer = await withCookedInput(() => chatCommand({
+      await withCookedInput(() => runKernelChatCommand({
         root,
-        prompt: "",
-        options: defaultOptions()
+        createKernelImpl: async () => kernel,
+        createKernelOptions: {},
+        sendOptions: defaultOptions()
       }));
-      await pauseWithOutput("连续对话", answer);
+      await pause("连续对话已结束。按回车返回。");
       state.message = "连续对话已结束。";
       return;
     }

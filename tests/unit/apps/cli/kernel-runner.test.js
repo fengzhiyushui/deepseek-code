@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   runKernelAgentCommand,
+  runKernelChatCommand,
   runKernelTestCommand,
   buildEditPrompt
 } from "../../../../src/apps/cli/kernel-runner.js";
@@ -161,4 +162,112 @@ test("runKernelAgentCommand loops until no more awaiting_approval", async () => 
   assert.equal(result.content, "all done");
   assert.deepEqual(approvals, [["approval_1", "approve"], ["approval_2", "approve"]]);
   assert.equal(sendCalls, 1);
+});
+
+test("runKernelChatCommand sends one-shot chat through V2 kernel in read-only mode", async () => {
+  const sends = [];
+  const writes = [];
+  const result = await runKernelChatCommand({
+    root: "/repo",
+    prompt: "hello",
+    write: (line) => writes.push(line),
+    createKernelImpl: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }) },
+      agent: {
+        send: async (message, options) => {
+          sends.push({ message, options });
+          return { status: "complete", content: "hi" };
+        }
+      }
+    })
+  });
+
+  assert.equal(result.status, "complete");
+  assert.deepEqual(sends, [{ message: "hello", options: { autonomy: "read-only", history: [] } }]);
+  assert.ok(writes.includes("hi"));
+});
+
+test("runKernelChatCommand keeps multi-turn history across REPL sends", async () => {
+  const sends = [];
+  const questions = ["first", "second", "/exit"];
+  const writes = [];
+
+  await runKernelChatCommand({
+    root: "/repo",
+    write: (line) => writes.push(line),
+    question: async () => questions.shift(),
+    createKernelImpl: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }) },
+      agent: {
+        send: async (message, options) => {
+          sends.push({ message, options });
+          return { status: "complete", content: `answer:${message}` };
+        }
+      }
+    })
+  });
+
+  assert.equal(sends.length, 2);
+  assert.deepEqual(sends[0].options, { autonomy: "read-only", history: [] });
+  assert.deepEqual(sends[1].options, {
+    autonomy: "read-only",
+    history: [
+      { role: "user", content: "first" },
+      { role: "assistant", content: "answer:first" }
+    ]
+  });
+  assert.ok(writes.some((line) => line.includes("mode: read-only")));
+});
+
+test("runKernelChatCommand cycles mode and clears history", async () => {
+  const sends = [];
+  const questions = ["hello", "/mode", "edit", "/clear", "after", "/exit"];
+  const writes = [];
+
+  await runKernelChatCommand({
+    root: "/repo",
+    write: (line) => writes.push(line),
+    question: async () => questions.shift(),
+    createKernelImpl: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }) },
+      agent: {
+        send: async (message, options) => {
+          sends.push({ message, options });
+          return { status: "complete", content: `answer:${message}` };
+        }
+      }
+    })
+  });
+
+  assert.equal(sends[1].options.autonomy, "gated");
+  assert.deepEqual(sends[1].options.history, [
+    { role: "user", content: "hello" },
+    { role: "assistant", content: "answer:hello" }
+  ]);
+  assert.deepEqual(sends[2].options, { autonomy: "gated", history: [] });
+  assert.ok(writes.some((line) => line.includes("mode: gated")));
+  assert.ok(writes.some((line) => line.includes("history cleared")));
+});
+
+test("runKernelChatCommand resolves approvals with shared approval loop", async () => {
+  const approvals = [];
+  const result = await runKernelChatCommand({
+    root: "/repo",
+    prompt: "edit",
+    write: () => {},
+    promptApproval: async () => "yes",
+    createKernelImpl: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }) },
+      agent: {
+        send: async () => ({ status: "awaiting_approval", approval: { id: "approval_chat" }, content: "approval" }),
+        approve: async (id, decision) => {
+          approvals.push([id, decision]);
+          return { status: "complete", content: "done" };
+        }
+      }
+    })
+  });
+
+  assert.equal(result.status, "complete");
+  assert.deepEqual(approvals, [["approval_chat", "approve"]]);
 });
