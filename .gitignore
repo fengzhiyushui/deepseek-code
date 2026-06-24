@@ -1,0 +1,34 @@
+node_modules/
+gui/node_modules/
+preview-deepseek-code/node_modules/
+
+dist/
+build/
+coverage/
+.vite/
+
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+Thumbs.db
+
+.tmp-*/
+.tmp/
+tmp/
+
+.deepseek-code/chat.json
+.claude/worktrees/
+
+# 运行时状态(会话日志/本地配置,含开发内容;config.json 会承载 API Key,勿入库)
+.deepseek-code/
+
+# 编辑器本地配置
+.vscode/

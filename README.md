@@ -160,7 +160,7 @@ V2 session timeline 记录以下事件：
 
 ## 已知限制
 
-- 审批、repair、rewind 的恢复仍是进程内恢复，不保证 CLI 崩溃或机器重启后的完整恢复；崩溃安全恢复留给 V2-18。
+- 审批、repair、rewind 的进程内恢复已具备;**跨进程崩溃安全恢复**(事务日志 + 项目锁 + 启动恢复)由 V2-18 提供,正在收尾合并(见 CHANGELOG 的 Unreleased)。
 - repair executor 目前是单轮修复执行器，多轮自动诊断和更复杂的验证策略仍待扩展。
 - 会话、变更记录和分支/rewind 目前没有跨进程文件锁；不要同时在同一项目目录运行多个会写入状态的实例。
 - legacy `src/kernel/*`、`src/agent.js`、`src/provider.js` 仍保留，用于兼容未迁移命令和旧接口；完整删除和 `apps/` 目录收敛留给 V2-19。
@@ -182,4 +182,28 @@ src/
   shared/      ID, time, event bus helpers
 gui/           Electron shell and renderer
 tests/         Unit, integration, and e2e tests
+docs/          项目文档(specs / plans / CHANGELOG),见下方「文档维护」
 ```
+
+## 文档维护
+
+全部项目文档收录在 [`docs/`](docs/),按类型分目录,设计与计划再按前端 / 后端 / 架构细分:
+
+```text
+docs/
+  README.md          文档索引 + 维护规范
+  CHANGELOG.md        版本里程碑
+  specs/              设计文档:architecture / backend / frontend
+  plans/              实施计划:roadmap / backend / frontend
+```
+
+**更新顺序**(任何变更落地后,按此路径同步文档,方便接手维护):
+
+1. **代码** 变更并通过 `npm test` / `npm run check`
+2. `docs/specs/<area>/` 对应设计文档(反映实际形态)
+3. `docs/plans/<area>/` 对应计划(勾掉已完成任务)
+4. [`CHANGELOG.md`](CHANGELOG.md) 追加版本/日期/变更条目
+5. `README.md`(本文件)——仅当影响命令 / 架构 / 使用方式
+6. [`docs/README.md`](docs/README.md) 索引——仅当新增 / 移动 / 删除文档
+
+完整规范见 [`docs/README.md`](docs/README.md#文档维护规范更新顺序)。
