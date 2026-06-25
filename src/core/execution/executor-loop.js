@@ -16,6 +16,7 @@ export async function runExecutorLoop({
   context = null,
   budget = null,
   modelTimeoutMs = null,
+  maxToolCallRepairs = 0,
   options = {}
 } = {}) {
   if (!modelGateway || typeof modelGateway.invoke !== "function") {
@@ -32,6 +33,7 @@ export async function runExecutorLoop({
     history: options.history
   });
   const toolResults = [];
+  let toolCallRepairs = 0;
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     const over = budget?.exceeded();
@@ -69,7 +71,20 @@ export async function runExecutorLoop({
       };
     }
 
-    const toolCalls = adaptDeepSeekToolCalls(rawToolCalls, { requestedByStepId: `model:${turnId}:${iteration}` });
+    let toolCalls;
+    try {
+      toolCalls = adaptDeepSeekToolCalls(rawToolCalls, { requestedByStepId: `model:${turnId}:${iteration}` });
+    } catch (error) {
+      if (toolCallRepairs >= maxToolCallRepairs) throw error;
+      toolCallRepairs += 1;
+      eventBus?.publish?.("model:tool_call_repair", { turn_id: turnId, iteration, attempt: toolCallRepairs, reason: error.message });
+      messages = [
+        ...messages,
+        assistantToolCallMessage(modelResult, rawToolCalls),
+        { role: "user", content: `Your previous tool call had invalid arguments (${error.message}). Re-issue the tool call with valid JSON arguments.` }
+      ];
+      continue;
+    }
     const next = await continueToolIteration({
       turnId,
       message,
@@ -159,7 +174,8 @@ export async function resumeExecutorLoop({
   eventBus = null,
   signal = null,
   budget = null,
-  modelTimeoutMs = null
+  modelTimeoutMs = null,
+  maxToolCallRepairs = 0
 } = {}) {
   if (!resumeState) throw new Error("resumeState is required");
   if (!modelGateway || typeof modelGateway.invoke !== "function") {
@@ -214,6 +230,7 @@ export async function resumeExecutorLoop({
     ...toolResultsToMessages([...resumeState.tool_results, ...iterationResults])
   ];
 
+  let resumeToolCallRepairs = 0;
   for (let iteration = resumeState.iteration + 1; iteration < (resumeState.max_iterations || 5); iteration += 1) {
     const over = budget?.exceeded();
     if (over) {
@@ -243,7 +260,20 @@ export async function resumeExecutorLoop({
     if (!rawToolCalls.length) {
       return { status: "complete", content: modelResult.content || "", iterations: iteration + 1, toolResults };
     }
-    const toolCalls = adaptDeepSeekToolCalls(rawToolCalls, { requestedByStepId: `model:${resumeState.turn_id}:${iteration}` });
+    let toolCalls;
+    try {
+      toolCalls = adaptDeepSeekToolCalls(rawToolCalls, { requestedByStepId: `model:${resumeState.turn_id}:${iteration}` });
+    } catch (error) {
+      if (resumeToolCallRepairs >= maxToolCallRepairs) throw error;
+      resumeToolCallRepairs += 1;
+      eventBus?.publish?.("model:tool_call_repair", { turn_id: resumeState.turn_id, iteration, attempt: resumeToolCallRepairs, reason: error.message });
+      messages = [
+        ...messages,
+        assistantToolCallMessage(modelResult, rawToolCalls),
+        { role: "user", content: `Your previous tool call had invalid arguments (${error.message}). Re-issue the tool call with valid JSON arguments.` }
+      ];
+      continue;
+    }
     const next = await continueToolIteration({
       turnId: resumeState.turn_id,
       message: resumeState.message,
