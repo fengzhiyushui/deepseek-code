@@ -1,5 +1,8 @@
 # V2-20b 护栏注入与优雅停止 Implementation Plan
 
+> **状态:✅ 已完成(2026-06-25)** — 3 个任务落地,测试 531 全绿、`npm run check` 通过。
+> 提交:`aa90498`(优雅停止·loop)、`927b5b9`(优雅停止·runtime)、`055f426`(modelTimeoutMs 注入)。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans / subagent-driven-development。Steps 用 `- [ ]`。
 > 承接 [V2-20a](2026-06-24-v2-20a-runtime-cost-timeout-guardrails.md);约定(ESM、`node:test`、check 脚本、默认关闭零回归、`Co-Authored-By`)沿用 V2-20a 的 Global Constraints,不再重复。
 
