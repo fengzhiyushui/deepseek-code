@@ -53,3 +53,17 @@ test("renderer adapter maps rewind statuses to status channel", () => {
   assert.deepEqual(adapter.statusFromEvent({ type: "session:rewind_applied" }), { channel: "rewind" });
   assert.deepEqual(adapter.statusFromEvent({ type: "session:rewind_recovery_failed" }), { channel: "recovery" });
 });
+
+test("renderer adapter summarizes recovery events", () => {
+  assert.equal(adapter.eventIcon("recovery:blocked"), "!");
+  assert.equal(adapter.eventIcon("tx:recovered"), "R");
+  assert.equal(
+    adapter.summarizeEvent({ type: "recovery:report", found_count: 2, done_count: 1, blocked_count: 0 }),
+    "recovery report 2 found, 1 done, 0 blocked"
+  );
+  assert.equal(
+    adapter.summarizeEvent({ type: "turn:rehydrated", approval_id: "approval_1" }),
+    "approval rehydrated approval_1"
+  );
+  assert.deepEqual(adapter.statusFromEvent({ type: "recovery:started" }), { channel: "recovery" });
+});
