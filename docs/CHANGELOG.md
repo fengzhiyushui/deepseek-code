@@ -36,6 +36,12 @@
 - **透传**:`createAgentRuntime` 新增 `maxToolCallRepairs`,工具循环传给 `runExecutorLoop`;`createKernel` 由 `options.limits.maxToolCallRepairs` 注入。默认 `0`(立即抛错,行为不变)。至此 kernel `limits` 五参齐全(`maxTurnTokens` / `maxModelCalls` / `toolTimeoutMs` / `modelTimeoutMs` / `maxToolCallRepairs`)。
 - 计划:[`plans/backend/2026-06-25-v2-20c-malformed-toolcall-retry.md`](plans/backend/2026-06-25-v2-20c-malformed-toolcall-retry.md);测试 535 全绿。
 
+### 已落地 — V2-20d resume 路径护栏对齐
+- **审批 resume 不再裸跑**:`approve()` 的 `resumeExecutorLoop` 调用此前不带任何护栏。现在在 resume 段新建成本预算,并透传 `budget` / `modelTimeoutMs` / `maxToolCallRepairs`(取 `resume_state.options` 覆盖 + 工厂配置);至此正常工具循环与审批 resume **护栏一致**。
+- **stopped 终态**:resume 段预算超限返回 `status:"stopped"` 时,`approve()` 镜像 `send()` 作为 turn 终态处理(发 `agent:final` status=`stopped`,返回 `{ status:"stopped", content, budget }`),不再误入 verify/repair。
+- 预算为 resume 段**新建**(审批暂停为天然边界,不继承暂停前花费);repair-context 子路径的预算对齐留待 V2-20e。
+- 计划:[`plans/backend/2026-06-25-v2-20d-resume-path-guardrail-alignment.md`](plans/backend/2026-06-25-v2-20d-resume-path-guardrail-alignment.md);测试 536 全绿。
+
 ---
 
 ## V2 — 干净运行时(主线)
