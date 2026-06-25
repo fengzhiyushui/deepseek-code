@@ -90,6 +90,26 @@ CLI / TUI / GUI
 - usage tracker：token、reasoning token、cache hit/miss、latency。
 - FIM client 使用 `deepseek-v4-pro`。
 
+## 运行护栏与配置
+
+> 配置哲学:**在适配 DeepSeek 的前提下,参数尽量交给用户。** 默认值只给"安全合理的起点",不锁死;每个旋钮都能覆盖。
+
+运行护栏经 `createKernel(root, { limits })` 生效,默认值来自配置(`.deepseek-code/config.json` 的 `limits`,`config show` 可见):
+
+| 参数 | 默认 | 含义 |
+|---|---|---|
+| `toolTimeoutMs` | `120000`(开) | 单次工具调用超时;超时落为 `status:"error"`,不强杀进程 |
+| `modelTimeoutMs` | `120000`(开) | 单次模型调用超时(工具循环 / 审批 resume / 修复三路径均覆盖) |
+| `maxTurnTokens` | `null`(关) | 单个 turn 的 token 上限;命中后干净停止(`status:"stopped"`) |
+| `maxModelCalls` | `null`(关) | 单个 turn 的模型调用次数上限 |
+| `maxToolCallRepairs` | `null`(关) | 模型吐出畸形 tool-call 时的有界重试次数 |
+
+覆盖方式:① 编辑 `config.json` 的 `limits`(`null` 或 `≤0` 表示关闭);② 环境变量 `DEEPSEEK_TOOL_TIMEOUT_MS` / `DEEPSEEK_MODEL_TIMEOUT_MS`。
+
+```json
+{ "limits": { "toolTimeoutMs": 180000, "maxTurnTokens": 200000, "maxModelCalls": 40, "maxToolCallRepairs": 1 } }
+```
+
 ## 工具平面
 
 V2 内置工具包括：

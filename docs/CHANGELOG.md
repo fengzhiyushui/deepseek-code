@@ -47,6 +47,12 @@
 - **范围(YAGNI)**:repair 路径的成本预算 / tool-call 重试**显式延后**(已被 `maxRepairAttempts` 限轮,边际价值小)。护栏 plumbing 至此完整。
 - 计划:[`plans/backend/2026-06-25-v2-20e-repair-path-model-timeout.md`](plans/backend/2026-06-25-v2-20e-repair-path-model-timeout.md);测试 538 全绿。
 
+### 已落地 — V2-20f 护栏默认值与用户配置
+- **护栏点亮**:工具/模型超时**默认 120s 开启**;`DEFAULT_CONFIG.limits` 成为默认值单一来源,`normalizeConfig`/`loadConfig` 深合并用户 `limits`(per-field,`null`/`≤0` 关闭),两个超时另支持 `DEEPSEEK_TOOL_TIMEOUT_MS` / `DEEPSEEK_MODEL_TIMEOUT_MS` 环境覆盖。
+- **双入口转发**:CLI 与 GUI 的 `buildKernelOptions` 都把 `config.limits` 透传给 `createKernel`;token/调用预算与 tool-call 重试默认关、可配。
+- **配置哲学**:在适配 DeepSeek 前提下参数尽量交给用户——默认值只给安全起点,不锁死(详见根 README「运行护栏与配置」)。
+- 计划:[`plans/backend/2026-06-25-v2-20f-guardrail-defaults-config.md`](plans/backend/2026-06-25-v2-20f-guardrail-defaults-config.md);测试 544 全绿。
+
 ---
 
 ## V2 — 干净运行时(主线)
