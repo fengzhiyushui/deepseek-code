@@ -17,22 +17,21 @@ function toolLoopingGateway() {
 const noopExecute = async () => ({ call_id: "c1", status: "success", content: [], metadata: {} });
 const policy = () => ({});
 
-test("budget stops the loop with BUDGET_EXCEEDED", async () => {
+test("budget stops the loop with status stopped", async () => {
   const budget = createCostBudget({ maxTokens: 100 }); // 第 3 轮前累计 80→120 触发
-  await assert.rejects(
-    () => runExecutorLoop({
-      message: "go",
-      classification: { task_type: "edit" },
-      turnId: "t1",
-      modelGateway: toolLoopingGateway(),
-      toolSchemas: [],
-      executeTool: noopExecute,
-      createPolicyContext: policy,
-      maxIterations: 50,
-      budget
-    }),
-    (e) => e.code === "BUDGET_EXCEEDED"
-  );
+  const result = await runExecutorLoop({
+    message: "go",
+    classification: { task_type: "edit" },
+    turnId: "t1",
+    modelGateway: toolLoopingGateway(),
+    toolSchemas: [],
+    executeTool: noopExecute,
+    createPolicyContext: policy,
+    maxIterations: 50,
+    budget
+  });
+  assert.equal(result.status, "stopped");
+  assert.equal(result.reason.reason, "max_tokens");
   assert.ok(budget.snapshot().tokens >= 100);
 });
 

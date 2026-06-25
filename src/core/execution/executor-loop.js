@@ -33,7 +33,10 @@ export async function runExecutorLoop({
   const toolResults = [];
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
-    if (budget) budget.check();
+    const over = budget?.exceeded();
+    if (over) {
+      return { status: "stopped", reason: over, content: `Stopped: cost budget exceeded (${over.reason}).`, iterations: iteration, toolResults };
+    }
     eventBus?.publish?.("model:request", { turn_id: turnId, purpose: "act", iteration });
     const modelResult = await modelGateway.invoke(messages, {
       purpose: iteration === 0 ? "plan" : "act",
@@ -209,7 +212,10 @@ export async function resumeExecutorLoop({
   ];
 
   for (let iteration = resumeState.iteration + 1; iteration < (resumeState.max_iterations || 5); iteration += 1) {
-    if (budget) budget.check();
+    const over = budget?.exceeded();
+    if (over) {
+      return { status: "stopped", reason: over, content: `Stopped: cost budget exceeded (${over.reason}).`, iterations: iteration, toolResults };
+    }
     eventBus?.publish?.("model:request", { turn_id: resumeState.turn_id, purpose: "act", iteration });
     const modelResult = await modelGateway.invoke(messages, {
       purpose: "act",
