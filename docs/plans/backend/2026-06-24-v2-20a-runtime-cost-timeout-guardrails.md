@@ -1,5 +1,9 @@
 # V2-20a 运行时成本与超时护栏 Implementation Plan
 
+> **状态:✅ 已完成(2026-06-25)** — 全部 5 个任务落地,测试 529 全绿、`npm run check` 通过。
+> 提交:`c7fd9e1`(cost-budget)、`0603bd0`(model timeout)、`9bffcc5`(tool timeout)、`b0e6354`(executor-loop budget)、`49f338b`(runtime + kernel limits)。
+> 后续见文末「范围说明与后续」(V2-20b)。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 给一个 turn 加上「最大成本闸」(token / 模型调用数上限)和「模型调用 + 工具调用超时」,使单个 turn 不会无界烧 token,也不会因模型或工具挂起而永久阻塞。

@@ -19,6 +19,13 @@
 ### 进行中
 - **V2-18 持久化恢复 / Resume 加固**(worktree `v2-18-durable-recovery`):事务日志 + 二进制 preimage 捕获、项目锁 + epoch fencing、恢复收件箱、启动恢复扫描;已接入 `createKernel()` 并暴露 `kernel.recovery.*`,新增 `kernel.dispose()` 释放项目锁。
 
+### 已落地 — V2-20a 运行时成本与超时护栏
+- **成本闸**:新增 `src/core/runtime/cost-budget.js`(token / 模型调用数上限,超限抛 `BUDGET_EXCEEDED`);接入 `executor-loop`(每轮模型调用前 `check()`、调用后 `recordModelResult()`)与 `agent-runtime`(每个工具循环 turn 建一个预算)。
+- **模型调用超时**:`model-gateway` 的 `invoke`/`stream` 支持 `options.timeoutMs`,超时抛 `MODEL_TIMEOUT`(调用方 signal 与超时合并)。
+- **工具调用超时**:`tools/executor` 支持 `defaultToolTimeoutMs` / `context.toolTimeoutMs`,超时落为标准 `status:"error"` 结果(`metadata.timeout=true`,不抛、不强杀进程)。
+- **kernel 配置**:`createKernel(root, { limits: { maxTurnTokens, maxModelCalls, toolTimeoutMs } })` 透传;全部默认 `null`(护栏关闭),现有行为不变。
+- 计划:[`plans/backend/2026-06-24-v2-20a-runtime-cost-timeout-guardrails.md`](docs/plans/backend/2026-06-24-v2-20a-runtime-cost-timeout-guardrails.md);测试 529 全绿。
+
 ---
 
 ## V2 — 干净运行时(主线)
