@@ -16,8 +16,14 @@
 - **V2 收尾(先行)**:合并 V2-18 持久化恢复;V2-19 删除 V1 legacy 并收敛 `apps/`;V2-20 稳定化(补成本预算闸 + 超时处理)。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
-### 进行中
-- **V2-18 持久化恢复 / Resume 加固**(worktree `v2-18-durable-recovery`):事务日志 + 二进制 preimage 捕获、项目锁 + epoch fencing、恢复收件箱、启动恢复扫描。**注:该工作在独立 worktree 上开发,且分支早于 V2-20 / 文档重组,与 main 深度分歧(尤其 agent-runtime.js),不能直接 git merge;需按源码移植 + 手工调和落到 main。**
+### 已落地 — V2-18a/b 持久化暂停恢复(整合进 main)
+- 把 V2-18 恢复子系统从独立 worktree 分支**移植进 main**:项目锁 + epoch fencing、暂停 sidecar 持久化、恢复收件箱、恢复服务 + 启动扫描、CLI `/recovery`、agent-runtime durable pause/resume。
+- **移植方式**(非 git merge——分支早于 V2-20/文档重组,深度分歧):① 恢复库 8 文件 + 72 单测直接落(纯新增);② 5 个核心文件(index/agent-runtime/executor-loop/repair-loop/repair-executor)用 **git 三方合并**(LF 统一空间)调和"恢复 ⊕ V2-20",手工解决 8 处真冲突(modelTimeoutMs/maxToolCallRepairs/budget ⊕ permissionContext);③ 5 个 main 未分歧文件(paused-turn-store/event-types/kernel-runner/render-events/gui-adapter)直取。
+- **opt-in**:`recovery.enabled` 默认关闭(沿用 V2-20 护栏模式),**main 默认行为不变**;`createKernel(root,{ recovery:{ enabled:true } })` 启用。新增 `kernel.dispose()` 幂等释放项目锁。
+- 端到端验证:暂停 sidecar 持久化 + facade 重水化/恢复 + 损坏隔离 + consumed/denied;测试 **501 全绿**、check OK。
+
+### 待办 — V2-18c 编辑/回滚事务日志
+- 事务日志库(`transaction-journal.js`)已在 main,但**尚未接入 edit/rewind**(该集成当年未提交进 worktree 分支,需**重新实现**:edit-service/rewind-service 接 journal + recovery-service 加 `abortJournal`/`commitJournal` + 启动扫描 open 事务)。
 
 ### 已落地 — V2-19 删除 V1 legacy 架构
 - 删除与 V2 并存且无引用的 V1 代码:`src/agent.js`、`src/chat.js`、`src/ui.js`、`src/kernel/*`(整套 V1 内核)、`test/kernel/*`;`config.js` 去除无消费者的 `DEFAULT_MODEL_PROFILES` re-export;`package.json` check 脚本移除对应条目。

@@ -180,7 +180,7 @@ V2 session timeline 记录以下事件：
 
 ## 已知限制
 
-- 审批、repair、rewind 的进程内恢复已具备;**跨进程崩溃安全恢复**(事务日志 + 项目锁 + 启动恢复)由 V2-18 提供,正在收尾合并(见 CHANGELOG 的 Unreleased)。
+- 跨进程崩溃安全恢复(项目锁 + 暂停 sidecar 持久化 + 启动恢复 + `/recovery`)由 **V2-18a/b 提供,已整合进 main,默认关闭**(opt-in:`createKernel(root, { recovery: { enabled: true } })`);编辑/回滚的事务日志(V2-18c)尚未接入 edit/rewind,待补。
 - repair executor 目前是单轮修复执行器，多轮自动诊断和更复杂的验证策略仍待扩展。
 - 会话、变更记录和分支/rewind 目前没有跨进程文件锁；不要同时在同一项目目录运行多个会写入状态的实例。
 - V1 并存架构(`src/kernel/*`、`src/agent.js`、`src/chat.js`、`src/ui.js`)已于 **V2-19 删除**;保留的工具模块(`patch`/`changes`/`context`/`git` 等)现作为 V2 共享依赖,`scan`/`search`/`diff`/`changes`/`config`/`tui` 等命令照常可用。
