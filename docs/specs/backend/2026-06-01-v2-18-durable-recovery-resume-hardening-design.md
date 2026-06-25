@@ -4,6 +4,16 @@
 > Date: 2026-06-01  
 > Scope: Durable process-crash recovery for approval/repair pauses, agent-managed edit/rewind transactions, single-writer takeover, and a Recovery Center UX
 
+> **As-built note (2026-06-25):** Shipped on `main` as V2-18a/b (durable
+> paused-turn recovery: project lock + paused-sidecar persistence + recovery
+> inbox/service + CLI `/recovery`) and V2-18c (edit/rewind transaction
+> journaling). One deviation from this design: **recovery is opt-in**
+> (`createKernel(root, { recovery: { enabled: true } })`), defaulting **off**,
+> to match the V2-20 guardrail pattern (kernel = mechanism, config = policy)
+> and keep `main`'s default behavior unchanged. `kernel.dispose()` releases
+> the project lock. The "Recovery Center UX" remains a CLI-facing facade
+> (`kernel.recovery.*`); a GUI panel is deferred. See `CHANGELOG.md`.
+
 ## 1. Purpose
 
 V2-17 unified chat on the V2 kernel and closed the major provider bypass. The remaining 1.0 reliability gap is recovery after a CLI, TUI, GUI, or renderer process dies while the V2 runtime is paused or mutating local project state.
