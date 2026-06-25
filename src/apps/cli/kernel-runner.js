@@ -83,7 +83,7 @@ async function runChatRepl({ kernel, write, question, sendOptions, promptApprova
   let mode = "read-only";
   let history = [];
   write("chat mode: read-only");
-  write("commands: /mode [read-only|gated|auto], /clear, /history, /exit");
+  write("commands: /mode [read-only|gated|auto], /clear, /history, /recovery, /exit");
 
   while (true) {
     const input = String(await question(`chat(${mode})> `) || "").trim();
@@ -112,7 +112,10 @@ async function runChatRepl({ kernel, write, question, sendOptions, promptApprova
 }
 
 async function handleChatCommand({ input, mode, history, kernel, write }) {
-  const [command, rawArg] = input.slice(1).trim().split(/\s+/, 2);
+  const trimmed = input.slice(1).trim();
+  const firstSpace = trimmed.indexOf(" ");
+  const command = firstSpace === -1 ? trimmed : trimmed.slice(0, firstSpace);
+  const rawArg = firstSpace === -1 ? "" : trimmed.slice(firstSpace + 1).trim();
   if (command === "exit" || command === "quit") {
     return { mode, history, exit: true };
   }
@@ -137,7 +140,89 @@ async function handleChatCommand({ input, mode, history, kernel, write }) {
     write(eventCount == null ? `history turns: ${turnCount}` : `history turns: ${turnCount}, events: ${eventCount}`);
     return { mode, history, exit: false };
   }
+  if (command === "recovery") {
+    return handleRecoveryCommand({ rawArg, kernel, write, mode, history });
+  }
   write(`unknown command: /${command}`);
+  return { mode, history, exit: false };
+}
+
+async function handleRecoveryCommand({ rawArg, kernel, write, mode, history }) {
+  const args = rawArg ? String(rawArg).trim().split(/\s+/) : [];
+  const [action, id] = args;
+
+  if (!action) {
+    // No args: show report and list items
+    const report = await kernel.recovery?.report?.() || { found: [], done: [], blocked: [], next: [] };
+    const items = await kernel.recovery?.list?.() || [];
+
+    write("Recovery Center:");
+    write(`  Found: ${report.found.length}, Done: ${report.done.length}, Blocked: ${report.blocked.length}`);
+
+    if (items.length === 0) {
+      write("  No recovery items.");
+    } else {
+      write(`  Items (${items.length}):`);
+      for (const item of items) {
+        const actions = item.allowed_actions ? `[${item.allowed_actions.join(", ")}]` : "[]";
+        write(`    - ${item.id} (${item.type}, ${item.status}) ${actions}`);
+        write(`      ${item.summary || "no summary"}`);
+      }
+    }
+
+    if (report.next && report.next.length > 0) {
+      write("  Next actions:");
+      for (const next of report.next) {
+        write(`    ${next}`);
+      }
+    }
+
+    return { mode, history, exit: false };
+  }
+
+  if (action === "resume") {
+    if (!id) {
+      write("usage: /recovery resume <id>");
+      return { mode, history, exit: false };
+    }
+    try {
+      const result = await kernel.recovery.resume(id, {});
+      write(`Recovery resumed: ${id} (${result.status})`);
+    } catch (error) {
+      write(`Failed to resume ${id}: ${error.message}`);
+    }
+    return { mode, history, exit: false };
+  }
+
+  if (action === "cancel") {
+    if (!id) {
+      write("usage: /recovery cancel <id>");
+      return { mode, history, exit: false };
+    }
+    try {
+      const result = await kernel.recovery.cancel(id);
+      write(`Recovery cancelled: ${id} (${result.status})`);
+    } catch (error) {
+      write(`Failed to cancel ${id}: ${error.message}`);
+    }
+    return { mode, history, exit: false };
+  }
+
+  if (action === "clear") {
+    if (!id) {
+      write("usage: /recovery clear <id>");
+      return { mode, history, exit: false };
+    }
+    try {
+      const result = await kernel.recovery.clear(id);
+      write(`Recovery cleared: ${id} (${result.status})`);
+    } catch (error) {
+      write(`Failed to clear ${id}: ${error.message}`);
+    }
+    return { mode, history, exit: false };
+  }
+
+  write("usage: /recovery [resume|cancel|clear] <id>");
   return { mode, history, exit: false };
 }
 

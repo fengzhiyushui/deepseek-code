@@ -11,6 +11,7 @@ export async function runRepairExecutor({
   eventBus = null,
   signal = null,
   modelTimeoutMs = null,
+  permissionContext = null,
   options = {}
 } = {}) {
   if (!modelGateway || typeof modelGateway.invoke !== "function") {
@@ -70,7 +71,8 @@ export async function runRepairExecutor({
           tool_schemas: toolSchemas,
           max_iterations: options.maxToolIterations || 5,
           options: { ...options, purpose: "repair" },
-          context: options.context || null
+          context: options.context || null,
+          permission_context: permissionContext
         }
       };
     }

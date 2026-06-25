@@ -17,6 +17,7 @@ export async function runExecutorLoop({
   budget = null,
   modelTimeoutMs = null,
   maxToolCallRepairs = 0,
+  permissionContext = null,
   options = {}
 } = {}) {
   if (!modelGateway || typeof modelGateway.invoke !== "function") {
@@ -99,6 +100,7 @@ export async function runExecutorLoop({
       maxIterations,
       options,
       context,
+      permissionContext,
       executeTool,
       createPolicyContext
     });
@@ -127,13 +129,14 @@ async function continueToolIteration({
   maxIterations,
   options,
   context,
+  permissionContext,
   executeTool,
   createPolicyContext
 }) {
   const iterationResults = [];
   for (let index = 0; index < toolCalls.length; index += 1) {
     const toolCall = toolCalls[index];
-    const policyContext = createPolicyContext({ turnId, toolCall });
+    const policyContext = createPolicyContext({ turnId, toolCall, phase: "execute" });
     const result = await executeTool(toolCall, policyContext);
     iterationResults.push(result);
     toolResults.push(result);
@@ -158,7 +161,8 @@ async function continueToolIteration({
           tool_schemas: toolSchemas,
           max_iterations: maxIterations,
           options,
-          context
+          context,
+          permission_context: permissionContext
         }
       };
     }
@@ -218,7 +222,8 @@ export async function resumeExecutorLoop({
           tool_schemas: resumeState.tool_schemas || [],
           max_iterations: resumeState.max_iterations || 5,
           options: resumeState.options || {},
-          context: resumeState.context || null
+          context: resumeState.context || null,
+          permission_context: resumeState.permission_context || resumeState.options?.permission_context || null
         }
       };
     }
@@ -288,6 +293,7 @@ export async function resumeExecutorLoop({
       maxIterations: resumeState.max_iterations || 5,
       options: resumeState.options || {},
       context: resumeState.context || null,
+      permissionContext: resumeState.permission_context || resumeState.options?.permission_context || null,
       executeTool,
       createPolicyContext
     });

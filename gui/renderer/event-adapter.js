@@ -35,7 +35,19 @@
       "session:rewind_failed": "!",
       "session:rewind_restore_started": "W",
       "session:rewind_restored": "W",
-      "session:rewind_recovery_failed": "!"
+      "session:rewind_recovery_failed": "!",
+      "recovery:started": "R",
+      "recovery:blocked": "!",
+      "recovery:report": "R",
+      "tx:opened": "T",
+      "tx:committed": "T",
+      "tx:recovered": "R",
+      "turn:paused": "A",
+      "turn:rehydrated": "A",
+      "turn:resumed": "A",
+      "turn:cancelled": "A",
+      "takeover:requested": "!",
+      "takeover:completed": "R"
     };
     return icons[type] || "-";
   }
@@ -64,6 +76,13 @@
     if (event.type === "session:rewind_restore_started") return "rewind restoring " + ((event.applied_rollbacks || []).length) + " changes";
     if (event.type === "session:rewind_restored") return "rewind restored " + ((event.restored_files || []).length) + " files";
     if (event.type === "session:rewind_recovery_failed") return "rewind recovery failed " + (event.reason || event.restore_error || "unknown");
+    if (event.type === "recovery:report") return "recovery report " + (event.found_count || 0) + " found, " + (event.done_count || 0) + " done, " + (event.blocked_count || 0) + " blocked";
+    if (event.type === "recovery:blocked") return "recovery blocked " + (event.reason || event.item_id || "unknown");
+    if (event.type === "tx:recovered") return "recovered " + (event.kind || "tx") + " " + (event.tx_id || "unknown");
+    if (event.type === "turn:rehydrated") return "approval rehydrated " + (event.approval_id || "unknown");
+    if (event.type === "turn:cancelled") return "approval cancelled " + (event.approval_id || "unknown");
+    if (event.type === "takeover:requested") return "takeover requested " + (event.request_id || "unknown");
+    if (event.type === "takeover:completed") return "takeover completed " + (event.request_id || "unknown");
     return event.type || "event";
   }
 
@@ -84,6 +103,7 @@
     if (event.type === "agent:error") return { channel: "error" };
     if (event.type === "session:rewind_preview" || event.type === "session:rewind_started" || event.type === "session:rewind_applied") return { channel: "rewind" };
     if (event.type === "session:rewind_conflict" || event.type === "session:rewind_failed" || event.type === "session:rewind_recovery_failed") return { channel: "recovery" };
+    if (String(event.type || "").indexOf("recovery:") === 0 || event.type === "tx:recovered" || String(event.type || "").indexOf("takeover:") === 0) return { channel: "recovery" };
     return {};
   }
 

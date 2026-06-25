@@ -17,12 +17,47 @@ import { createPermissionEngine } from "./tools/permissions/permission-engine.js
 import { createApprovalCache } from "./tools/permissions/approval-cache.js";
 import { createPolicyContext } from "./tools/permissions/policy-loader.js";
 import { createContextEngine } from "./context/index.js";
+import { createPausedTurnPersistence } from "./core/recovery/paused-turn-persistence.js";
+import { createRecoveryInbox } from "./core/recovery/recovery-inbox.js";
+import { createRecoveryService } from "./core/recovery/recovery-service.js";
+import { acquireProjectLock } from "./core/recovery/project-lock.js";
 
 export async function createKernel(root, options = {}) {
   const eventBus = options.eventBus || createEventBus();
   const sessionId = options.sessionId || makeId("sess");
   const projectId = options.projectId || projectIdFromRoot(root);
   const sessionRoot = options.sessionRoot || path.join(root, ".deepseek-code", "v2", "sessions");
+  // Recovery is opt-in (default off), consistent with the V2-20 guardrail
+  // pattern: the kernel primitive stays a mechanism; the config layer decides
+  // policy. Enable durable recovery via createKernel(root, { recovery: { enabled: true } }).
+  const recoveryEnabled = options.recovery?.enabled === true;
+
+  // Acquire project lock if recovery enabled
+  const projectLock = recoveryEnabled && options.recovery?.lock !== false
+    ? await acquireProjectLock({
+        root,
+        surface: options.recovery?.surface || "cli",
+        sessionId,
+        interactive: options.recovery?.interactive !== false,
+        takeover: options.recovery?.takeover || null,
+        faults: options.recovery?.faults || options.recoveryFaults
+      }).catch((error) => {
+        // In test environments with temporary directories, allow lock bypass on conflict
+        if (error?.code === "RECOVERY_LOCK_HELD" && options.recovery?.lockFailureMode === "warn") {
+          return { assertOwner: async () => {}, epoch: 1, release: async () => {} };
+        }
+        throw error;
+      })
+    : null;
+
+  const pausedTurnPersistence = recoveryEnabled
+    ? createPausedTurnPersistence({ root, projectId, faults: options.recovery?.faults || options.recoveryFaults })
+    : null;
+  let kernelDisposed = false;
+
+  const recoveryInbox = recoveryEnabled
+    ? createRecoveryInbox({ root })
+    : null;
   const sessionLog = options.sessionLog === null
     ? null
     : options.sessionLog || (!options.sessionManager
@@ -79,19 +114,32 @@ export async function createKernel(root, options = {}) {
   const runtime = createAgentRuntime({
     eventBus,
     sessionId,
+    projectId,
+    projectRoot: root,
+    trustStore: options.trustStore || { rules: [] },
+    projectRules: options.projectRules || [],
+    memoryRoot: options.memoryRoot || null,
+    recoverySurface: options.recovery?.surface || "cli",
+    pausedTurnPersistence,
+    flushEvents: () => sessionManager.flush(),
     modelGateway,
     toolSchemas: () => toolRegistry.toDeepSeekTools(),
     executeTool: (toolCall, policyContext) => toolExecutor.execute(toolCall, policyContext),
-    createPolicyContext: (executionOptions = {}) => createPolicyContext({
-      autonomy: executionOptions.autonomy || "gated",
-      projectId: executionOptions.projectId || sessionId,
-      projectRoot: root,
-      trustStore: options.trustStore || { rules: [] },
-      projectRules: options.projectRules || [],
-      approvalCache,
-      memoryRoot: options.memoryRoot || null,
-      turnId: executionOptions.turnId
-    }),
+    createPolicyContext: (executionOptions = {}) => {
+      const context = createPolicyContext({
+        autonomy: executionOptions.autonomy || "gated",
+        projectId: executionOptions.projectId || projectId,
+        projectRoot: executionOptions.projectRoot || root,
+        trustStore: executionOptions.trustStore || options.trustStore || { rules: [] },
+        projectRules: executionOptions.projectRules || options.projectRules || [],
+        approvalCache,
+        memoryRoot: "memoryRoot" in executionOptions ? executionOptions.memoryRoot : (options.memoryRoot || null)
+      });
+      context.turnId = executionOptions.turnId;
+      context.toolCall = executionOptions.toolCall;
+      context.phase = executionOptions.phase;
+      return context;
+    },
     verifyMode: options.verifyMode || "auto",
     testArgv: options.testArgv || null,
     maxRepairAttempts: options.maxRepairAttempts ?? 2,
@@ -102,16 +150,17 @@ export async function createKernel(root, options = {}) {
     maxToolCallRepairs: options.limits?.maxToolCallRepairs ?? 0,
     grantApprovalForToolCall: async (toolCall, approvalContext = {}) => {
       const securedCall = toolRegistry.secureToolCall(toolCall);
+      const permissionContext = approvalContext.permission_context || approvalContext.options?.permission_context || null;
       const policyContext = createPolicyContext({
-        autonomy: approvalContext.options?.autonomy || "supervised",
-        projectId: approvalContext.options?.projectId || sessionId,
-        projectRoot: root,
-        trustStore: options.trustStore || { rules: [] },
-        projectRules: options.projectRules || [],
+        autonomy: permissionContext?.autonomy || approvalContext.options?.autonomy || "supervised",
+        projectId: permissionContext?.project_id || approvalContext.options?.projectId || projectId,
+        projectRoot: permissionContext?.project_root || root,
+        trustStore: permissionContext ? { rules: permissionContext.trust_store_rules || [] } : (options.trustStore || { rules: [] }),
+        projectRules: permissionContext?.project_rules || options.projectRules || [],
         approvalCache,
-        memoryRoot: options.memoryRoot || null,
-        turnId: approvalContext.turnId
+        memoryRoot: permissionContext?.memory_root ?? options.memoryRoot ?? null
       });
+      policyContext.turnId = approvalContext.turnId;
       const fp = permissionEngine.fingerprint(securedCall, policyContext);
       approvalCache.grant(fp, { decision: "allow" });
     }
@@ -214,16 +263,42 @@ export async function createKernel(root, options = {}) {
     }
   };
 
+  const recovery = recoveryEnabled && !options.recovery?.skipStartupRecovery
+    ? await createRecoveryServiceFacade({
+        projectId,
+        projectLock,
+        pausedTurnPersistence,
+        recoveryInbox,
+        runtime,
+        sessionManager,
+        eventBus,
+        options
+      })
+    : disabledRecoveryFacade();
+
   return {
     root,
     eventBus,
     runtime,
-    agent: { send: runtime.send, approve: runtime.approve, interrupt: runtime.interrupt },
+    agent: {
+      send: runtime.send,
+      approve: runtime.approve,
+      interrupt: runtime.interrupt,
+      listPaused: runtime.listPaused,
+      cancelPaused: runtime.cancelPaused
+    },
+    recovery,
     session,
     sessionManager,
     context,
     config,
     tools,
+    async dispose() {
+      if (kernelDisposed) return;
+      kernelDisposed = true;
+      try { sessionManager.dispose?.(); } catch { /* best-effort */ }
+      try { await projectLock?.release?.(); } catch { /* best-effort */ }
+    },
     metrics: {
       getUsage() {
         return modelGateway?.getUsageStats?.() || zeroUsage();
@@ -237,6 +312,157 @@ export async function createKernel(root, options = {}) {
       }
     }
   };
+}
+
+async function createRecoveryServiceFacade({
+  projectId,
+  projectLock,
+  pausedTurnPersistence,
+  recoveryInbox,
+  runtime,
+  sessionManager,
+  eventBus,
+  options
+}) {
+  const recoveryService = createRecoveryService({
+    projectId,
+    lock: projectLock || { assertOwner: async () => {}, epoch: 0 },
+    paused: pausedTurnPersistence,
+    pausedTurnStore: {
+      restore: runtime.restorePaused,
+      list: runtime.listPaused
+    },
+    inbox: recoveryInbox,
+    appendMarker: async (type, data) => {
+      eventBus.publish(type, data);
+      await sessionManager.flush();
+    },
+    resumePaused: async (approvalId, decision) => runtime.approve(approvalId, decision),
+    cancelPaused: async (approvalId) => runtime.cancelPaused(approvalId)
+  });
+
+  if (!options.recovery?.skipStartupRecovery) {
+    await recoveryService.recoverOnStartup();
+  }
+
+  return {
+    list: (opts) => recoveryService.list(opts),
+    resume: (id, opts) => recoveryService.resume(id, opts),
+    cancel: (id) => recoveryService.cancel(id),
+    clear: (id) => recoveryService.clear(id),
+    report: () => recoveryService.report()
+  };
+}
+
+function createPausedRecoveryFacade({ runtime, pausedTurnPersistence }) {
+  let lastReport = { found: [], done: [], blocked: [], next: [] };
+
+  async function rehydratePausedSidecars() {
+    if (!pausedTurnPersistence?.scan) return [];
+    const scanned = await pausedTurnPersistence.scan();
+    const current = new Set(runtime.listPaused().map((record) => record.approval_id));
+    for (const record of scanned) {
+      if (record.status || current.has(record.approval_id)) continue;
+      runtime.restorePaused(record);
+      current.add(record.approval_id);
+    }
+    return scanned;
+  }
+
+  return {
+    async list() {
+      const scanned = await rehydratePausedSidecars();
+      const corruptItems = scanned
+        .filter((item) => item.status === "corrupt")
+        .map(corruptSidecarToRecoveryItem);
+      const pausedItems = runtime.listPaused().map(pausedRecordToRecoveryItem);
+      const items = [...pausedItems, ...corruptItems].sort((left, right) => {
+        const byCreated = String(left.created_at || "").localeCompare(String(right.created_at || ""));
+        return byCreated || String(left.id).localeCompare(String(right.id));
+      });
+      lastReport = {
+        found: items,
+        done: [],
+        blocked: corruptItems,
+        next: items.map((item) => ({ id: item.id, allowed_actions: item.allowed_actions || [] }))
+      };
+      return items;
+    },
+    async resume(id, { decision = "approve" } = {}) {
+      await rehydratePausedSidecars();
+      const approvalId = approvalIdFromRecoveryId(id);
+      const result = await runtime.approve(approvalId, decision);
+      return { status: "resumed", approval_id: approvalId, result };
+    },
+    async cancel(id, reason = "cancelled") {
+      const scanned = await rehydratePausedSidecars();
+      const approvalId = approvalIdFromRecoveryId(id);
+      const record = await runtime.cancelPaused(approvalId, reason);
+      if (record) {
+        return { status: "cancelled", item: pausedRecordToRecoveryItem(record) };
+      }
+      const corrupt = scanned.find((item) => item.status === "corrupt" && item.approval_id === approvalId);
+      if (corrupt && pausedTurnPersistence?.quarantine) {
+        return pausedTurnPersistence.quarantine(approvalId, reason);
+      }
+      return null;
+    },
+    async clear() {
+      throw Object.assign(new Error("recovery clear is not available for paused approvals yet"), { code: "RECOVERY_CLEAR_UNAVAILABLE" });
+    },
+    report() {
+      return lastReport;
+    }
+  };
+}
+
+function disabledRecoveryFacade() {
+  return {
+    list: async () => [],
+    resume: async () => { throw Object.assign(new Error("recovery is disabled"), { code: "RECOVERY_DISABLED" }); },
+    cancel: async () => { throw Object.assign(new Error("recovery is disabled"), { code: "RECOVERY_DISABLED" }); },
+    clear: async () => { throw Object.assign(new Error("recovery is disabled"), { code: "RECOVERY_DISABLED" }); },
+    report: () => ({ found: [], done: [], blocked: [], next: [] })
+  };
+}
+
+function pausedRecordToRecoveryItem(record) {
+  const permissionContext = record.permission_context || record.resume_state?.permission_context || {};
+  return {
+    id: `rec_pause_${record.approval_id}`,
+    type: "paused_turn",
+    status: "pending",
+    source_id: record.approval_id,
+    summary: record.approval?.summary || "Approval paused",
+    metadata: {
+      autonomy: permissionContext.autonomy || record.turn?.autonomy || "gated",
+      surface: record.surface || "unknown",
+      turn_id: record.turn_id,
+      session_id: record.session_id || record.turn?.session_id || null
+    },
+    allowed_actions: ["resume", "cancel"],
+    created_at: record.created_at || null,
+    updated_at: record.created_at || null
+  };
+}
+
+function corruptSidecarToRecoveryItem(item) {
+  return {
+    id: `rec_pause_${item.approval_id}`,
+    type: "paused_turn",
+    status: "blocked",
+    source_id: item.approval_id,
+    summary: "Paused approval sidecar is corrupt",
+    metadata: { reason: item.reason },
+    allowed_actions: ["cancel"],
+    created_at: null,
+    updated_at: null
+  };
+}
+
+function approvalIdFromRecoveryId(id) {
+  const value = String(id || "");
+  return value.startsWith("rec_pause_") ? value.slice("rec_pause_".length) : value;
 }
 
 function redactSnapshot(snap) {

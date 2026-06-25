@@ -21,6 +21,13 @@ export function summarizeKernelEvent(event = {}) {
   if (event.type === "session:rewind_restore_started") return `rewind restoring ${(event.applied_rollbacks || []).length} changes`;
   if (event.type === "session:rewind_restored") return `rewind restored ${(event.restored_files || []).length} files`;
   if (event.type === "session:rewind_recovery_failed") return `rewind recovery failed ${event.reason || event.restore_error || "unknown"}`;
+  if (event.type === "recovery:report") return `recovery report: found ${event.found_count || 0}, done ${event.done_count || 0}, blocked ${event.blocked_count || 0}`;
+  if (event.type === "recovery:blocked") return `recovery blocked: ${event.reason || "unknown"} (${event.item_id || event.source_id || "unknown"})`;
+  if (event.type === "tx:recovered") return `recovered ${event.kind || "transaction"} ${event.tx_id || "unknown"}, preserved ${event.preserved_count || 0}`;
+  if (event.type === "turn:rehydrated") return `rehydrated approval ${event.approval_id || "unknown"}`;
+  if (event.type === "turn:cancelled") return `cancelled approval ${event.approval_id || "unknown"}`;
+  if (event.type === "takeover:requested") return `takeover requested ${event.request_id || "unknown"}`;
+  if (event.type === "takeover:completed") return `takeover completed ${event.request_id || "unknown"}`;
   return event.type || "event";
 }
 

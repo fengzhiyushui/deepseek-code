@@ -18,6 +18,7 @@ export async function runRepairLoop({
   maxRepairAttempts = 2,
   options = {},
   modelTimeoutMs = null,
+  permissionContext = null,
   runVerifierImpl = runVerifier,
   runRepairExecutorImpl = runRepairExecutor,
   resumeAfterApproval = null,
@@ -34,7 +35,9 @@ export async function runRepairLoop({
   }
 
   const startAttempt = resumeAfterApproval ? resumeAfterApproval.attempt : 1;
-  let skipToVerification = !!resumeAfterApproval;
+  let skipToVerification = resumeAfterApproval
+    ? resumeAfterApproval.skip_to_verification !== false
+    : false;
 
   for (let attempt = startAttempt; attempt <= maxRepairAttempts; attempt += 1) {
     if (!skipToVerification) {
@@ -58,6 +61,7 @@ export async function runRepairLoop({
         eventBus,
         signal,
         modelTimeoutMs,
+        permissionContext,
         options: { ...options, message: userMessage, classification, context }
       });
       if (repairExec.status === "awaiting_approval") {
@@ -73,6 +77,7 @@ export async function runRepairLoop({
               attempt,
               attempts: [...attempts],
               initial_verification: initialVerification,
+              initial_tool_results: initialToolResults || [],
               max_repair_attempts: maxRepairAttempts,
               context
             }
@@ -90,13 +95,38 @@ export async function runRepairLoop({
 
     verification = await runVerifierImpl({
       turnId,
-      autonomy: options.autonomy || "gated",
+      autonomy: permissionContext?.autonomy || options.autonomy || "gated",
       toolResults: allToolResults,
       executeTool,
       createPolicyContext,
       verificationPolicy,
       eventBus
     });
+    if (verification.status === "approval_required") {
+      return {
+        status: "awaiting_approval",
+        content: verification.reason || "Verification requires approval",
+        approval: verification.tool_result?.metadata?.approval || null,
+        toolResults: allToolResults,
+        verification,
+        repair: { attempts: attempt, status: "awaiting_approval", history: attempts },
+        resume_state: verifierApprovalResumeState({
+          turnId,
+          userMessage,
+          classification,
+          verification,
+          allToolResults,
+          attempt,
+          attempts,
+          initialVerification,
+          initialToolResults,
+          maxRepairAttempts,
+          options,
+          permissionContext,
+          context
+        })
+      };
+    }
     const repairResult = {
       turn_id: turnId,
       attempt,
@@ -116,16 +146,6 @@ export async function runRepairLoop({
         repair: { attempts: attempt, status: "complete", history: attempts }
       };
     }
-    if (verification.status === "approval_required") {
-      return {
-        status: "awaiting_approval",
-        content: verification.reason || "Verification requires approval",
-        approval: verification.tool_result?.metadata?.approval || null,
-        toolResults: allToolResults,
-        verification,
-        repair: { attempts: attempt, status: "awaiting_approval", history: attempts }
-      };
-    }
   }
 
   eventBus?.publish?.("repair:exhausted", { turn_id: turnId, attempts: maxRepairAttempts, verification_status: verification?.status });
@@ -136,4 +156,84 @@ export async function runRepairLoop({
     verification,
     repair: { attempts: maxRepairAttempts, status: "exhausted", history: attempts }
   };
+}
+
+function verifierApprovalResumeState({
+  turnId,
+  userMessage,
+  classification,
+  verification,
+  allToolResults,
+  attempt,
+  attempts,
+  initialVerification,
+  initialToolResults,
+  maxRepairAttempts,
+  options,
+  permissionContext,
+  context
+}) {
+  const pendingToolCall = {
+    id: verification.tool_result?.call_id || `verify:${turnId}`,
+    name: "test",
+    params: verifierParamsFromMode(verification.mode, options, permissionContext),
+    source: "runtime",
+    requested_by_step_id: `verify:${turnId}`
+  };
+  return {
+    turn_id: turnId,
+    message: userMessage,
+    classification,
+    messages: [],
+    model_result: { content: "", tool_calls: [] },
+    raw_tool_calls: [],
+    pending_tool_call: pendingToolCall,
+    remaining_tool_calls: [],
+    iteration: 0,
+    tool_results: [],
+    tool_schemas: [],
+    max_iterations: 1,
+    options,
+    context,
+    permission_context: permissionContext,
+    repair_context: {
+      approval_phase: "verify",
+      all_tool_results: allToolResults,
+      verification,
+      attempt,
+      attempts: [...attempts],
+      initial_verification: initialVerification,
+      initial_tool_results: initialToolResults || [],
+      max_repair_attempts: maxRepairAttempts,
+      context
+    }
+  };
+}
+
+function verifierParamsFromMode(mode, options = {}, permissionContext = null) {
+  if (mode === "detect") return { detect: true };
+  if (mode === "run") {
+    const testArgv = resolveVerifierTestArgv(options, permissionContext);
+    return testArgv ? { detect: false, argv: [...testArgv] } : { detect: false };
+  }
+  return {};
+}
+
+function resolveVerifierTestArgv(options = {}, permissionContext = null) {
+  const value = firstDefined(
+    readPresent(permissionContext, "test_argv"),
+    readPresent(permissionContext, "testArgv"),
+    readPresent(options, "testArgv"),
+    null
+  );
+  return Array.isArray(value) ? [...value] : null;
+}
+
+function readPresent(object, key, fallback = undefined) {
+  if (object && Object.prototype.hasOwnProperty.call(object, key)) return object[key];
+  return fallback;
+}
+
+function firstDefined(...values) {
+  return values.find((value) => value !== undefined);
 }

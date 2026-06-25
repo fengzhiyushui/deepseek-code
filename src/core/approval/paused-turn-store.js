@@ -16,6 +16,20 @@ export function createPausedTurnStore({ now = nowIso } = {}) {
     return stored;
   }
 
+  function restore(record) {
+    validateRecord(record);
+    const stored = {
+      ...record,
+      created_at: record.created_at || now()
+    };
+    records.set(stored.approval_id, stored);
+    return stored;
+  }
+
+  function list() {
+    return [...records.values()].map((record) => ({ ...record }));
+  }
+
   function get(approvalId) {
     return records.get(approvalId) || null;
   }
@@ -46,7 +60,11 @@ export function createPausedTurnStore({ now = nowIso } = {}) {
     return records.size;
   }
 
-  return { save, get, take, deleteForTurn, clear, size };
+  function deleteRecord(approvalId) {
+    return records.delete(approvalId);
+  }
+
+  return { save, restore, list, get, take, delete: deleteRecord, deleteForTurn, clear, size };
 }
 
 function validateRecord(record) {
