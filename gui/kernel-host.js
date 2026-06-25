@@ -80,13 +80,15 @@ async function buildKernelOptions(projectRoot, overrides = {}, configLoader = lo
     config = {};
   }
   if (!config.apiKey) return overrides;
-  return {
+  const result = {
     ...overrides,
     deepseek: {
       apiKey: config.apiKey,
       baseUrl: config.baseUrl
     }
   };
+  if (config.limits) result.limits = config.limits;
+  return result;
 }
 
 function createKernelHost({

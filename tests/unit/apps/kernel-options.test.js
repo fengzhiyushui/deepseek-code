@@ -21,3 +21,14 @@ test("buildKernelOptions preserves explicit modelGateway and does not read confi
 
   assert.equal(options.modelGateway, gateway);
 });
+
+test("buildKernelOptions forwards config limits to the kernel", async () => {
+  const options = await buildKernelOptions("/repo", {}, async () => ({
+    apiKey: "sk-test",
+    baseUrl: "https://example.invalid",
+    limits: { toolTimeoutMs: 120000, modelTimeoutMs: 120000, maxTurnTokens: null, maxModelCalls: null, maxToolCallRepairs: null }
+  }));
+  assert.equal(options.limits.toolTimeoutMs, 120000);
+  assert.equal(options.limits.modelTimeoutMs, 120000);
+  assert.equal(options.deepseek.apiKey, "sk-test");
+});

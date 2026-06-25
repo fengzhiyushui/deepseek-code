@@ -9,11 +9,13 @@ export async function buildKernelOptions(root, overrides = {}, loadConfigImpl = 
     config = {};
   }
   if (!config.apiKey) return overrides;
-  return {
+  const result = {
     ...overrides,
     deepseek: {
       apiKey: config.apiKey,
       baseUrl: config.baseUrl
     }
   };
+  if (config.limits) result.limits = config.limits;
+  return result;
 }
