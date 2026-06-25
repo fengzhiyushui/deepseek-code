@@ -282,19 +282,27 @@ export function createAgentRuntime({
         toolCall: record.resume_state.pending_tool_call,
         options: record.resume_state.options || {}
       });
+      const resumeOptions = record.resume_state.options || {};
+      const budget = createCostBudget({
+        maxTokens: resumeOptions.maxTurnTokens ?? maxTurnTokens,
+        maxModelCalls: resumeOptions.maxModelCalls ?? maxModelCalls
+      });
       const loop = await resumeExecutorLoop({
         resumeState: record.resume_state,
         modelGateway,
         executeTool,
         createPolicyContext: ({ turnId, toolCall, phase }) => createPolicyContext({
-          ...(record.resume_state.options || {}),
+          ...resumeOptions,
           autonomy: record.turn.autonomy,
           turnId,
           toolCall,
           phase
         }),
         eventBus,
-        signal: currentAbortController.signal
+        signal: currentAbortController.signal,
+        budget,
+        modelTimeoutMs: resumeOptions.modelTimeoutMs ?? modelTimeoutMs,
+        maxToolCallRepairs: resumeOptions.maxToolCallRepairs ?? maxToolCallRepairs
       });
       if (loop.status === "awaiting_approval") {
         pausedTurnStore.save({
@@ -308,6 +316,15 @@ export function createAgentRuntime({
         currentTurnId = null;
         currentAbortController = null;
         return { status: "awaiting_approval", state: "awaiting_approval", content: loop.content, approval: loop.approval, turn: setTurnStatus(record.turn, "awaiting_approval") };
+      }
+
+      if (loop.status === "stopped") {
+        const stoppedTurn = setTurnStatus(record.turn, "completed");
+        publish(eventBus, "agent:final", { turn_id: record.turn_id, content: loop.content, status: "stopped" });
+        lifecycle = transitionLifecycle(lifecycle, { to: "idle", reason: "cost budget stop", channel: null });
+        currentTurnId = null;
+        currentAbortController = null;
+        return { status: "stopped", state: "idle", content: loop.content, turn: stoppedTurn, budget: loop.reason || null };
       }
 
       // Repair-phase approval: resume within the repair loop, not a fresh verifyAndMaybeRepair
