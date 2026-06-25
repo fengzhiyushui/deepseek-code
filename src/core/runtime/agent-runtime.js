@@ -107,6 +107,15 @@ export function createAgentRuntime({
         return { status: "awaiting_approval", state: "awaiting_approval", content: response.content, approval: response.approval, turn };
       }
 
+      if (response.status === "stopped") {
+        turn = setTurnStatus(turn, "completed");
+        publish(eventBus, "agent:final", { turn_id: turn.id, content: response.content, status: "stopped" });
+        lifecycle = transitionLifecycle(lifecycle, { to: "idle", reason: "cost budget stop", channel: null });
+        currentTurnId = null;
+        currentAbortController = null;
+        return { status: "stopped", state: "idle", content: response.content, turn, budget: response.reason || null };
+      }
+
       if (response.status === "failed") {
         throw new Error(`verification failed: ${response.content || response.verification?.reason || "repair failed"}`);
       }
@@ -171,6 +180,7 @@ export function createAgentRuntime({
       options
     });
     if (loop.status === "awaiting_approval") return loop;
+    if (loop.status === "stopped") return loop;
 
     return verifyAndMaybeRepair({ turn, message, classification, loop, options, signal, context });
   }

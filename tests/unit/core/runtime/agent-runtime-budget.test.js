@@ -12,7 +12,7 @@ const gateway = {
 };
 const executeTool = async () => ({ call_id: "c1", status: "success", content: [], metadata: {} });
 
-test("runtime stops an edit turn when maxTurnTokens is exceeded", async () => {
+test("runtime ends an edit turn cleanly when maxTurnTokens is exceeded", async () => {
   const runtime = createAgentRuntime({
     sessionId: "s1",
     modelGateway: gateway,
@@ -22,8 +22,8 @@ test("runtime stops an edit turn when maxTurnTokens is exceeded", async () => {
     maxToolIterations: 50,
     maxTurnTokens: 120
   });
-  await assert.rejects(
-    () => runtime.send("update the file", { autonomy: "auto" }),
-    (e) => e.code === "BUDGET_EXCEEDED" || /cost budget exceeded/.test(e.message)
-  );
+  const r = await runtime.send("update the file", { autonomy: "auto" });
+  assert.equal(r.status, "stopped");
+  assert.equal(r.state, "idle");
+  assert.match(r.content, /budget/i);
 });
