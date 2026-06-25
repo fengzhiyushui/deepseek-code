@@ -42,6 +42,11 @@
 - 预算为 resume 段**新建**(审批暂停为天然边界,不继承暂停前花费);repair-context 子路径的预算对齐留待 V2-20e。
 - 计划:[`plans/backend/2026-06-25-v2-20d-resume-path-guardrail-alignment.md`](plans/backend/2026-06-25-v2-20d-resume-path-guardrail-alignment.md);测试 536 全绿。
 
+### 已落地 — V2-20e repair 路径模型超时
+- **repair 不再可永久挂起**:`runRepairExecutor` 的模型调用现在设 `timeoutMs`(`modelTimeoutMs ?? options.timeoutMs`);`runRepairLoop` 透传 `modelTimeoutMs`;`agent-runtime` 在两处 repair 调用点(verify 路径 + 审批 repair_context)注入。至此 `modelTimeoutMs` 覆盖**全部三条模型调用路径**:正常工具循环、审批 resume、验证-修复。
+- **范围(YAGNI)**:repair 路径的成本预算 / tool-call 重试**显式延后**(已被 `maxRepairAttempts` 限轮,边际价值小)。护栏 plumbing 至此完整。
+- 计划:[`plans/backend/2026-06-25-v2-20e-repair-path-model-timeout.md`](plans/backend/2026-06-25-v2-20e-repair-path-model-timeout.md);测试 538 全绿。
+
 ---
 
 ## V2 — 干净运行时(主线)
