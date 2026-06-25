@@ -14,7 +14,7 @@
 - **支柱②多智能体调度**:三层 agent(主/次/子)+ 两级审核 + 双记忆 + 可开关的跨任务经验沉淀。
 - **支柱③前端三端重构**:GUI 迁 React + Vite + Semi UI(Agent-aware 编辑器 + DeepSeek FIM),CLI / TUI 打磨;先冻结三端共享契约。
 - **V2 收尾(先行)**:合并 V2-18 持久化恢复;V2-19 删除 V1 legacy 并收敛 `apps/`;V2-20 稳定化(补成本预算闸 + 超时处理)。
-- 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](docs/specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](docs/specs/backend/2026-06-24-agent-layered-memory-design.md)。
+- 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
 ### 进行中
 - **V2-18 持久化恢复 / Resume 加固**(worktree `v2-18-durable-recovery`):事务日志 + 二进制 preimage 捕获、项目锁 + epoch fencing、恢复收件箱、启动恢复扫描;已接入 `createKernel()` 并暴露 `kernel.recovery.*`,新增 `kernel.dispose()` 释放项目锁。
@@ -24,12 +24,17 @@
 - **模型调用超时**:`model-gateway` 的 `invoke`/`stream` 支持 `options.timeoutMs`,超时抛 `MODEL_TIMEOUT`(调用方 signal 与超时合并)。
 - **工具调用超时**:`tools/executor` 支持 `defaultToolTimeoutMs` / `context.toolTimeoutMs`,超时落为标准 `status:"error"` 结果(`metadata.timeout=true`,不抛、不强杀进程)。
 - **kernel 配置**:`createKernel(root, { limits: { maxTurnTokens, maxModelCalls, toolTimeoutMs } })` 透传;全部默认 `null`(护栏关闭),现有行为不变。
-- 计划:[`plans/backend/2026-06-24-v2-20a-runtime-cost-timeout-guardrails.md`](docs/plans/backend/2026-06-24-v2-20a-runtime-cost-timeout-guardrails.md);测试 529 全绿。
+- 计划:[`plans/backend/2026-06-24-v2-20a-runtime-cost-timeout-guardrails.md`](plans/backend/2026-06-24-v2-20a-runtime-cost-timeout-guardrails.md);测试 529 全绿。
 
 ### 已落地 — V2-20b 护栏注入与优雅停止
 - **优雅停止**:成本超限由抛 `BUDGET_EXCEEDED` 改为让 turn 干净结束 —— `executor-loop` 命中预算返回 `status:"stopped"`,`agent-runtime` 将其作为 turn 终态(发 `agent:final` status=`stopped`,跳过 verify/repair,`send()` 正常返回 `{ status:"stopped", content, budget }`)。
 - **modelTimeoutMs 注入**:`modelTimeoutMs` 经 runtime 透传到 `executor-loop`(run+resume)每次 `invoke` 与 `gateway.reply` 内部 invoke;`createKernel` 由 `options.limits.modelTimeoutMs` 注入。至此 kernel `limits` 四参齐全(`maxTurnTokens` / `maxModelCalls` / `toolTimeoutMs` / `modelTimeoutMs`)。
-- 计划:[`plans/backend/2026-06-25-v2-20b-guardrail-injection-graceful-stop.md`](docs/plans/backend/2026-06-25-v2-20b-guardrail-injection-graceful-stop.md);测试 531 全绿。
+- 计划:[`plans/backend/2026-06-25-v2-20b-guardrail-injection-graceful-stop.md`](plans/backend/2026-06-25-v2-20b-guardrail-injection-graceful-stop.md);测试 531 全绿。
+
+### 已落地 — V2-20c 畸形 tool-call 有界重试
+- **失败重试**(补完坑 #5):模型吐出参数非合法 JSON 的 tool-call(`adaptDeepSeekToolCalls` 抛 `invalid tool arguments`)时,`executor-loop`(run+resume)不再让 turn 直接失败,而是回灌一条纠正消息并重发,最多 `maxToolCallRepairs` 次,每次发 `model:tool_call_repair` 事件;超出才抛原错。
+- **透传**:`createAgentRuntime` 新增 `maxToolCallRepairs`,工具循环传给 `runExecutorLoop`;`createKernel` 由 `options.limits.maxToolCallRepairs` 注入。默认 `0`(立即抛错,行为不变)。至此 kernel `limits` 五参齐全(`maxTurnTokens` / `maxModelCalls` / `toolTimeoutMs` / `modelTimeoutMs` / `maxToolCallRepairs`)。
+- 计划:[`plans/backend/2026-06-25-v2-20c-malformed-toolcall-retry.md`](plans/backend/2026-06-25-v2-20c-malformed-toolcall-retry.md);测试 535 全绿。
 
 ---
 

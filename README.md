@@ -202,7 +202,7 @@ docs/
 1. **代码** 变更并通过 `npm test` / `npm run check`
 2. `docs/specs/<area>/` 对应设计文档(反映实际形态)
 3. `docs/plans/<area>/` 对应计划(勾掉已完成任务)
-4. [`CHANGELOG.md`](CHANGELOG.md) 追加版本/日期/变更条目
+4. [`docs/CHANGELOG.md`](docs/CHANGELOG.md) 追加版本/日期/变更条目
 5. `README.md`(本文件)——仅当影响命令 / 架构 / 使用方式
 6. [`docs/README.md`](docs/README.md) 索引——仅当新增 / 移动 / 删除文档
 
