@@ -88,3 +88,16 @@ test("summarizeKernelEvent renders rewind recovery events", () => {
     "rewind recovery failed restore_failed"
   );
 });
+
+test("renderer summarizes recovery events without payload leaks", () => {
+  const lines = [
+    summarizeKernelEvent({ type: "recovery:report", found_count: 2, done_count: 1, blocked_count: 0 }),
+    summarizeKernelEvent({ type: "tx:recovered", tx_id: "tx_123", kind: "edit", preserved_count: 1 }),
+    summarizeKernelEvent({ type: "turn:rehydrated", approval_id: "approval_456", marker_status: "ok" })
+  ];
+
+  assert.ok(lines.some((line) => line.includes("recovery report: found 2, done 1, blocked 0")));
+  assert.ok(lines.some((line) => line.includes("recovered edit tx_123")));
+  assert.ok(lines.some((line) => line.includes("rehydrated approval approval_456")));
+  assert.equal(lines.join("\n").includes("resume_state"), false);
+});

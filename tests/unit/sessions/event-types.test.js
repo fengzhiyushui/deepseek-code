@@ -71,3 +71,22 @@ test("assertSessionEventType rejects unknown events", () => {
     /unknown session event type/
   );
 });
+
+test("V2-18 recovery lifecycle events are registered", () => {
+  for (const type of [
+    "recovery:started",
+    "recovery:blocked",
+    "recovery:report",
+    "tx:opened",
+    "tx:committed",
+    "tx:recovered",
+    "turn:paused",
+    "turn:rehydrated",
+    "turn:resumed",
+    "turn:cancelled",
+    "takeover:requested",
+    "takeover:completed"
+  ]) {
+    assert.equal(isSessionEventType(type), true, `${type} should be registered`);
+  }
+});

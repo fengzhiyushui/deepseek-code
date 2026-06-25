@@ -271,3 +271,67 @@ test("runKernelChatCommand resolves approvals with shared approval loop", async 
   assert.equal(result.status, "complete");
   assert.deepEqual(approvals, [["approval_chat", "approve"]]);
 });
+
+test("chat repl renders recovery inbox", async () => {
+  const questions = ["/recovery", "/exit"];
+  const writes = [];
+  await runKernelChatCommand({
+    root: "/repo",
+    write: (line) => writes.push(line),
+    question: async () => questions.shift(),
+    createKernelImpl: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }), getTimeline: async () => [] },
+      agent: { send: async () => ({ status: "complete", content: "unused" }) },
+      recovery: {
+        list: async () => [{ id: "rec_pause_approval_1", type: "paused_turn", status: "pending", summary: "Approval required", allowed_actions: ["resume", "cancel"] }],
+        report: async () => ({ found: [{ summary: "Approval required" }], done: [], blocked: [], next: ["/recovery resume rec_pause_approval_1"] })
+      }
+    })
+  });
+
+  assert.ok(writes.some((line) => line.includes("Recovery")));
+  assert.ok(writes.some((line) => line.includes("rec_pause_approval_1")));
+});
+
+test("chat repl recovery cancel delegates to kernel", async () => {
+  const questions = ["/recovery cancel rec_pause_approval_1", "/exit"];
+  const calls = [];
+  await runKernelChatCommand({
+    root: "/repo",
+    write: () => {},
+    question: async () => questions.shift(),
+    createKernelImpl: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }), getTimeline: async () => [] },
+      agent: { send: async () => ({ status: "complete", content: "unused" }) },
+      recovery: {
+        cancel: async (id) => { calls.push(id); return { status: "cancelled" }; },
+        list: async () => [],
+        report: async () => ({ found: [], done: [], blocked: [], next: [] })
+      }
+    })
+  });
+
+  assert.deepEqual(calls, ["rec_pause_approval_1"]);
+});
+
+test("chat repl recovery resume delegates to kernel", async () => {
+  const questions = ["/recovery resume rec_pause_approval_1", "/exit"];
+  const calls = [];
+  await runKernelChatCommand({
+    root: "/repo",
+    write: () => {},
+    question: async () => questions.shift(),
+    createKernelImpl: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }), getTimeline: async () => [] },
+      agent: { send: async () => ({ status: "complete", content: "unused" }) },
+      recovery: {
+        resume: async (id, opts) => { calls.push([id, opts]); return { status: "resumed" }; },
+        list: async () => [],
+        report: async () => ({ found: [], done: [], blocked: [], next: [] })
+      }
+    })
+  });
+
+  assert.deepEqual(calls, [["rec_pause_approval_1", {}]]);
+});
+

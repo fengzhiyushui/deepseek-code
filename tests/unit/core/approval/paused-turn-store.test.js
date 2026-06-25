@@ -58,3 +58,19 @@ test("paused turn store validates required fields", () => {
     /approval.id must match approval_id/
   );
 });
+
+test("paused turn store can restore list and cancel durable records", () => {
+  const store = createPausedTurnStore({ now: () => "2026-06-01T00:00:00.000Z" });
+  store.restore({
+    approval_id: "approval_1",
+    turn_id: "turn_1",
+    approval: { id: "approval_1" },
+    turn: { id: "turn_1" },
+    resume_state: { pending_tool_call: { id: "call_1" } }
+  });
+
+  assert.deepEqual(store.list().map((item) => item.approval_id), ["approval_1"]);
+  assert.equal(store.list()[0].created_at, "2026-06-01T00:00:00.000Z");
+  assert.equal(store.delete("approval_1"), true);
+  assert.deepEqual(store.list(), []);
+});
