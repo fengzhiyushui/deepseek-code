@@ -153,5 +153,3 @@ function toNumber(value, fallback) {
 function stripTrailingSlash(value) {
   return value.replace(/\/+$/, "");
 }
-
-export { DEFAULT_MODEL_PROFILES } from "./kernel/config-provider.js";
