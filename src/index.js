@@ -64,7 +64,8 @@ export async function createKernel(root, options = {}) {
   const toolExecutor = options.toolExecutor || createToolExecutor({
     registry: toolRegistry,
     permissionEngine,
-    eventBus
+    eventBus,
+    defaultToolTimeoutMs: options.limits?.toolTimeoutMs ?? null
   });
   const contextEngine = options.contextEngine || createContextEngine({
     root,
@@ -95,6 +96,8 @@ export async function createKernel(root, options = {}) {
     testArgv: options.testArgv || null,
     maxRepairAttempts: options.maxRepairAttempts ?? 2,
     createContextSnapshot: (input) => contextEngine.snapshot(input),
+    maxTurnTokens: options.limits?.maxTurnTokens ?? null,
+    maxModelCalls: options.limits?.maxModelCalls ?? null,
     grantApprovalForToolCall: async (toolCall, approvalContext = {}) => {
       const securedCall = toolRegistry.secureToolCall(toolCall);
       const policyContext = createPolicyContext({

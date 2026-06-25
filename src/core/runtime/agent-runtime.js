@@ -8,6 +8,7 @@ import { createVerificationPolicy } from "../verification/verification-policy.js
 import { runRepairLoop } from "../verification/repair-loop.js";
 import { createPausedTurnStore } from "../approval/paused-turn-store.js";
 import { createLifecycleState, transitionLifecycle } from "./lifecycle.js";
+import { createCostBudget } from "./cost-budget.js";
 
 function publish(eventBus, eventType, data) {
   if (eventBus && typeof eventBus.publish === "function") eventBus.publish(eventType, data);
@@ -34,7 +35,9 @@ export function createAgentRuntime({
   testArgv = null,
   pausedTurnStore = createPausedTurnStore(),
   grantApprovalForToolCall = async () => {},
-  createContextSnapshot = async () => null
+  createContextSnapshot = async () => null,
+  maxTurnTokens = null,
+  maxModelCalls = null
 } = {}) {
   let lifecycle = createLifecycleState();
   let currentTurnId = null;
@@ -142,6 +145,10 @@ export function createAgentRuntime({
 
   async function runToolLoopPath({ message, classification, turn, options, signal, context = null }) {
     lifecycle = transitionLifecycle(lifecycle, { to: "execute", reason: "tool loop started", channel: "act" });
+    const budget = createCostBudget({
+      maxTokens: options.maxTurnTokens ?? maxTurnTokens,
+      maxModelCalls: options.maxModelCalls ?? maxModelCalls
+    });
     const loop = await runExecutorLoop({
       message,
       classification,
@@ -160,6 +167,7 @@ export function createAgentRuntime({
       eventBus,
       signal,
       maxIterations: options.maxToolIterations || maxToolIterations,
+      budget,
       options
     });
     if (loop.status === "awaiting_approval") return loop;
