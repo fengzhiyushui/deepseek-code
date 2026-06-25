@@ -37,7 +37,8 @@ export function createAgentRuntime({
   grantApprovalForToolCall = async () => {},
   createContextSnapshot = async () => null,
   maxTurnTokens = null,
-  maxModelCalls = null
+  maxModelCalls = null,
+  modelTimeoutMs = null
 } = {}) {
   let lifecycle = createLifecycleState();
   let currentTurnId = null;
@@ -147,7 +148,7 @@ export function createAgentRuntime({
     const finalStep = completeAgentStep(createAgentStep({ turnId: turn.id, type: "final", channel: "system" }));
     const updatedTurn = addTurnStep(turn, finalStep);
     const response = modelGateway && typeof modelGateway.reply === "function"
-      ? await modelGateway.reply({ message, classification, turn, options, signal, context })
+      ? await modelGateway.reply({ message, classification, turn, options: { ...options, timeoutMs: options.timeoutMs ?? modelTimeoutMs }, signal, context })
       : { content: `V2-0 mock ${classification.task_type} response` };
     return { status: "complete", content: response.content, turn: updatedTurn, context };
   }
@@ -177,6 +178,7 @@ export function createAgentRuntime({
       signal,
       maxIterations: options.maxToolIterations || maxToolIterations,
       budget,
+      modelTimeoutMs: options.modelTimeoutMs ?? modelTimeoutMs,
       options
     });
     if (loop.status === "awaiting_approval") return loop;

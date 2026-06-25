@@ -15,6 +15,7 @@ export async function runExecutorLoop({
   maxIterations = 5,
   context = null,
   budget = null,
+  modelTimeoutMs = null,
   options = {}
 } = {}) {
   if (!modelGateway || typeof modelGateway.invoke !== "function") {
@@ -43,7 +44,8 @@ export async function runExecutorLoop({
       tools: toolSchemas,
       toolChoice: "auto",
       signal,
-      ...options
+      ...options,
+      timeoutMs: modelTimeoutMs ?? options.timeoutMs
     });
     if (budget) budget.recordModelResult(modelResult);
     eventBus?.publish?.("model:response", {
@@ -156,7 +158,8 @@ export async function resumeExecutorLoop({
   createPolicyContext,
   eventBus = null,
   signal = null,
-  budget = null
+  budget = null,
+  modelTimeoutMs = null
 } = {}) {
   if (!resumeState) throw new Error("resumeState is required");
   if (!modelGateway || typeof modelGateway.invoke !== "function") {
@@ -222,7 +225,8 @@ export async function resumeExecutorLoop({
       tools: resumeState.tool_schemas || [],
       toolChoice: "auto",
       signal,
-      ...(resumeState.options || {})
+      ...(resumeState.options || {}),
+      timeoutMs: modelTimeoutMs ?? resumeState.options?.timeoutMs
     });
     if (budget) budget.recordModelResult(modelResult);
     eventBus?.publish?.("model:response", {

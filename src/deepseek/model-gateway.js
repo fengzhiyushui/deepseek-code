@@ -71,7 +71,7 @@ export function createDeepSeekGateway({ apiKey = process.env.DEEPSEEK_API_KEY ||
     const messages = assembleReplyMessages({ message, classification, context, turn, history: options.history });
     const taskType = classification?.task_type || "general";
     const purpose = taskType === "query" ? "reply" : "plan";
-    const result = await invoke(messages, { purpose, signal });
+    const result = await invoke(messages, { purpose, signal, timeoutMs: options.timeoutMs });
     if (onDelta && result.content) onDelta(result.content);
     return result;
   }
