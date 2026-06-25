@@ -1,7 +1,7 @@
 import { createToolResult, createApprovalRequest } from "../core/protocol/index.js";
 import { redactToolContent } from "../security/redactor.js";
 
-export function createToolExecutor({ registry, permissionEngine, eventBus = null } = {}) {
+export function createToolExecutor({ registry, permissionEngine, eventBus = null, defaultToolTimeoutMs = null } = {}) {
   if (!registry) throw new Error("registry is required");
   if (!permissionEngine) throw new Error("permissionEngine is required");
 
@@ -63,7 +63,8 @@ export function createToolExecutor({ registry, permissionEngine, eventBus = null
     }
 
     try {
-      const raw = await def.execute(securedCall.params, context);
+      const timeoutMs = context.toolTimeoutMs ?? defaultToolTimeoutMs;
+      const raw = await runWithTimeout(() => def.execute(securedCall.params, context), timeoutMs);
       return publishResult(createToolResult({
         callId: toolCall.id,
         status: raw.status || "success",
@@ -76,7 +77,7 @@ export function createToolExecutor({ registry, permissionEngine, eventBus = null
         callId: toolCall.id,
         status: "error",
         content: [{ type: "error", text: error.message }],
-        metadata: {},
+        metadata: error.code === "TOOL_TIMEOUT" ? { timeout: true } : {},
         durationMs: Date.now() - started
       }));
     }
@@ -97,4 +98,22 @@ export function createToolExecutor({ registry, permissionEngine, eventBus = null
 function publicTool(def) {
   const { execute, normalizeParams, resolveCategory, ...publicDef } = def;
   return publicDef;
+}
+
+function runWithTimeout(promiseFactory, timeoutMs) {
+  if (!timeoutMs) return promiseFactory();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      const err = new Error(`tool timed out after ${timeoutMs}ms`);
+      err.code = "TOOL_TIMEOUT";
+      reject(err);
+    }, timeoutMs);
+    Promise.resolve()
+      .then(promiseFactory)
+      .then((value) => { if (!settled) { settled = true; clearTimeout(timer); resolve(value); } })
+      .catch((error) => { if (!settled) { settled = true; clearTimeout(timer); reject(error); } });
+  });
 }
