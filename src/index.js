@@ -99,6 +99,7 @@ export async function createKernel(root, options = {}) {
     maxTurnTokens: options.limits?.maxTurnTokens ?? null,
     maxModelCalls: options.limits?.maxModelCalls ?? null,
     modelTimeoutMs: options.limits?.modelTimeoutMs ?? null,
+    maxToolCallRepairs: options.limits?.maxToolCallRepairs ?? 0,
     grantApprovalForToolCall: async (toolCall, approvalContext = {}) => {
       const securedCall = toolRegistry.secureToolCall(toolCall);
       const policyContext = createPolicyContext({

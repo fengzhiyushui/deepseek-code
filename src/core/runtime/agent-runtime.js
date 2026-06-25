@@ -38,7 +38,8 @@ export function createAgentRuntime({
   createContextSnapshot = async () => null,
   maxTurnTokens = null,
   maxModelCalls = null,
-  modelTimeoutMs = null
+  modelTimeoutMs = null,
+  maxToolCallRepairs = 0
 } = {}) {
   let lifecycle = createLifecycleState();
   let currentTurnId = null;
@@ -179,6 +180,7 @@ export function createAgentRuntime({
       maxIterations: options.maxToolIterations || maxToolIterations,
       budget,
       modelTimeoutMs: options.modelTimeoutMs ?? modelTimeoutMs,
+      maxToolCallRepairs: options.maxToolCallRepairs ?? maxToolCallRepairs,
       options
     });
     if (loop.status === "awaiting_approval") return loop;
