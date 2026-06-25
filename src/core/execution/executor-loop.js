@@ -14,6 +14,7 @@ export async function runExecutorLoop({
   signal = null,
   maxIterations = 5,
   context = null,
+  budget = null,
   options = {}
 } = {}) {
   if (!modelGateway || typeof modelGateway.invoke !== "function") {
@@ -32,6 +33,7 @@ export async function runExecutorLoop({
   const toolResults = [];
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
+    if (budget) budget.check();
     eventBus?.publish?.("model:request", { turn_id: turnId, purpose: "act", iteration });
     const modelResult = await modelGateway.invoke(messages, {
       purpose: iteration === 0 ? "plan" : "act",
@@ -40,6 +42,7 @@ export async function runExecutorLoop({
       signal,
       ...options
     });
+    if (budget) budget.recordModelResult(modelResult);
     eventBus?.publish?.("model:response", {
       turn_id: turnId,
       purpose: iteration === 0 ? "plan" : "act",
@@ -149,7 +152,8 @@ export async function resumeExecutorLoop({
   executeTool,
   createPolicyContext,
   eventBus = null,
-  signal = null
+  signal = null,
+  budget = null
 } = {}) {
   if (!resumeState) throw new Error("resumeState is required");
   if (!modelGateway || typeof modelGateway.invoke !== "function") {
@@ -205,6 +209,7 @@ export async function resumeExecutorLoop({
   ];
 
   for (let iteration = resumeState.iteration + 1; iteration < (resumeState.max_iterations || 5); iteration += 1) {
+    if (budget) budget.check();
     eventBus?.publish?.("model:request", { turn_id: resumeState.turn_id, purpose: "act", iteration });
     const modelResult = await modelGateway.invoke(messages, {
       purpose: "act",
@@ -213,6 +218,7 @@ export async function resumeExecutorLoop({
       signal,
       ...(resumeState.options || {})
     });
+    if (budget) budget.recordModelResult(modelResult);
     eventBus?.publish?.("model:response", {
       turn_id: resumeState.turn_id,
       purpose: "act",
