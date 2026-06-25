@@ -209,6 +209,14 @@ export function makeTransactionId() {
   return `tx_${Date.now().toString(36)}_${Math.random().toString(16).slice(2, 10)}`;
 }
 
+export function pathsFromParsedDiff(parsed) {
+  if (!parsed?.patches) return [];
+  return parsed.patches.map((patch) => {
+    const filePath = patch.newPath === "/dev/null" ? patch.oldPath : patch.newPath;
+    return filePath;
+  });
+}
+
 async function fileExists(target) {
   try {
     await fs.access(target);

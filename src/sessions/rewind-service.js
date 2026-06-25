@@ -19,7 +19,10 @@ export function createRewindService({
   activateBranch = null,
   rollback,
   captureSnapshots = captureRewindSnapshots,
-  restoreSnapshots = restoreRewindSnapshots
+  restoreSnapshots = restoreRewindSnapshots,
+  recoveryJournal = null,
+  assertOwner = async () => {},
+  faults = null
 } = {}) {
   if (typeof getTimeline !== "function") throw new Error("getTimeline is required");
   if (typeof getActiveBranchId !== "function") throw new Error("getActiveBranchId is required");
@@ -131,6 +134,35 @@ export function createRewindService({
     if (typeof activateBranch !== "function") throw new Error("activateBranch is required for apply");
     const previewResult = await preview({ target, branch_id });
     const currentBranchId = previewResult.current_branch_id;
+
+    const transaction_id = `tx_rewind_${Date.now().toString(36)}_${Math.random().toString(16).slice(2, 10)}`;
+
+    // Open recovery journal before mutations
+    let journalEntry = null;
+    if (recoveryJournal) {
+      journalEntry = await recoveryJournal.open({
+        kind: "rewind",
+        tx_id: transaction_id,
+        session_id: currentBranchId,
+        turn_id: previewResult.target.turn_id || "rewind",
+        owner_epoch: 0,
+        paths: previewResult.files,
+        rewind_branch_state: {
+          current_branch_id: currentBranchId,
+          target_branch_id: previewResult.planned_branch_id,
+          target_event_id: previewResult.target.event_id,
+          target_seq: previewResult.target.seq,
+          target_turn_id: previewResult.target.turn_id,
+          rollback_change_ids: previewResult.rollback_change_ids
+        },
+        target: {
+          type: "rewind",
+          description: `rewind to ${previewResult.target.turn_id || previewResult.target.event_id}`
+        }
+      });
+      if (faults) await faults.maybe("after-journal-write");
+    }
+
     publish("session:rewind_started", {
       current_branch_id: currentBranchId,
       target: previewResult.target,
@@ -144,8 +176,24 @@ export function createRewindService({
 
     const appliedRollbacks = [];
     for (const changeId of previewResult.rollback_change_ids) {
+      try {
+        await assertOwner();
+        if (faults) await faults.maybe("before-rollback");
+      } catch (error) {
+        if (journalEntry) await recoveryJournal.abort(transaction_id).catch(() => {});
+        return restoreAfterFailure({
+          previewResult,
+          snapshots,
+          appliedRollbacks,
+          phase: "rollback",
+          reason: safeRewindError(error, "assertOwner"),
+          force
+        });
+      }
+
       const result = await rollback({ change_id: changeId, force: Boolean(force), branch_id: previewResult.planned_branch_id });
       if (result.status === "conflict") {
+        if (journalEntry) await recoveryJournal.abort(transaction_id).catch(() => {});
         return restoreAfterConflict({
           previewResult,
           snapshots,
@@ -156,6 +204,7 @@ export function createRewindService({
         });
       }
       if (result.status !== "success") {
+        if (journalEntry) await recoveryJournal.abort(transaction_id).catch(() => {});
         return restoreAfterFailure({
           previewResult,
           snapshots,
@@ -166,10 +215,12 @@ export function createRewindService({
         });
       }
       appliedRollbacks.push(changeId);
+      if (faults) await faults.maybe("after-rollback");
     }
 
     let branch;
     try {
+      await assertOwner();
       branch = await createBranch({
         parent_branch_id: currentBranchId,
         forked_from_event_id: previewResult.target.event_id,
@@ -178,7 +229,9 @@ export function createRewindService({
         label: label || `rewind to ${previewResult.target.turn_id || previewResult.target.event_id || previewResult.target.seq}`,
         branch_id: previewResult.planned_branch_id
       });
+      if (faults) await faults.maybe("after-branch-created");
     } catch (error) {
+      if (journalEntry) await recoveryJournal.abort(transaction_id).catch(() => {});
       return restoreAfterFailure({
         previewResult,
         snapshots,
@@ -196,8 +249,11 @@ export function createRewindService({
       forked_from_turn_id: branch.forked_from_turn_id
     });
     try {
+      await assertOwner();
       await activateBranch(branch.branch_id);
+      if (faults) await faults.maybe("after-branch-activated");
     } catch (error) {
+      if (journalEntry) await recoveryJournal.abort(transaction_id).catch(() => {});
       return restoreAfterFailure({
         previewResult,
         snapshots,
@@ -211,6 +267,17 @@ export function createRewindService({
       branch_id: branch.branch_id,
       parent_branch_id: branch.parent_branch_id
     });
+
+    // Commit journal after successful rewind
+    if (journalEntry) {
+      await recoveryJournal.commit(transaction_id, {
+        branch_id: branch.branch_id,
+        rollback_change_ids: previewResult.rollback_change_ids,
+        files: previewResult.files
+      });
+      if (faults) await faults.maybe("after-manifest-committed");
+    }
+
     const success = {
       status: "success",
       previous_branch_id: currentBranchId,

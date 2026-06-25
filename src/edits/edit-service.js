@@ -9,11 +9,20 @@ import { createRollbackService } from "./rollback-service.js";
 import {
   applyDiffTransaction,
   makeTransactionId,
+  pathsFromParsedDiff,
   restoreSnapshots,
   safeTransactionError
 } from "./edit-transaction.js";
 
-export function createEditService({ projectRoot, eventBus = null, changeStore = null, rollbackService = null } = {}) {
+export function createEditService({
+  projectRoot,
+  eventBus = null,
+  changeStore = null,
+  rollbackService = null,
+  recoveryJournal = null,
+  assertOwner = async () => {},
+  faults = null
+} = {}) {
   if (!projectRoot) throw new Error("projectRoot is required");
 
   const store = changeStore || createChangeStore({ projectRoot });
@@ -42,6 +51,23 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
     const plan = await store.capture({ diff: parsed.diff, prompt });
     let transaction;
     const transaction_id = makeTransactionId();
+
+    // Open recovery journal before mutation
+    let journalEntry = null;
+    if (recoveryJournal) {
+      const paths = pathsFromParsedDiff(parsed);
+      journalEntry = await recoveryJournal.open({
+        kind: "edit",
+        tx_id: transaction_id,
+        session_id: approval_id || "edit",
+        turn_id: approval_id || "edit",
+        owner_epoch: 0,
+        paths,
+        target: { type: "edit", description: "apply diff" }
+      });
+      if (faults) await faults.maybe("after-journal-write");
+    }
+
     publish("file:transaction_started", {
       transaction_id,
       files: parsed.files,
@@ -49,9 +75,18 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
       diff_hash: hashText(parsed.diff),
       diff_size: Buffer.byteLength(parsed.diff, "utf8")
     });
+
     try {
+      // Assert ownership before mutation
+      await assertOwner();
+      if (faults) await faults.maybe("after-tx-opened-marker");
+
       transaction = await applyDiffTransaction({ projectRoot, parsed, transaction_id });
+      if (faults) await faults.maybe("after-first-file-write");
     } catch (error) {
+      if (journalEntry) {
+        await recoveryJournal.abort(transaction_id).catch(() => {});
+      }
       publish("file:transaction_failed", {
         transaction_id: error.transaction_id || null,
         files: parsed.files,
@@ -61,11 +96,16 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
       });
       throw error;
     }
+
     let record;
     try {
+      await assertOwner();
       record = await store.finalize(plan, { transaction });
     } catch (error) {
       const restoredFiles = await restoreSnapshots(projectRoot, transaction.snapshots);
+      if (journalEntry) {
+        await recoveryJournal.abort(transaction_id).catch(() => {});
+      }
       publish("file:transaction_failed", {
         transaction_id,
         files: parsed.files,
@@ -75,6 +115,13 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
       });
       throw error;
     }
+
+    // Commit journal after successful finalization
+    if (journalEntry) {
+      await recoveryJournal.commit(transaction_id, { files: record.summary });
+      if (faults) await faults.maybe("after-manifest-committed");
+    }
+
     const metadata = {
       change_id: record.id,
       approval_id,
@@ -84,6 +131,7 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
       diff_size: Buffer.byteLength(parsed.diff, "utf8"),
       change_record_path: `.deepseek-code/changes/${record.id}.json`
     };
+
     publish("file:transaction_committed", {
       transaction_id: transaction.transaction_id,
       change_id: record.id,
@@ -92,6 +140,9 @@ export function createEditService({ projectRoot, eventBus = null, changeStore = 
       diff_hash: hashText(parsed.diff),
       diff_size: Buffer.byteLength(parsed.diff, "utf8")
     });
+
+    if (faults) await faults.maybe("after-tx-committed-marker");
+
     publish("file:diff_applied", {
       change_id: record.id,
       approval_id,

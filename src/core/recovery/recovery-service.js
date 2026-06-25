@@ -6,7 +6,8 @@ export function createRecoveryService({
   inbox,
   appendMarker,
   resumePaused = null,
-  cancelPaused = null
+  cancelPaused = null,
+  transactionJournal = null
 }) {
   let latestReport = null;
 
@@ -19,6 +20,62 @@ export function createRecoveryService({
     const done = [];
     const blocked = [];
     const next = [];
+
+    // Scan transaction journals
+    if (transactionJournal) {
+      const journals = await transactionJournal.scan();
+      for (const journal of journals) {
+        if (journal.state === "open" || journal.state === "aborting") {
+          found.push({ type: "transaction_journal", summary: `Open ${journal.kind} transaction: ${journal.tx_id}` });
+          await inbox.upsert({
+            id: `rec_journal_${journal.tx_id}`,
+            type: "transaction_journal",
+            status: "pending",
+            source_id: journal.tx_id,
+            summary: `Open ${journal.kind} transaction from ${journal.session_id}`,
+            evidence: {
+              kind: journal.kind,
+              tx_id: journal.tx_id,
+              session_id: journal.session_id,
+              turn_id: journal.turn_id,
+              paths: journal.paths?.map(p => p.path) || [],
+              state: journal.state
+            },
+            allowed_actions: ["abort_journal", "commit_journal"],
+            metadata: {
+              kind: journal.kind,
+              tx_id: journal.tx_id,
+              session_id: journal.session_id,
+              turn_id: journal.turn_id,
+              state: journal.state,
+              rewind_branch_state: journal.rewind_branch_state
+            }
+          });
+          await appendMarker("recovery:transaction_journal_found", {
+            tx_id: journal.tx_id,
+            kind: journal.kind,
+            state: journal.state,
+            session_id: journal.session_id
+          });
+          next.push(`/recovery abort_journal rec_journal_${journal.tx_id}`);
+        } else if (journal.state === "committed") {
+          // Committed journals are informational only
+          found.push({ type: "transaction_journal", summary: `Committed ${journal.kind} transaction: ${journal.tx_id}` });
+        } else if (journal.state === "corrupt") {
+          found.push({ type: "transaction_journal", summary: `Corrupt transaction journal: ${journal.tx_id}` });
+          blocked.push({ type: "transaction_journal", summary: `Corrupt journal: ${journal.tx_id}`, reason: journal.error });
+          await inbox.upsert({
+            id: `rec_journal_${journal.tx_id}`,
+            type: "blocked_recovery",
+            status: "blocked",
+            source_id: journal.tx_id,
+            summary: `Corrupt transaction journal: ${journal.tx_id}`,
+            evidence: { error: journal.error },
+            allowed_actions: ["remove_journal"]
+          });
+        }
+      }
+    }
 
     // Scan paused sidecars
     const scanned = await paused.scan();
@@ -165,6 +222,53 @@ export function createRecoveryService({
     return { status: "cleared" };
   }
 
+  async function abortJournal(id) {
+    if (!id.startsWith("rec_journal_")) {
+      throw new Error(`invalid abort_journal target: ${id}`);
+    }
+    if (!transactionJournal) {
+      throw new Error("transaction journal not wired");
+    }
+    const txId = id.replace(/^rec_journal_/, "");
+    const item = await inbox.get(id);
+
+    const result = await transactionJournal.abort(txId);
+
+    if (item) {
+      await inbox.mark(id, { status: "aborted" });
+    }
+
+    await appendMarker("recovery:transaction_journal_aborted", {
+      tx_id: txId,
+      preserved_count: result.preserved_count
+    });
+
+    return { status: "aborted", item, result };
+  }
+
+  async function commitJournal(id) {
+    if (!id.startsWith("rec_journal_")) {
+      throw new Error(`invalid commit_journal target: ${id}`);
+    }
+    if (!transactionJournal) {
+      throw new Error("transaction journal not wired");
+    }
+    const txId = id.replace(/^rec_journal_/, "");
+    const item = await inbox.get(id);
+
+    await transactionJournal.commit(txId, { manual_commit: true });
+
+    if (item) {
+      await inbox.mark(id, { status: "committed" });
+    }
+
+    await appendMarker("recovery:transaction_journal_committed", {
+      tx_id: txId
+    });
+
+    return { status: "committed", item };
+  }
+
   function report() {
     return latestReport || { found: [], done: [], blocked: [], next: [] };
   }
@@ -175,6 +279,8 @@ export function createRecoveryService({
     resume,
     cancel,
     clear,
+    abortJournal,
+    commitJournal,
     report
   };
 }

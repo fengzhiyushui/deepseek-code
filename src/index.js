@@ -21,6 +21,7 @@ import { createPausedTurnPersistence } from "./core/recovery/paused-turn-persist
 import { createRecoveryInbox } from "./core/recovery/recovery-inbox.js";
 import { createRecoveryService } from "./core/recovery/recovery-service.js";
 import { acquireProjectLock } from "./core/recovery/project-lock.js";
+import { createTransactionJournal } from "./core/recovery/transaction-journal.js";
 
 export async function createKernel(root, options = {}) {
   const eventBus = options.eventBus || createEventBus();
@@ -58,6 +59,9 @@ export async function createKernel(root, options = {}) {
   const recoveryInbox = recoveryEnabled
     ? createRecoveryInbox({ root })
     : null;
+  const transactionJournal = recoveryEnabled
+    ? createTransactionJournal({ root, projectId, faults: options.recovery?.faults || options.recoveryFaults })
+    : null;
   const sessionLog = options.sessionLog === null
     ? null
     : options.sessionLog || (!options.sessionManager
@@ -88,7 +92,9 @@ export async function createKernel(root, options = {}) {
   const permissionEngine = options.permissionEngine || createPermissionEngine();
   const editService = options.editService || createEditService({
     projectRoot: root,
-    eventBus
+    eventBus,
+    recoveryJournal: transactionJournal,
+    assertOwner: projectLock ? () => projectLock.assertOwner() : async () => {}
   });
   const toolRegistry = options.toolRegistry || createToolRegistry({
     tools: createBuiltinTools({
@@ -198,7 +204,9 @@ export async function createKernel(root, options = {}) {
     getActiveBranchId: async () => activeBranchId,
     createBranch: (input) => branches.create(input),
     activateBranch: (branchId) => branches.activate(branchId),
-    rollback: (input) => editService.rollback(input)
+    rollback: (input) => editService.rollback(input),
+    recoveryJournal: transactionJournal,
+    assertOwner: projectLock ? () => projectLock.assertOwner() : async () => {}
   }) : {
     preview: async () => { throw new Error("rewind unavailable: no branch store"); },
     apply: async () => { throw new Error("rewind unavailable: no branch store"); }
@@ -272,7 +280,8 @@ export async function createKernel(root, options = {}) {
         runtime,
         sessionManager,
         eventBus,
-        options
+        options,
+        transactionJournal
       })
     : disabledRecoveryFacade();
 
@@ -322,7 +331,8 @@ async function createRecoveryServiceFacade({
   runtime,
   sessionManager,
   eventBus,
-  options
+  options,
+  transactionJournal
 }) {
   const recoveryService = createRecoveryService({
     projectId,
@@ -338,7 +348,8 @@ async function createRecoveryServiceFacade({
       await sessionManager.flush();
     },
     resumePaused: async (approvalId, decision) => runtime.approve(approvalId, decision),
-    cancelPaused: async (approvalId) => runtime.cancelPaused(approvalId)
+    cancelPaused: async (approvalId) => runtime.cancelPaused(approvalId),
+    transactionJournal
   });
 
   if (!options.recovery?.skipStartupRecovery) {
@@ -350,6 +361,8 @@ async function createRecoveryServiceFacade({
     resume: (id, opts) => recoveryService.resume(id, opts),
     cancel: (id) => recoveryService.cancel(id),
     clear: (id) => recoveryService.clear(id),
+    abortJournal: (id) => recoveryService.abortJournal(id),
+    commitJournal: (id) => recoveryService.commitJournal(id),
     report: () => recoveryService.report()
   };
 }
