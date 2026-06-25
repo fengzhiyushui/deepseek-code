@@ -10,6 +10,7 @@ export async function runRepairExecutor({
   createPolicyContext,
   eventBus = null,
   signal = null,
+  modelTimeoutMs = null,
   options = {}
 } = {}) {
   if (!modelGateway || typeof modelGateway.invoke !== "function") {
@@ -24,6 +25,7 @@ export async function runRepairExecutor({
     purpose: "repair",
     tools: toolSchemas,
     toolChoice: "auto",
+    timeoutMs: modelTimeoutMs ?? options.timeoutMs,
     signal
   });
   eventBus?.publish?.("model:response", {

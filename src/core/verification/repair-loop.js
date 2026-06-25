@@ -17,6 +17,7 @@ export async function runRepairLoop({
   signal = null,
   maxRepairAttempts = 2,
   options = {},
+  modelTimeoutMs = null,
   runVerifierImpl = runVerifier,
   runRepairExecutorImpl = runRepairExecutor,
   resumeAfterApproval = null,
@@ -56,6 +57,7 @@ export async function runRepairLoop({
         createPolicyContext,
         eventBus,
         signal,
+        modelTimeoutMs,
         options: { ...options, message: userMessage, classification, context }
       });
       if (repairExec.status === "awaiting_approval") {

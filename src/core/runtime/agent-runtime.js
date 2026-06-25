@@ -243,6 +243,7 @@ export function createAgentRuntime({
         eventBus,
         signal,
         maxRepairAttempts: options.maxRepairAttempts || maxRepairAttempts,
+        modelTimeoutMs: options.modelTimeoutMs ?? modelTimeoutMs,
         options,
         context
       });
@@ -354,6 +355,7 @@ export function createAgentRuntime({
           eventBus,
           signal: currentAbortController.signal,
           maxRepairAttempts: ctx.max_repair_attempts,
+          modelTimeoutMs: record.resume_state.options?.modelTimeoutMs ?? modelTimeoutMs,
           options: record.resume_state.options || {},
           context: record.resume_state.context || record.resume_state.repair_context?.context || null,
           resumeAfterApproval: {
