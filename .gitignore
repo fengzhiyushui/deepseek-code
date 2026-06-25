@@ -24,10 +24,11 @@ Thumbs.db
 .tmp/
 tmp/
 
-.deepseek-code/chat.json
-
-# ── 本地 / 运行时状态(不入库)──
-.deepseek-code/        # 运行时:会话日志、本地 config.json(含 API Key)、GUI 偏好
-.claude/               # Claude Code 本地状态:settings.local.json、worktrees 等
-.vscode/               # 编辑器本地配置
-.idea/                 # JetBrains 本地配置
+# ── 本地 / 运行时状态(不入库;注意 .gitignore 不支持行尾注释)──
+# 运行时:会话日志、本地 config.json(含 API Key)、GUI 偏好
+.deepseek-code/
+# Claude Code 本地状态:settings.local.json、worktrees 等
+.claude/
+# 编辑器本地配置
+.vscode/
+.idea/
