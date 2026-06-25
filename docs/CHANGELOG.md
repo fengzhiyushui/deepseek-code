@@ -17,7 +17,12 @@
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
 ### 进行中
-- **V2-18 持久化恢复 / Resume 加固**(worktree `v2-18-durable-recovery`):事务日志 + 二进制 preimage 捕获、项目锁 + epoch fencing、恢复收件箱、启动恢复扫描;已接入 `createKernel()` 并暴露 `kernel.recovery.*`,新增 `kernel.dispose()` 释放项目锁。
+- **V2-18 持久化恢复 / Resume 加固**(worktree `v2-18-durable-recovery`):事务日志 + 二进制 preimage 捕获、项目锁 + epoch fencing、恢复收件箱、启动恢复扫描。**注:该工作在独立 worktree 上开发,且分支早于 V2-20 / 文档重组,与 main 深度分歧(尤其 agent-runtime.js),不能直接 git merge;需按源码移植 + 手工调和落到 main。**
+
+### 已落地 — V2-19 删除 V1 legacy 架构
+- 删除与 V2 并存且无引用的 V1 代码:`src/agent.js`、`src/chat.js`、`src/ui.js`、`src/kernel/*`(整套 V1 内核)、`test/kernel/*`;`config.js` 去除无消费者的 `DEFAULT_MODEL_PROFILES` re-export;`package.json` check 脚本移除对应条目。
+- 共 ~2431 行死代码移除;在用命令(`scan`/`search`/`diff`/`changes`/`rollback`/`config`/`tui`)及其依赖模块全部保留,**功能不受影响**(CLI `help`/`config show` 启动正常)。
+- 计划:[`plans/backend/2026-06-25-v2-19-delete-v1-legacy.md`](plans/backend/2026-06-25-v2-19-delete-v1-legacy.md);测试 417 全绿、check OK。
 
 ### 已落地 — V2-20a 运行时成本与超时护栏
 - **成本闸**:新增 `src/core/runtime/cost-budget.js`(token / 模型调用数上限);接入 `executor-loop`(每轮模型调用前检查、调用后 `recordModelResult()`)与 `agent-runtime`(每个工具循环 turn 建一个预算)。
@@ -80,9 +85,9 @@
 
 ---
 
-## V1 — 原始实现(legacy)
+## V1 — 原始实现(legacy,**已于 V2-19 删除**)
 
-> 仍保留服务于未迁移命令(`scan` / `search` / `diff` / `config` / `changes` / `rollback` / `resume` / `tui`),完整删除计划见 V2-19。
+> V1 并存架构已删除。`scan` / `search` / `diff` / `config` / `changes` / `rollback` / `resume` / `tui` 等命令照常可用——它们依赖的工具模块(`context`/`search`/`git`/`patch`/`changes`/`provider`/`tui`/`theme`/`config`)已作为 V2 共享依赖保留,**不属** legacy。
 
 - 终端 AI 编程 agent:`ask` / `edit` / `chat`、项目上下文扫描、unified diff 应用与回滚、DeepSeek 直连、Git 差异、项目搜索。
 - `src/kernel/*` V1 内核抽象层:EventBus、SessionLog(append-only + 哈希链)、ConfigProvider、ModelProvider、ContextEngine、TaskOrchestrator、PermissionEngine、ToolRegistry、SessionManager。

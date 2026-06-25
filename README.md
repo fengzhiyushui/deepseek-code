@@ -183,7 +183,7 @@ V2 session timeline 记录以下事件：
 - 审批、repair、rewind 的进程内恢复已具备;**跨进程崩溃安全恢复**(事务日志 + 项目锁 + 启动恢复)由 V2-18 提供,正在收尾合并(见 CHANGELOG 的 Unreleased)。
 - repair executor 目前是单轮修复执行器，多轮自动诊断和更复杂的验证策略仍待扩展。
 - 会话、变更记录和分支/rewind 目前没有跨进程文件锁；不要同时在同一项目目录运行多个会写入状态的实例。
-- legacy `src/kernel/*`、`src/agent.js`、`src/provider.js` 仍保留，用于兼容未迁移命令和旧接口；完整删除和 `apps/` 目录收敛留给 V2-19。
+- V1 并存架构(`src/kernel/*`、`src/agent.js`、`src/chat.js`、`src/ui.js`)已于 **V2-19 删除**;保留的工具模块(`patch`/`changes`/`context`/`git` 等)现作为 V2 共享依赖,`scan`/`search`/`diff`/`changes`/`config`/`tui` 等命令照常可用。
 - GUI usage stats 在离线或未接入真实模型调用时可能显示零值。
 - `chat` 已走 V2 kernel，默认 `read-only`，可在会话中用 `/mode` 切换到 `gated` 或 `auto`。
 
