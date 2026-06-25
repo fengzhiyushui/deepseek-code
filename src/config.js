@@ -9,7 +9,14 @@ export const DEFAULT_CONFIG = {
   temperature: 0.2,
   maxTokens: 4096,
   thinking: { type: "disabled" },
-  reasoningEffort: "high"
+  reasoningEffort: "high",
+  limits: {
+    toolTimeoutMs: 120000,
+    modelTimeoutMs: 120000,
+    maxTurnTokens: null,
+    maxModelCalls: null,
+    maxToolCallRepairs: null
+  }
 };
 
 export async function loadConfig(root, options = {}) {
@@ -27,7 +34,8 @@ export async function loadConfig(root, options = {}) {
     baseUrl: process.env.DEEPSEEK_BASE_URL || fileConfig.baseUrl || DEFAULT_CONFIG.baseUrl,
     model: process.env.DEEPSEEK_MODEL || fileConfig.model || DEFAULT_CONFIG.model,
     thinking: normalizeThinking(fileConfig.thinking ?? DEFAULT_CONFIG.thinking),
-    reasoningEffort: process.env.DEEPSEEK_REASONING_EFFORT || fileConfig.reasoningEffort || DEFAULT_CONFIG.reasoningEffort
+    reasoningEffort: process.env.DEEPSEEK_REASONING_EFFORT || fileConfig.reasoningEffort || DEFAULT_CONFIG.reasoningEffort,
+    limits: limitsFromEnv(normalizeLimits(fileConfig.limits))
   };
 
   if (!config.apiKey && !options.allowMissingKey) {
@@ -65,7 +73,38 @@ export function normalizeConfig(config) {
     temperature: toNumber(config.temperature, DEFAULT_CONFIG.temperature),
     maxTokens: Math.trunc(toNumber(config.maxTokens, DEFAULT_CONFIG.maxTokens)),
     thinking: normalizeThinking(config.thinking ?? DEFAULT_CONFIG.thinking),
-    reasoningEffort: normalizeReasoningEffort(config.reasoningEffort)
+    reasoningEffort: normalizeReasoningEffort(config.reasoningEffort),
+    limits: normalizeLimits(config.limits)
+  };
+}
+
+export function normalizeLimits(raw = {}) {
+  const safe = raw && typeof raw === "object" ? raw : {};
+  const d = DEFAULT_CONFIG.limits;
+  return {
+    toolTimeoutMs: toLimit(safe.toolTimeoutMs, d.toolTimeoutMs),
+    modelTimeoutMs: toLimit(safe.modelTimeoutMs, d.modelTimeoutMs),
+    maxTurnTokens: toLimit(safe.maxTurnTokens, d.maxTurnTokens),
+    maxModelCalls: toLimit(safe.maxModelCalls, d.maxModelCalls),
+    maxToolCallRepairs: toLimit(safe.maxToolCallRepairs, d.maxToolCallRepairs)
+  };
+}
+
+function toLimit(value, fallback) {
+  if (value === undefined) return fallback;       // 省略 → 默认
+  if (value === null) return null;                // 显式关闭
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return null; // 非法 / ≤0 → 关闭
+  return Math.trunc(n);
+}
+
+function limitsFromEnv(limits) {
+  const tool = process.env.DEEPSEEK_TOOL_TIMEOUT_MS;
+  const model = process.env.DEEPSEEK_MODEL_TIMEOUT_MS;
+  return {
+    ...limits,
+    ...(tool !== undefined ? { toolTimeoutMs: toLimit(tool, limits.toolTimeoutMs) } : {}),
+    ...(model !== undefined ? { modelTimeoutMs: toLimit(model, limits.modelTimeoutMs) } : {})
   };
 }
 
