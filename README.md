@@ -1,229 +1,176 @@
 # DeepSeek Code
 
-DeepSeek Code 是一个面向 DeepSeek 的本地编程 Agent。它提供 CLI、TUI 和 Electron GUI 三种入口，并通过同一个 V2 Kernel 完成模型调用、工具执行、编辑应用、测试验证、权限控制和会话事件记录。
+**简体中文** · [English](./README.en.md)
 
-## 当前状态
+![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
+![node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)
+![deps](https://img.shields.io/badge/runtime%20deps-0-success.svg)
 
-V2 已经成为主要运行路径：
+> 面向 DeepSeek 的本地 AI 编程 Agent —— **CLI · TUI · 桌面 GUI**,统一构建在同一个 V2 内核之上。
 
-- `deepseek-code ask` 使用 V2 runtime。
-- `deepseek-code edit` 使用 V2 runtime、V2 tool plane 和 V2 edit service。
-- `deepseek-code test` 使用 V2 test tool，并传播真实退出码。
-- TUI 和 GUI 订阅 V2 session events。
-- `deepseek-code chat` 使用 V2 kernel，默认 `read-only`，可在会话中用 `/mode` 切换到 `gated` 或 `auto`。
-- Legacy 命令仍保留：`scan`、`search`、`diff`、`config`、`changes`、`rollback`、`resume`。
+DeepSeek Code 在你的项目目录里运行,读代码、改代码、跑测试,并把每一步模型调用、工具执行、文件改动和审批都记录成可回放的会话时间线。它直连 DeepSeek 模型,核心 CLI **零运行时依赖**(纯 Node 标准库),只需 Node ≥ 20 和一个 API Key 即可使用。
 
-运行验证：
+---
 
-```powershell
-npm.cmd test
-npm.cmd run check
-git diff --check
-```
+## ✨ 特性
 
-## 快速开始
+- **统一内核** —— CLI / TUI / GUI 共用一个 V2 Kernel:一个 Agent runtime、一条工具执行路径、一套编辑/回滚服务、一条会话时间线。
+- **事务化编辑与回滚** —— 改文件前建快照,失败可回滚;每次变更都有 change id,可 `changes` 查看、`rollback` 撤销。
+- **验证-修复闭环** —— 应用变更后自动验证,必要时进入修复回合。
+- **上下文引擎** —— 项目文件按相关度分层 + token 预算 + 快照缓存,把对的代码喂给模型。
+- **分支与时间旅行** —— 会话可从任意 turn 分叉(branch),也可 rewind 回到历史状态。
+- **持久化恢复(可选)** —— 进程崩溃后凭项目锁 + 暂停 sidecar + 事务日志恢复未完成的回合;**默认关闭**,opt-in 开启。
+- **运行护栏** —— 工具/模型调用超时默认 120s 开启;token、模型调用次数、畸形 tool-call 重试均可配额;命中后**优雅停止**而非崩溃。
+- **DeepSeek 原生适配** —— 按用途路由模型(reply/act/plan/review/repair/fim)、JSON mode guard、SSE 流式、FIM 代码补全、用量遥测。
+- **安全基线** —— workspace 边界 realpath 校验、shell 结构化 argv、web_fetch SSRF 防护、密钥脱敏、GUI 沙箱化。
 
-```powershell
-npm install
+---
+
+## 🚀 快速开始
+
+**前置条件**:Node.js ≥ 20。
+
+```bash
+git clone <your-repo-url> deepseek-code
+cd deepseek-code
+# 核心 CLI 零依赖,无需 npm install 即可运行
+
+# 配置 DeepSeek API Key(二选一)
+node ./bin/deepseek-code.js config init --api-key sk-xxxx   # 写入 .deepseek-code/config.json
+# 或使用环境变量:
+#   bash/zsh   : export DEEPSEEK_API_KEY="sk-xxxx"
+#   PowerShell : $env:DEEPSEEK_API_KEY="sk-xxxx"
+#   CMD        : set DEEPSEEK_API_KEY=sk-xxxx
+
+# 跑起来
 node ./bin/deepseek-code.js help
-```
-
-配置 DeepSeek API Key：
-
-```powershell
-$env:DEEPSEEK_API_KEY="sk-..."
-```
-
-或写入项目配置：
-
-```powershell
-node ./bin/deepseek-code.js config init --api-key sk-...
-```
-
-常用命令：
-
-```powershell
 node ./bin/deepseek-code.js ask "解释这个项目的架构"
-node ./bin/deepseek-code.js edit "修复 README 中的拼写问题" --dry-run
-node ./bin/deepseek-code.js edit "修复 README 中的拼写问题" --yes
-node ./bin/deepseek-code.js test
+node ./bin/deepseek-code.js edit "修复 README 里的拼写问题" --dry-run
+node ./bin/deepseek-code.js edit "修复 README 里的拼写问题" --yes
 node ./bin/deepseek-code.js tui
 ```
 
-GUI：
+> 全局安装后可用 `deepseek-code` / `dsc` 短命令(`package.json` 的 `bin`):`npm link` 或 `npm i -g .`。
 
-```powershell
-cd gui
-npm install
-npm start
-```
+---
 
-## V2 架构
+## 🧭 命令一览
 
-```text
-CLI / TUI / GUI
-  -> src/index.js createKernel()
-  -> src/core/runtime
-  -> src/deepseek
-  -> src/tools
-  -> src/edits
-  -> src/sessions
-  -> src/workspace / src/security / src/shared
-```
+| 命令 | 作用 |
+|------|------|
+| `ask "<问题>"` | 基于项目上下文提问 |
+| `chat [问题]` | 连续对话;默认只读,会话内 `/mode` 可切 `gated` / `auto` |
+| `edit "<需求>"` | 生成补丁并经编辑服务应用;`--dry-run` 仅预览、`--yes` 跳过确认、`--file <路径>` 指定相关文件(可重复) |
+| `test [命令...]` | 运行**项目自身**的测试并透传真实退出码 |
+| `tui` | 打开交互式终端界面 |
+| `scan` | 扫描并打印项目上下文索引 |
+| `search "<关键词>"` | 搜索项目代码(`--max` 控制条数,默认 80) |
+| `diff` | 查看 Git 差异 |
+| `config show \| init \| test` | 查看生效配置 / 写入本地配置 / 测试 API 连接 |
+| `changes list \| show [id\|latest]` | 查看变更记录与详情(`--limit`) |
+| `rollback [id\|latest]` | 回退指定变更 |
+| `resume` | 查看最近会话记录 |
 
-关键原则：
+> 注意:`deepseek-code test` 跑的是**你的项目**的测试;`npm test` 跑的是 DeepSeek Code 自身的测试套件。
 
-- 一个 Agent runtime。
-- 一个 ToolExecutor 执行路径。
-- 一个 EditService 编辑和回滚路径。
-- 一个 V2 session timeline。
-- UI 只负责输入、展示和审批，不拥有 agent 业务逻辑。
+---
 
-## DeepSeek 适配
+## ⚙️ 配置
 
-`src/deepseek/` 负责 DeepSeek 专属协议：
+**配置文件**(均含 API Key,已被 `.gitignore` 忽略,不会进仓库):
 
-- 模型路由：reply、act、plan、review、repair、fim。
-- JSON mode guard：只有明确要求 JSON 的结构化调用才启用 `response_format`。
-- SSE streaming parser。
-- tool call normalization 和安全 JSON parse。
-- usage tracker：token、reasoning token、cache hit/miss、latency。
-- FIM client 使用 `deepseek-v4-pro`。
+- 项目级 `./.deepseek-code/config.json`(优先)
+- 用户级 `~/.deepseek-code/config.json`(回退)
 
-## 运行护栏与配置
+**环境变量**(优先级高于配置文件中的对应项):
 
-> 配置哲学:**在适配 DeepSeek 的前提下,参数尽量交给用户。** 默认值只给"安全合理的起点",不锁死;每个旋钮都能覆盖。
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `DEEPSEEK_API_KEY` | — | 配置文件无 `apiKey` 时使用 |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | API 基址 |
+| `DEEPSEEK_MODEL` | `deepseek-v4-flash` | 默认对话模型 |
+| `DEEPSEEK_REASONING_EFFORT` | `high` | 推理强度 |
+| `DEEPSEEK_TOOL_TIMEOUT_MS` | `120000` | 工具调用超时覆盖 |
+| `DEEPSEEK_MODEL_TIMEOUT_MS` | `120000` | 模型调用超时覆盖 |
 
-运行护栏经 `createKernel(root, { limits })` 生效,默认值来自配置(`.deepseek-code/config.json` 的 `limits`,`config show` 可见):
+**运行护栏 `limits`**(写在 `config.json` 的 `limits` 块,`config show` 可见):
 
 | 参数 | 默认 | 含义 |
-|---|---|---|
+|------|------|------|
 | `toolTimeoutMs` | `120000`(开) | 单次工具调用超时;超时落为 `status:"error"`,不强杀进程 |
 | `modelTimeoutMs` | `120000`(开) | 单次模型调用超时(工具循环 / 审批 resume / 修复三路径均覆盖) |
-| `maxTurnTokens` | `null`(关) | 单个 turn 的 token 上限;命中后干净停止(`status:"stopped"`) |
+| `maxTurnTokens` | `null`(关) | 单个 turn 的 token 上限;命中后**优雅停止** |
 | `maxModelCalls` | `null`(关) | 单个 turn 的模型调用次数上限 |
 | `maxToolCallRepairs` | `null`(关) | 模型吐出畸形 tool-call 时的有界重试次数 |
 
-覆盖方式:① 编辑 `config.json` 的 `limits`(`null` 或 `≤0` 表示关闭);② 环境变量 `DEEPSEEK_TOOL_TIMEOUT_MS` / `DEEPSEEK_MODEL_TIMEOUT_MS`。
+> **配置哲学:在适配 DeepSeek 的前提下,参数尽量交给用户。** 默认值只给"安全合理的起点",不锁死;`null` 或 `≤0` 表示关闭对应护栏。完整说明见 [`docs/project-overview.md`](docs/project-overview.md#7-运行护栏与配置)。
 
-```json
-{ "limits": { "toolTimeoutMs": 180000, "maxTurnTokens": 200000, "maxModelCalls": 40, "maxToolCallRepairs": 1 } }
+---
+
+## 🖥️ 桌面 GUI
+
+GUI 是基于 Electron 的工作台(分支 / rewind 可视化、审批流、用量统计):
+
+```bash
+cd gui
+npm install
+npm start        # 开发模式:npm run dev
 ```
 
-## 工具平面
+---
 
-V2 内置工具包括：
-
-- 文件：`read`、`ls`、`grep`、`glob`
-- 编辑：`diff_preview`、`diff_apply`、`diff_rollback`、`edit`
-- 进程：`shell`、`test`、`git`
-- 网络和记忆：`web_fetch`、`memory`
-- 协作：`task`、`ask_user`
-
-工具执行顺序固定：
+## 🏗️ 架构一览
 
 ```text
-ToolCall
-  -> schema validation
-  -> parameter normalization
-  -> permission decision
-  -> approval if required
-  -> execution
-  -> result redaction
-  -> tool result event
-  -> model feedback
+CLI / TUI / GUI
+   └─ src/index.js · createKernel()
+        ├─ core/runtime     Agent 生命周期 · 执行循环 · 验证-修复
+        ├─ deepseek         模型网关 · 路由 · JSON mode · streaming · FIM · 用量
+        ├─ tools            注册表 · schema · executor · 权限 · 内置工具
+        ├─ edits            diff 预览 / 应用 / 回滚
+        ├─ sessions         事件时间线 · 分支 · rewind
+        └─ workspace · security · shared
 ```
 
-## 编辑与回滚
+核心原则:**一个** Agent runtime、**一条** 工具执行路径、**一套** 编辑/回滚服务、**一条** 会话时间线;UI 只负责输入、展示与审批,不持有 agent 业务逻辑。
 
-V2 复用成熟的 legacy diff pipeline，并通过 `src/edits/` 暴露成服务：
+内置工具:文件 `read` `ls` `grep` `glob` · 编辑 `diff_preview` `diff_apply` `diff_rollback` `edit` · 进程 `shell` `test` `git` · 网络 `web_fetch` · 记忆 `memory` · 协作 `task` `ask_user`。
 
-- `preview(diff)`：解析 diff 并生成摘要，不写文件。
-- `apply({ diff, prompt, approval_id })`：预检路径、创建快照、应用 diff、记录 change id。
-- `rollback(change_id)`：回滚指定变更。
-- `describe(change_id)` / `list({ limit })`：查看变更记录。
+> 架构、工具执行顺序、编辑/回滚、持久化恢复、安全不变量、会话事件全集与目录地图,详见 **[`docs/project-overview.md`](docs/project-overview.md)**。
 
-## 安全不变量
+---
 
-- 文件路径使用 realpath 检查 workspace 边界，防止 symlink 逃逸。
-- 工具 category 只信任注册表定义，不信任模型传入字段。
-- destructive 操作永不被 trust rule 自动放行。
-- shell 只接受结构化 argv，并使用 `shell:false`。
-- `web_fetch` 阻断 localhost、私网、link-local、IPv4-mapped IPv6、IPv6 literal，并在每一跳 redirect 后重新校验。
-- secret 输出会被 redaction。
-- GUI 使用 `nodeIntegration:false`、`contextIsolation:true`、`sandbox:true` 和 IPC whitelist。
+## 🔐 安全
 
-## 会话时间线
+- 文件路径以 realpath 校验 workspace 边界,阻断 symlink 逃逸。
+- 工具 category 只信任注册表定义;destructive 操作永不被 trust rule 自动放行。
+- `shell` 只接受结构化 argv 并以 `shell:false` 执行。
+- `web_fetch` 阻断 localhost / 私网 / link-local / IPv4-mapped IPv6 / IPv6 literal,且每跳 redirect 后重新校验。
+- 输出中的密钥会被脱敏;GUI 采用 `nodeIntegration:false` + `contextIsolation:true` + `sandbox:true` + IPC 白名单。
 
-V2 session timeline 记录以下事件：
+---
 
-- `session:start`
-- `session:resume`
-- `user:message`
-- `agent:turn_started`
-- `agent:step`
-- `model:request`
-- `model:response`
-- `tool:call`
-- `tool:result`
-- `permission:decision`
-- `approval:requested`
-- `approval:resolved`
-- `file:diff_preview`
-- `file:diff_applied`
-- `file:rollback_applied`
-- `verification:result`
-- `agent:final`
-- `agent:error`
+## 🧪 开发
 
-默认存储位置是项目内 `.deepseek-code/v2/sessions/`。测试可以通过 `createKernel(root, { sessionRoot })` 注入临时目录。
-
-## 已知限制
-
-- 跨进程崩溃安全恢复(项目锁 + 暂停 sidecar 持久化 + 编辑/回滚事务日志 + 启动恢复 + `/recovery`)由 **V2-18 提供,已整合进 main,默认关闭**(opt-in:`createKernel(root, { recovery: { enabled: true } })`)。
-- repair executor 目前是单轮修复执行器，多轮自动诊断和更复杂的验证策略仍待扩展。
-- 会话、变更记录和分支/rewind 目前没有跨进程文件锁；不要同时在同一项目目录运行多个会写入状态的实例。
-- V1 并存架构(`src/kernel/*`、`src/agent.js`、`src/chat.js`、`src/ui.js`)已于 **V2-19 删除**;保留的工具模块(`patch`/`changes`/`context`/`git` 等)现作为 V2 共享依赖,`scan`/`search`/`diff`/`changes`/`config`/`tui` 等命令照常可用。
-- GUI usage stats 在离线或未接入真实模型调用时可能显示零值。
-- `chat` 已走 V2 kernel，默认 `read-only`，可在会话中用 `/mode` 切换到 `gated` 或 `auto`。
-
-## 目录导览
-
-```text
-src/
-  core/        Agent lifecycle, protocol, execution loop, verification
-  deepseek/    DeepSeek model gateway, router, JSON mode, streaming, FIM
-  tools/       Tool registry, schema, executor, permissions, builtin tools
-  edits/       Diff preview/apply/rollback service
-  sessions/    V2 event types, event log, session manager
-  workspace/   Path safety and workspace guards
-  security/    Shell policy, SSRF guard, redaction
-  apps/        CLI runner/render helpers
-  shared/      ID, time, event bus helpers
-gui/           Electron shell and renderer
-tests/         Unit, integration, and e2e tests
-docs/          项目文档(specs / plans / CHANGELOG),见下方「文档维护」
+```bash
+npm test            # node --test:运行 test/ 与 tests/ 下的全部用例
+npm run check       # node --check:对全部源码做语法校验
+git diff --check    # 检查行尾 / 冲突标记
 ```
 
-## 文档维护
+文档维护顺序(代码 → specs/plans → project-overview → CHANGELOG → README 中+英 → 索引)与规范见 [`docs/README.md`](docs/README.md#文档维护规范与更新顺序)。
 
-全部项目文档收录在 [`docs/`](docs/),按类型分目录,设计与计划再按前端 / 后端 / 架构细分:
+---
 
-```text
-docs/
-  README.md          文档索引 + 维护规范
-  CHANGELOG.md        版本里程碑
-  specs/              设计文档:architecture / backend / frontend
-  plans/              实施计划:roadmap / backend / frontend
-```
+## 📚 文档
 
-**更新顺序**(任何变更落地后,按此路径同步文档,方便接手维护):
+- **[`docs/project-overview.md`](docs/project-overview.md)** —— 项目深入说明(架构 / 工具 / 编辑 / 恢复 / 安全 / 事件 / 目录)。
+- [`docs/README.md`](docs/README.md) —— 文档中心:索引 + 维护规范。
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) —— 版本里程碑(当前主线 V2 已收尾,V3 路线图规划中)。
+- `docs/specs/` · `docs/plans/` —— 设计文档与实施计划(按 architecture / backend / frontend 划分)。
 
-1. **代码** 变更并通过 `npm test` / `npm run check`
-2. `docs/specs/<area>/` 对应设计文档(反映实际形态)
-3. `docs/plans/<area>/` 对应计划(勾掉已完成任务)
-4. [`docs/CHANGELOG.md`](docs/CHANGELOG.md) 追加版本/日期/变更条目
-5. `README.md`(本文件)——仅当影响命令 / 架构 / 使用方式
-6. [`docs/README.md`](docs/README.md) 索引——仅当新增 / 移动 / 删除文档
+---
 
-完整规范见 [`docs/README.md`](docs/README.md#文档维护规范更新顺序)。
+## 📄 许可证
+
+[Apache-2.0](LICENSE)。

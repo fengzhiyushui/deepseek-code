@@ -3,7 +3,7 @@
 本文件记录 DeepSeek Code 的版本演进与重要里程碑。
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/);版本以 **V2-N 里程碑**为单位组织(项目尚未发布语义化版本号)。
 
-> 维护约定见 [`docs/README.md` 文档维护规范](README.md#文档维护规范更新顺序):代码 → specs → plans → **本文件** → README → 索引。
+> 维护约定见 [`docs/README.md` 文档维护规范](README.md#文档维护规范与更新顺序):代码 → specs/plans → project-overview → **本文件** → README(中+英)→ 索引。
 
 ---
 
