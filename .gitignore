@@ -25,10 +25,9 @@ Thumbs.db
 tmp/
 
 .deepseek-code/chat.json
-.claude/worktrees/
 
-# 运行时状态(会话日志/本地配置,含开发内容;config.json 会承载 API Key,勿入库)
-.deepseek-code/
-
-# 编辑器本地配置
-.vscode/
+# ── 本地 / 运行时状态(不入库)──
+.deepseek-code/        # 运行时:会话日志、本地 config.json(含 API Key)、GUI 偏好
+.claude/               # Claude Code 本地状态:settings.local.json、worktrees 等
+.vscode/               # 编辑器本地配置
+.idea/                 # JetBrains 本地配置
