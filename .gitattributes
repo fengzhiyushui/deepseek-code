@@ -7,5 +7,6 @@
 *.jpeg binary
 *.gif binary
 *.ico binary
+*.wasm binary
 *.woff binary
 *.woff2 binary
