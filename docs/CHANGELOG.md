@@ -13,8 +13,14 @@
 - **支柱①语义级上下文**:从启发式文件分层升级为 AST/符号级检索 + 依赖图。
 - **支柱②多智能体调度**:三层 agent(主/次/子)+ 两级审核 + 双记忆 + 可开关的跨任务经验沉淀。
 - **支柱③前端三端重构**:GUI 迁 React + Vite + Semi UI(Agent-aware 编辑器 + DeepSeek FIM),CLI / TUI 打磨;先冻结三端共享契约。
-- **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。下一步从支柱① 语义级上下文(Phase B)起。
+- **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。支柱① 语义级上下文 **Phase B 首版已落地**(见下)。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
+
+### 已落地 — Phase B 语义级上下文引擎(首版,opt-in)
+- 在文件级上下文之上加**符号层**([`src/context/semantic/`](../src/context/semantic/)):web-tree-sitter(WASM,`optionalDependencies`,仅启用时懒加载)解析 JS/TS → 符号表 + import/export 绑定 + **尽力静态调用图**(直接调用 `resolved`;`obj.method()` / 动态调用 `unresolved`,每条边带 `confidence` / `reason`)→ symbol-selector 从种子符号沿依赖图扩 N 跳、按预算选符号级片段。
+- **opt-in**:`context.semantic.enabled` 默认关;关闭时单元 / 事件 / 快照与文件级**逐字节一致**(`disabled-parity` 回归守护)。provider / grammar 不可用则回退文件级,**永不崩**。
+- **依赖口径软化**:README「零运行时依赖」→「核心 CLI 无必需运行时依赖;可选语义上下文按需引 WASM tree-sitter,无原生构建依赖」。
+- 15 任务 TDD(联网装依赖一步交 codex,其余主控内联);web-tree-sitter `0.20.8` + 随仓 JS/TS/TSX grammar wasm。测试 **535 全绿**、check OK。计划:[`plans/backend/2026-06-26-v3-phase-b-semantic-context.md`](plans/backend/2026-06-26-v3-phase-b-semantic-context.md);设计:[`specs/backend/2026-06-26-v3-phase-b-semantic-context-design.md`](specs/backend/2026-06-26-v3-phase-b-semantic-context-design.md)。
 
 ### 已落地 — V2-18c 编辑/回滚事务日志(V2-18 完整收口)
 - 把事务日志库接入 edit/rewind:写文件前 `open()`、成功 `commit()`、失败 `abort()`(恢复 preimage);rewind 捕获 `rewind_branch_state`。`recoveryJournal` 默认 `null` → **不启用恢复时 edit/rewind 行为逐字节不变**。

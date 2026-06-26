@@ -274,3 +274,24 @@ git diff --check
 ```
 
 文档更新顺序与规范(代码 → specs/plans → project-overview → CHANGELOG → README 中+英 → 索引)见 [`docs/README.md`](README.md#文档维护规范与更新顺序)。
+
+---
+
+## 13. 语义级上下文引擎(可选,opt-in)
+
+> V3 Phase B 引入。设计见 [Phase B spec](specs/backend/2026-06-26-v3-phase-b-semantic-context-design.md),实施见 [Phase B plan](plans/backend/2026-06-26-v3-phase-b-semantic-context.md)。
+
+在现有文件级上下文之上增加**符号层**,**默认关闭**(`context.semantic.enabled`);关闭时引擎行为(单元、事件、快照)与文件级**逐字节一致**。
+
+启用后:web-tree-sitter(WASM,随仓 vendored grammar,放 `optionalDependencies`,仅启用时懒加载)解析 JS/TS → 符号表 + import/export 绑定 + **尽力静态调用图**(直接调用 `resolved`;`obj.method()` / 动态调用标 `unresolved`,每条边带 `confidence` / `reason`)→ symbol-selector 从种子符号沿依赖图扩 N 跳、按预算选**符号级**片段;不支持 / 解析失败的文件回退文件级单元;provider 整体不可用则全量退回文件级,**永不崩**。
+
+配置(`config.json` 或 `createKernel(root, { context: { semantic: { enabled: true } } })`):
+
+| 字段 | 默认 | 含义 |
+|------|------|------|
+| `enabled` | `false` | 总开关 |
+| `hops` | `2` | 依赖图扩展跳数 |
+| `maxSymbols` | `200` | 候选符号上限(成本闸) |
+| `includeMethodHints` | `false` | 未来增强:方法调用消歧(member-call → probable) |
+
+模块位于 [`src/context/semantic/`](../src/context/semantic/):parser-provider · wasm-tree-sitter-provider · js-ts-extractor · symbol-cache · symbol-indexer · module-resolver · dependency-graph · symbol-unit · symbol-selector · semantic-engine。新事件 `context:symbol_indexed` / `context:graph_built` **仅在语义启用时**触发。

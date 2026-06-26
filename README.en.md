@@ -20,6 +20,7 @@ DeepSeek Code runs inside your project directory: it reads code, edits code, run
 - **Transactional edits & rollback** — snapshots before writing, rollback on failure; every change gets a change id you can inspect with `changes` and undo with `rollback`.
 - **Verify-repair loop** — changes are verified after they apply, with a repair round when needed.
 - **Context engine** — project files ranked into relevance tiers + a token budget + snapshot caching, so the model sees the right code.
+- **Semantic context (optional)** — when enabled, retrieves by symbol (function/class) instead of whole files and expands along the import/call dependency graph; powered by web-tree-sitter (WASM, no native build dependency), **off by default**.
 - **Branching & time travel** — fork a session from any turn (branch), or rewind to an earlier state.
 - **Durable recovery (optional)** — resume an unfinished turn after a process crash via a project lock + paused sidecar + transaction journal; **off by default**, opt-in.
 - **Runtime guardrails** — tool/model call timeouts default to 120s on; token budgets, model-call caps, and malformed tool-call retries are all configurable; limits trigger a **graceful stop**, not a crash.
@@ -53,6 +54,8 @@ node ./bin/deepseek-code.js tui
 ```
 
 > After a global install you get the short `deepseek-code` / `dsc` commands (from `package.json` `bin`): `npm link` or `npm i -g .`.
+
+> **Dependency stance:** the core CLI has no required runtime dependencies; optional semantic context (`context.semantic`) lazily loads web-tree-sitter and vendored WASM grammars, introducing no native build dependency.
 
 ---
 
