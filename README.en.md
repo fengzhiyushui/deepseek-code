@@ -10,7 +10,7 @@
 
 DeepSeek Code runs inside your project directory: it reads code, edits code, runs tests, and records every model call, tool execution, file change, and approval as a replayable session timeline. It talks to DeepSeek models directly, the core CLI has **zero runtime dependencies** (pure Node standard library), and all you need is Node ≥ 20 and an API key.
 
-> ⚠️ **Disclaimer:** This is an **unofficial**, third-party open-source project. It is not affiliated with, sponsored by, or endorsed by DeepSeek (Hangzhou DeepSeek Artificial Intelligence). "DeepSeek" is a trademark of its respective owner; the name is used here only to describe model compatibility.
+> ⚠️ **Disclaimer:** This is an **unofficial**, third-party open-source project. "DeepSeek" is a trademark of its respective owner; the name is used here only to describe model compatibility.
 
 ---
 
