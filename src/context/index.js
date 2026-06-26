@@ -3,6 +3,7 @@ import { budgetForChannel } from "./token-budget.js";
 import { selectContextUnits } from "./context-selector.js";
 import { buildContextSnapshot } from "./context-snapshot.js";
 import { hydrateContextRecords, scanContextWithCache } from "./context-cache.js";
+import { createSemanticEngine } from "./semantic/semantic-engine.js";
 
 export function createContextEngine({ root, eventBus = null, options = {} } = {}) {
   if (!root) throw new Error("root is required");
@@ -11,12 +12,14 @@ export function createContextEngine({ root, eventBus = null, options = {} } = {}
   let stats = { indexed_files: 0, skipped_files: 0, reused_files: 0, changed_files: 0 };
   const pinned = new Set();
   const warmed = new Map();
+  const semantic = createSemanticEngine({ root, options, eventBus });
 
   async function scan() {
     if (disabled) return getStats();
     const scanned = await scanContextWithCache({ root, options, eventBus });
     records = scanned.records;
     stats = scanned.stats;
+    if (semantic.enabled) await semantic.index(records);
     return getStats();
   }
 
@@ -34,6 +37,30 @@ export function createContextEngine({ root, eventBus = null, options = {} } = {}
       };
     }
     if (records.size === 0) await scan();
+    if (semantic.enabled) {
+      const semBudget = budgetForChannel(input.channel || "reply", { ...(options.budgets || {}), ...(input.budget ? { [input.channel || "reply"]: input.budget } : {}) });
+      const sem = semantic.select({ message: input.message || "", pinned, warmed, budget: semBudget.allocated });
+      if (sem) {
+        const snap = buildContextSnapshot({
+          root,
+          channel: semBudget.channel,
+          taskType: input.classification?.task_type || "general",
+          selected: sem.selected,
+          budget: sem.budget,
+          stats: { ...stats }
+        });
+        eventBus?.publish?.("context:snapshot", {
+          snapshot_id: snap.snapshot_id,
+          channel: snap.channel,
+          task_type: snap.task_type,
+          unit_count: snap.units.length,
+          unit_paths: snap.units.map((unit) => unit.path),
+          budget: snap.budget,
+          stats: snap.stats
+        });
+        return snap;
+      }
+    }
     const channelBudget = budgetForChannel(input.channel || "reply", { ...(options.budgets || {}), ...(input.budget ? { [input.channel || "reply"]: input.budget } : {}) });
     const selected = selectContextUnits({
       units: records,

@@ -10,11 +10,13 @@ export function buildContextSnapshot({
 } = {}) {
   const units = selected.map((unit) => ({
     id: unit.id,
+    type: unit.type || "file",
     path: unit.path,
     hash: unit.hash,
     token_count: unit.token_count,
     priority: unit.priority,
-    reason: unit.reason
+    reason: unit.reason,
+    ...(unit.symbol_id ? { symbol_id: unit.symbol_id } : {})
   }));
   const assemblyOrder = units.map((unit) => unit.path);
   const stablePrefixUnits = selected.filter((unit) => unit.priority === 0);
