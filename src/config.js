@@ -16,6 +16,9 @@ export const DEFAULT_CONFIG = {
     maxTurnTokens: null,
     maxModelCalls: null,
     maxToolCallRepairs: null
+  },
+  context: {
+    semantic: { enabled: false, hops: 2, maxSymbols: 200, includeMethodHints: false }
   }
 };
 
@@ -35,7 +38,8 @@ export async function loadConfig(root, options = {}) {
     model: process.env.DEEPSEEK_MODEL || fileConfig.model || DEFAULT_CONFIG.model,
     thinking: normalizeThinking(fileConfig.thinking ?? DEFAULT_CONFIG.thinking),
     reasoningEffort: process.env.DEEPSEEK_REASONING_EFFORT || fileConfig.reasoningEffort || DEFAULT_CONFIG.reasoningEffort,
-    limits: limitsFromEnv(normalizeLimits(fileConfig.limits))
+    limits: limitsFromEnv(normalizeLimits(fileConfig.limits)),
+    context: normalizeContext(fileConfig.context)
   };
 
   if (!config.apiKey && !options.allowMissingKey) {
@@ -74,7 +78,8 @@ export function normalizeConfig(config) {
     maxTokens: Math.trunc(toNumber(config.maxTokens, DEFAULT_CONFIG.maxTokens)),
     thinking: normalizeThinking(config.thinking ?? DEFAULT_CONFIG.thinking),
     reasoningEffort: normalizeReasoningEffort(config.reasoningEffort),
-    limits: normalizeLimits(config.limits)
+    limits: normalizeLimits(config.limits),
+    context: normalizeContext(config.context)
   };
 }
 
@@ -87,6 +92,21 @@ export function normalizeLimits(raw = {}) {
     maxTurnTokens: toLimit(safe.maxTurnTokens, d.maxTurnTokens),
     maxModelCalls: toLimit(safe.maxModelCalls, d.maxModelCalls),
     maxToolCallRepairs: toLimit(safe.maxToolCallRepairs, d.maxToolCallRepairs)
+  };
+}
+
+export function normalizeContext(raw = {}) {
+  const safe = raw && typeof raw === "object" ? raw : {};
+  const s = safe.semantic && typeof safe.semantic === "object" ? safe.semantic : {};
+  const d = DEFAULT_CONFIG.context.semantic;
+  const posInt = (v, fb) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.trunc(n) : fb; };
+  return {
+    semantic: {
+      enabled: s.enabled === true,
+      hops: posInt(s.hops, d.hops),
+      maxSymbols: posInt(s.maxSymbols, d.maxSymbols),
+      includeMethodHints: s.includeMethodHints === true
+    }
   };
 }
 
