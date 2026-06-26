@@ -72,6 +72,7 @@ docs/
 - [v2-17 chat-kernel-unification](specs/backend/2026-05-31-v2-17-chat-kernel-unification-bypass-closure-design.md)
 - [v2-18 durable-recovery-resume-hardening](specs/backend/2026-06-01-v2-18-durable-recovery-resume-hardening-design.md)
 - [agent-layered-memory-design](specs/backend/2026-06-24-agent-layered-memory-design.md) — **Agent 分层记忆系统**:双记忆 + 七层 + 三级分化 + 巩固器
+- [v3-phase-b semantic-context](specs/backend/2026-06-26-v3-phase-b-semantic-context-design.md) — **Phase B 语义级上下文引擎**:WASM tree-sitter 单解析栈 + 可靠静态子集 + unresolved 一等事实 + confidence/provider 扩展口(opt-in)
 
 ### specs/frontend — 前端设计
 - [v2-14 gui-workbench-branch-rewind](specs/frontend/2026-05-31-v2-14-gui-workbench-branch-rewind-design.md)
