@@ -32,3 +32,5 @@ tmp/
 # 编辑器本地配置
 .vscode/
 .idea/
+# Superpowers/SDD 执行期临时文件(任务简报、报告、进度账本)
+.superpowers/
