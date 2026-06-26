@@ -4,11 +4,11 @@
 
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)
-![deps](https://img.shields.io/badge/runtime%20deps-0-success.svg)
+![deps](https://img.shields.io/badge/core%20runtime%20deps-0-success.svg)
 
 > A local AI coding agent for DeepSeek — **CLI · TUI · desktop GUI**, all built on one V2 kernel.
 
-DeepSeek Code runs inside your project directory: it reads code, edits code, runs tests, and records every model call, tool execution, file change, and approval as a replayable session timeline. It talks to DeepSeek models directly, the core CLI has **zero runtime dependencies** (pure Node standard library), and all you need is Node ≥ 20 and an API key.
+DeepSeek Code runs inside your project directory: it reads code, edits code, runs tests, and records every model call, tool execution, file change, and approval as a replayable session timeline. It talks to DeepSeek models directly, the core CLI has **no required runtime dependencies** (pure Node standard library), and all you need is Node ≥ 20 and an API key.
 
 > ⚠️ **Disclaimer:** This is an **unofficial**, third-party open-source project. "DeepSeek" is a trademark of its respective owner; the name is used here only to describe model compatibility.
 
@@ -35,7 +35,7 @@ DeepSeek Code runs inside your project directory: it reads code, edits code, run
 ```bash
 git clone <your-repo-url> deepseek-code
 cd deepseek-code
-# the core CLI has zero deps — no npm install needed to run it
+# the core CLI has no required deps — no npm install needed to run it
 
 # configure your DeepSeek API key (either way)
 node ./bin/deepseek-code.js config init --api-key sk-xxxx   # writes .deepseek-code/config.json

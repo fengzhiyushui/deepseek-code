@@ -4,11 +4,11 @@
 
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)
-![deps](https://img.shields.io/badge/runtime%20deps-0-success.svg)
+![deps](https://img.shields.io/badge/core%20runtime%20deps-0-success.svg)
 
 > 面向 DeepSeek 的本地 AI 编程 Agent —— **CLI · TUI · 桌面 GUI**,统一构建在同一个 V2 内核之上。
 
-DeepSeek Code 在你的项目目录里运行,读代码、改代码、跑测试,并把每一步模型调用、工具执行、文件改动和审批都记录成可回放的会话时间线。它直连 DeepSeek 模型,核心 CLI **零运行时依赖**(纯 Node 标准库),只需 Node ≥ 20 和一个 API Key 即可使用。
+DeepSeek Code 在你的项目目录里运行,读代码、改代码、跑测试,并把每一步模型调用、工具执行、文件改动和审批都记录成可回放的会话时间线。它直连 DeepSeek 模型,核心 CLI **无必需运行时依赖**(纯 Node 标准库),只需 Node ≥ 20 和一个 API Key 即可使用。
 
 > ⚠️ **声明**:本项目为**非官方**第三方开源项目。"DeepSeek" 为其所有者的商标,本项目仅在描述"适配该模型"的意义上使用该名称。
 
@@ -35,7 +35,7 @@ DeepSeek Code 在你的项目目录里运行,读代码、改代码、跑测试,�
 ```bash
 git clone <your-repo-url> deepseek-code
 cd deepseek-code
-# 核心 CLI 零依赖,无需 npm install 即可运行
+# 核心 CLI 无必需依赖,无需 npm install 即可运行
 
 # 配置 DeepSeek API Key(二选一)
 node ./bin/deepseek-code.js config init --api-key sk-xxxx   # 写入 .deepseek-code/config.json

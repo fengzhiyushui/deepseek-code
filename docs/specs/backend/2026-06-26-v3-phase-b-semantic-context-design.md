@@ -224,7 +224,7 @@ native build dependency.
 
 中文对应:**核心 CLI 无必需运行时依赖;可选的语义上下文按需懒加载 web-tree-sitter 与随仓 vendored 的 WASM grammar,不引入任何原生构建依赖。**
 
-> 「零运行时依赖」自此从硬性原则降级为默认路径的一种描述。README 的卖点措辞**在 Phase B 实现阶段同步软化**为上述口径(本 spec 记一笔,本轮不改 README)。
+> 「零运行时依赖」自此从硬性原则降级为默认路径的一种描述。README 的**绝对化措辞已在 2026-06-26 一致性梳理中软化**为「核心 CLI 无必需运行时依赖」;待 Phase B 落地、web-tree-sitter 实际入仓时,再补全为上述完整口径(含 WASM/可选语义上下文)。
 
 ---
 
