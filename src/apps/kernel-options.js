@@ -17,5 +17,6 @@ export async function buildKernelOptions(root, overrides = {}, loadConfigImpl = 
     }
   };
   if (config.limits) result.limits = config.limits;
+  if (config.context) result.context = config.context;
   return result;
 }
