@@ -64,3 +64,39 @@ export function topoOrder(subtasks) {
   for (const st of subtasks) visit(st.id);
   return out;
 }
+
+// C5: stable identity for "no-progress" detection — independent of subtask id,
+// so a model that renames an id but redoes the same thing is caught.
+export function fingerprint(st) {
+  const files = Array.isArray(st.context_scope?.files)
+    ? [...st.context_scope.files].map((f) => String(f).replace(/\\/g, "/").toLowerCase()).sort()
+    : [];
+  return [String(st.goal || "").trim().toLowerCase(), files.join(","), st.tool_profile || ""].join("|");
+}
+
+// C5: a replan round's new subtasks. Stricter than validatePlan: ids must be
+// globally unique across rounds; deps may only point to completed or same-round
+// tasks; a dep on a failed task is allowed only via corrective_for pointing at it.
+export function validateReplan(subtasks, { seenSubtaskIds = new Set(), completedIds = new Set(), failedIds = new Set() } = {}) {
+  if (!Array.isArray(subtasks)) return { ok: false, error: "subtasks not an array" };
+  const thisRound = new Set();
+  for (const st of subtasks) {
+    const base = validateSubTask(st);
+    if (base) return { ok: false, error: base };
+    if (seenSubtaskIds.has(st.id) || thisRound.has(st.id)) return { ok: false, error: `duplicate subtask id across rounds: ${st.id}` };
+    thisRound.add(st.id);
+  }
+  for (const st of subtasks) {
+    if (st.corrective_for !== undefined && !failedIds.has(st.corrective_for)) {
+      return { ok: false, error: `${st.id}: corrective_for must reference a failed task` };
+    }
+    for (const dep of st.depends_on) {
+      const known = completedIds.has(dep) || thisRound.has(dep) || failedIds.has(dep);
+      if (!known) return { ok: false, error: `${st.id} depends on unknown ${dep}` };
+      if (failedIds.has(dep) && st.corrective_for !== dep) {
+        return { ok: false, error: `${st.id} depends on failed ${dep} without corrective_for` };
+      }
+    }
+  }
+  return { ok: true };
+}
