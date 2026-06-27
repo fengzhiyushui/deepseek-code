@@ -20,7 +20,7 @@ DeepSeek Code 在你的项目目录里运行,读代码、改代码、跑测试,�
 - **事务化编辑与回滚** —— 改文件前建快照,失败可回滚;每次变更都有 change id,可 `changes` 查看、`rollback` 撤销。
 - **验证-修复闭环** —— 应用变更后自动验证,必要时进入修复回合。
 - **上下文引擎** —— 项目文件按相关度分层 + token 预算 + 快照缓存,把对的代码喂给模型。
-- **语义级上下文(可选)** —— 启用后按符号(函数/类)而非整文件检索,沿 import / 调用依赖图扩展;基于 web-tree-sitter(WASM,无原生构建依赖),**默认关闭**。启用:`--semantic-context`(符号级)/ `--include-method-hints`(并开方法调用提示,`obj.method()` 唯一同名时给 `probable`)。
+- **语义级上下文(可选)** —— 启用后按符号(函数/类)而非整文件检索,沿 import / 调用依赖图扩展;基于 web-tree-sitter(WASM,无原生构建依赖),**支持 JS / TS / Python**(tree-sitter query 统一驱动),**默认关闭**。启用:`--semantic-context`(符号级)/ `--include-method-hints`(并开方法调用提示,`obj.method()` 唯一同名时给 `probable`);可配 `context.semantic.languages` 与 Python 模块搜索根 `importRoots`。
 - **分支与时间旅行** —— 会话可从任意 turn 分叉(branch),也可 rewind 回到历史状态。
 - **持久化恢复(可选)** —— 进程崩溃后凭项目锁 + 暂停 sidecar + 事务日志恢复未完成的回合;**默认关闭**,opt-in 开启。
 - **运行护栏** —— 工具/模型调用超时默认 120s 开启;token、模型调用次数、畸形 tool-call 重试均可配额;命中后**优雅停止**而非崩溃。
