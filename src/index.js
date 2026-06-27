@@ -30,6 +30,11 @@ import { createWorkerFactory } from "./core/orchestration/worker-factory.js";
 import { createReviewer } from "./core/orchestration/reviewer.js";
 import { createCostBudget } from "./core/runtime/cost-budget.js";
 import { normalizeOrchestration } from "./config.js";
+import { toBatches } from "./core/orchestration/batch-planner.js";
+import { createIsoWorkerRunner } from "./core/orchestration/iso-worker-runner.js";
+import { mergeSubtask } from "./core/orchestration/merge-back.js";
+import { removeIso, sweepOrphans } from "./core/orchestration/iso-workspace.js";
+import { filterToolSchemas } from "./core/orchestration/tool-profiles.js";
 
 export async function createKernel(root, options = {}) {
   const eventBus = options.eventBus || createEventBus();
@@ -183,6 +188,16 @@ export async function createKernel(root, options = {}) {
 
   const orch = normalizeOrchestration(options.orchestration);
   const taskRouter = createTaskRouter(orch.router);
+  // C3: sweep orphaned isolation dirs from prior crashed runs (owner/TTL guarded).
+  await sweepOrphans({ root, ttlMs: orch.parallel.sweepTtlMs, pid: process.pid }).catch(() => {});
+  const isoPlaneDeps = {
+    eventBus,
+    permissionEngine,
+    recoveryJournal: null,
+    assertOwner: async () => {},
+    webFetch: options.webFetch || {},
+    defaultToolTimeoutMs: options.limits?.toolTimeoutMs ?? null
+  };
   const callModel = async (prompt) => {
     if (!modelGateway?.invoke) return "";
     const res = await modelGateway.invoke([{ role: "user", content: prompt }], { purpose: "plan" });
@@ -201,7 +216,28 @@ export async function createKernel(root, options = {}) {
     maxSubtasks: orch.maxSubtasks,
     maxWorkerAttempts: orch.maxWorkerAttempts,
     eventBus,
-    makeContext: (input) => contextEngine.snapshot({ ...input, phase: "plan" })
+    makeContext: (input) => contextEngine.snapshot({ ...input, phase: "plan" }),
+    // C3 parallel isolation:
+    maxParallelWorkers: orch.parallel.maxParallelWorkers,
+    toBatches,
+    runIsolatedWorker: createIsoWorkerRunner({
+      root,
+      buildToolPlane,
+      createRuntime,
+      makeContextSnapshot: (input) => contextEngine.snapshot(input),
+      makeReviewer: (isoRoot) => {
+        const plane = buildToolPlane(isoRoot, isoPlaneDeps);
+        return createReviewer({ runtime: createRuntime({
+          projectRoot: isoRoot,
+          executeTool: plane.execute,
+          toolSchemas: () => filterToolSchemas(plane.toolRegistry.toDeepSeekTools(), "readonly")
+        }) });
+      },
+      maxCopyFiles: orch.parallel.maxCopyFiles,
+      planeDeps: isoPlaneDeps
+    }),
+    mergeSubtask: (r) => mergeSubtask({ editService, mainRoot: root, isoRoot: r.isoRoot, baseManifest: r.baseManifest, actual: r.actual }),
+    removeIso: (dir) => removeIso(dir)
   });
   // Unified entry: the router decides single (today's path, zero new events) vs orchestrate.
   async function routedSend(message, sendOptions = {}) {

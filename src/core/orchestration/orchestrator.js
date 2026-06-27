@@ -1,6 +1,6 @@
 import { runDispatchLoop } from "./dispatch-loop.js";
 
-export function createOrchestrator({ planner, makeWorkerFactory, makeReviewerFor, synthesizer, makeBudget, maxSubtasks, maxWorkerAttempts, eventBus, makeContext }) {
+export function createOrchestrator({ planner, makeWorkerFactory, makeReviewerFor, synthesizer, makeBudget, maxSubtasks, maxWorkerAttempts, eventBus, makeContext, maxParallelWorkers = 1, toBatches, runIsolatedWorker, mergeSubtask, removeIso }) {
   async function run({ message, options = {}, routing = {} }) {
     const context = await makeContext?.({ message, options });
     const plan = await planner.plan({ message, context });
@@ -20,7 +20,12 @@ export function createOrchestrator({ planner, makeWorkerFactory, makeReviewerFor
       budget,
       maxWorkerAttempts,
       autonomy,
-      onEvent
+      onEvent,
+      toBatches,
+      maxParallelWorkers,
+      runIsolatedWorker,
+      mergeSubtask,
+      removeIso
     });
 
     if (result.status === "awaiting_approval") {

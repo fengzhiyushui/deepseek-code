@@ -1,5 +1,6 @@
 import { topoOrder } from "./subtask-schema.js";
 import { withinScope, overlaps } from "./path-overlap.js";
+import path from "node:path";
 
 export async function runDispatchLoop({
   plan, workerFactory, makeReviewer, synthesizer, budget, maxWorkerAttempts, autonomy, onEvent,
@@ -56,11 +57,12 @@ async function runBatched({ plan, workerFactory, makeReviewer, synthesizer, budg
   const runId = `run_${order.map((s) => s.id).join("-")}`.slice(0, 80);
   const batches = toBatches(order, { completedIds: new Set(), maxParallelWorkers });
   const collected = [];
+  let runDir = null; // parent of iso subtask dirs; cleaned at the end for zero residue
 
   for (const batch of batches) {
     if (batch.length === 1) {
       const r = await processSubtask(batch[0], { workerFactory, makeReviewer, maxWorkerAttempts, autonomy, onEvent });
-      if (r.control === "awaiting_approval") return { status: "awaiting_approval", approval: r.approval, collected };
+      if (r.control === "awaiting_approval") { await cleanupRun(runDir, removeIso); return { status: "awaiting_approval", approval: r.approval, collected }; }
       collected.push(r.entry);
     } else {
       const results = await Promise.all(batch.map((st) =>
@@ -68,13 +70,19 @@ async function runBatched({ plan, workerFactory, makeReviewer, synthesizer, budg
       results.sort((a, b) => (a.st.id < b.st.id ? -1 : a.st.id > b.st.id ? 1 : 0)); // deterministic merge order
       const actuals = results.map((r) => ({ id: r.st.id, paths: actualPaths(r.actual) }));
       for (const r of results) {
+        if (r.isoRoot && !runDir) runDir = path.dirname(r.isoRoot);
         try { collected.push(await settleWorker(r, { mergeSubtask, actuals })); }
-        finally { if (r.isoRoot && removeIso) await removeIso(r.isoRoot).catch(() => {}); } // zero residue
+        finally { if (r.isoRoot && removeIso) await removeIso(r.isoRoot).catch(() => {}); } // zero residue (per copy)
       }
     }
-    if (budget.exceeded()) return finishPartial(collected, synthesizer, "budget");
+    if (budget.exceeded()) { await cleanupRun(runDir, removeIso); return finishPartial(collected, synthesizer, "budget"); }
   }
+  await cleanupRun(runDir, removeIso);
   return finishPartial(collected, synthesizer, null);
+}
+
+async function cleanupRun(runDir, removeIso) {
+  if (runDir && removeIso) await removeIso(runDir).catch(() => {}); // remove run dir + .owner marker
 }
 
 function actualPaths(actual) { return actual ? [...actual.added, ...actual.modified, ...actual.deleted] : []; }

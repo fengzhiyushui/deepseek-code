@@ -29,7 +29,7 @@ test("parallel batch: disjoint subtasks merge; one out-of-scope fails; no residu
   assert.equal(r.status, "complete");
   assert.match(r.content, /a=complete/);
   assert.match(r.content, /b=failed/);                  // out-of-scope -> failed
-  assert.deepEqual(removed.sort(), ["/iso/a", "/iso/b"]); // both iso dirs cleaned (zero residue)
+  assert.deepEqual(removed.sort(), ["/iso", "/iso/a", "/iso/b"]); // subtask copies + run dir cleaned
 });
 
 test("iso dir removed even when the isolated worker throws (zero residue)", async () => {
@@ -45,5 +45,5 @@ test("iso dir removed even when the isolated worker throws (zero residue)", asyn
   });
   assert.match(r.content, /a=complete/);
   assert.match(r.content, /b=failed/);
-  assert.deepEqual(removed.sort(), ["/iso/a", "/iso/b"]);
+  assert.deepEqual(removed.sort(), ["/iso", "/iso/a", "/iso/b"]);
 });
