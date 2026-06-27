@@ -2,7 +2,7 @@
 
 > 类型:后端设计 spec(backend)
 > 日期:2026-06-26
-> 状态:已评审,待转实施计划(writing-plans)
+> 状态:✅ 已落地(M1–M6,2026-06-27;测试 559 全绿)。`js-ts-extractor` 经 shadow-parity 验证后退役,`query-extractor` 为唯一抽取路径。
 > 关联:[Phase B 语义级上下文引擎设计](2026-06-26-v3-phase-b-semantic-context-design.md) · [Phase B+1 方法消歧设计](2026-06-26-v3-phase-b-plus1-method-hints-design.md)
 
 ---
