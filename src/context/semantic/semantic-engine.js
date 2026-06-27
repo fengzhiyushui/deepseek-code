@@ -9,10 +9,10 @@ import { readWorkspaceTextFile } from "../../workspace/path-safety.js";
 
 const MAX_FILE_BYTES = 64 * 1024;
 
-export function createSemanticEngine({ root, options = {}, eventBus = null }) {
+export function createSemanticEngine({ root, options = {}, eventBus = null, provider = null } = {}) {
   const cfg = options.semantic || {};
   const enabled = cfg.enabled === true;
-  const provider = createWasmTreeSitterProvider();
+  const activeProvider = provider || createWasmTreeSitterProvider();
   const cache = createSymbolCache({ cacheRoot: path.join(root, ".deepseek-code", "v2", "context") });
   let state = null;          // { byFile, symbolTable, graph, sources }
   let degraded = false;
@@ -20,14 +20,14 @@ export function createSemanticEngine({ root, options = {}, eventBus = null }) {
   async function index(records) {
     if (!enabled || degraded) return;
     try {
-      await provider.load();
+      await activeProvider.load();
       const sources = new Map();
       const readFile = async (file) => {
         const t = await readWorkspaceTextFile(root, file, { maxBytes: MAX_FILE_BYTES });
         sources.set(file, t.content);
         return t.content;
       };
-      const { byFile, symbolTable, stats } = await indexSymbols({ root, records, provider, cache, readFile });
+      const { byFile, symbolTable, stats } = await indexSymbols({ root, records, provider: activeProvider, cache, readFile });
       // Cache hits skip readFile, so fill sources for any indexed file not yet read —
       // the selector needs current source to slice symbol snippets.
       for (const file of byFile.keys()) {
