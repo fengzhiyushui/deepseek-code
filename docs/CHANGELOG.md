@@ -22,6 +22,12 @@
 - **依赖口径软化**:README「零运行时依赖」→「核心 CLI 无必需运行时依赖;可选语义上下文按需引 WASM tree-sitter,无原生构建依赖」。
 - 15 任务 TDD(联网装依赖一步交 codex,其余主控内联);web-tree-sitter `0.20.8` + 随仓 JS/TS/TSX grammar wasm。测试 **535 全绿**、check OK。计划:[`plans/backend/2026-06-26-v3-phase-b-semantic-context.md`](plans/backend/2026-06-26-v3-phase-b-semantic-context.md);设计:[`specs/backend/2026-06-26-v3-phase-b-semantic-context-design.md`](specs/backend/2026-06-26-v3-phase-b-semantic-context-design.md)。
 
+### 已落地 — Phase B+1 方法消歧(--include-method-hints,opt-in)
+- member 调用 `obj.method()` 在项目内**恰好一个同名可调用符号**(`function`/`method`/`variable`,排除 `class`)时升级为 `confidence:"probable"` 边(唯一匹配,低误报);多个 / 零个维持 `unresolved`。`member_property` 抽取边界:计算成员 `obj["x"]()` 归 dynamic、不提示。
+- `neighbors` 返回 `Map<id,confidence>`(`callEdges` 始终保留完整 confidence);selector 把 probable 邻居置 priority 3 / `graph-neighbor-probable`,预算紧时让位给确定上下文。
+- 新增 CLI `--semantic-context`(启用)/ `--include-method-hints`(隐含启用 + 提示),CLI 覆盖 config;**仅传 flag 才产生覆盖**,守 `disabled-parity`。默认关、关闭时行为逐字节不变。
+- 6 任务 TDD(全程主控内联);测试 **549 全绿**、check OK。计划:[`plans/backend/2026-06-26-v3-phase-b-plus1-method-hints.md`](plans/backend/2026-06-26-v3-phase-b-plus1-method-hints.md);设计:[`specs/backend/2026-06-26-v3-phase-b-plus1-method-hints-design.md`](specs/backend/2026-06-26-v3-phase-b-plus1-method-hints-design.md)。
+
 ### 已落地 — V2-18c 编辑/回滚事务日志(V2-18 完整收口)
 - 把事务日志库接入 edit/rewind:写文件前 `open()`、成功 `commit()`、失败 `abort()`(恢复 preimage);rewind 捕获 `rewind_branch_state`。`recoveryJournal` 默认 `null` → **不启用恢复时 edit/rewind 行为逐字节不变**。
 - recovery-service 启动扫描 open/aborting/committed/corrupt 日志并入收件箱;暴露 `abortJournal`/`commitJournal`;kernel facade 同步暴露。

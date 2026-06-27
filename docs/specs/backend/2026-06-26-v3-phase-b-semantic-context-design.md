@@ -123,7 +123,7 @@ unresolved edges are first-class graph facts, not parser failures.
 
 `unresolved` 调用边照常进图、照常计数,只是不连到具体 callee 符号。调用图**不会因为"不确定"而看起来像坏了**。
 
-**未来增强(本轮不做,留 flag)**:`--semantic-context --include-method-hints` → 把 `member-call` 升级为 `confidence:"probable"` 的提示(表示"可能调用",**非确定依赖**),不得当成硬依赖参与关键决策。
+**未来增强(本轮不做,留 flag)**:`--semantic-context --include-method-hints` → 把 `member-call` 升级为 `confidence:"probable"` 的提示(表示"可能调用",**非确定依赖**),不得当成硬依赖参与关键决策。 **(已于 B+1 落地,见 [phase-b+1 method-hints 设计](2026-06-26-v3-phase-b-plus1-method-hints-design.md)。)**
 
 ---
 
