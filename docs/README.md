@@ -77,6 +77,7 @@ docs/
 - [v3-phase-b+3 multi-language](specs/backend/2026-06-26-v3-phase-b-plus3-multi-language-design.md) — **B+3 扩语言**:tree-sitter query 统一抽取(JS/TS shadow-parity 迁移)+ Python(尽力静态模块解析 + 可配 import roots)
 - [v3-phase-c1+c2 orchestration](specs/backend/2026-06-27-v3-phase-c1-c2-orchestration-design.md) — **C1+C2 多智能体编排**:统一入口 + 确定性路由器(单/多 agent 合并)+ Orchestrator/Planner/串行 Worker + **两级审核**(子自审 + 独立 Reviewer)+ 成本闸常开;复用 `agent-runtime` 实例,引擎不改
 - [v3-phase-c3 parallel-isolation](specs/backend/2026-06-27-v3-phase-c3-parallel-isolation-design.md) — **C3 并行写隔离**:无依赖+不重叠子任务并行,每 Worker fs 拷贝隔离工作区 + 绑定该目录工具平面 → 每 subtask 原子事务回放合并(快照一致性 CAS + 实际范围校验 + 严格路径归一化 + 零残留 retry/启动清扫);`maxParallelWorkers=1` 退化串行零回归
+- [v3-phase-c5 replan-resume](specs/backend/2026-06-27-v3-phase-c5-replan-resume-design.md) — **C5 重规划 + 持续派发**:确定性回合循环(`planner.replan→{done,subtasks}`,模型只产结构化、程序闸控终止)+ 严格 replan schema + 无进展守卫 + **同进程编排级续跑**(暂停存编排状态、`approve` 路由 orchestrator、不重 plan/不重复派发);`maxRounds=1` 退化 C1+C2 零回归
 
 ### specs/frontend — 前端设计
 - [v2-14 gui-workbench-branch-rewind](specs/frontend/2026-05-31-v2-14-gui-workbench-branch-rewind-design.md)
