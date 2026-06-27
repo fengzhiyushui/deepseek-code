@@ -18,7 +18,7 @@ export const DEFAULT_CONFIG = {
     maxToolCallRepairs: null
   },
   context: {
-    semantic: { enabled: false, hops: 2, maxSymbols: 200, includeMethodHints: false }
+    semantic: { enabled: false, hops: 2, maxSymbols: 200, includeMethodHints: false, languages: ["js", "ts", "py"], importRoots: [] }
   }
 };
 
@@ -105,9 +105,19 @@ export function normalizeContext(raw = {}) {
       enabled: s.enabled === true,
       hops: posInt(s.hops, d.hops),
       maxSymbols: posInt(s.maxSymbols, d.maxSymbols),
-      includeMethodHints: s.includeMethodHints === true
+      includeMethodHints: s.includeMethodHints === true,
+      languages: normalizeLanguages(s.languages, d.languages),
+      importRoots: Array.isArray(s.importRoots) ? s.importRoots.filter((x) => typeof x === "string" && x.length > 0) : []
     }
   };
+}
+
+function normalizeLanguages(value, fallback) {
+  if (!Array.isArray(value)) return [...fallback];
+  const allow = new Set(["js", "ts", "py"]);
+  const out = [];
+  for (const v of value) if (allow.has(v) && !out.includes(v)) out.push(v);
+  return out.length ? out : [...fallback];
 }
 
 function toLimit(value, fallback) {

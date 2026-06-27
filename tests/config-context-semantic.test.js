@@ -16,5 +16,5 @@ test("normalizeContext coerces and fills defaults", () => {
 });
 
 test("normalizeContext on empty -> defaults", () => {
-  assert.deepEqual(normalizeContext(), { semantic: { enabled: false, hops: 2, maxSymbols: 200, includeMethodHints: false } });
+  assert.deepEqual(normalizeContext(), { semantic: { enabled: false, hops: 2, maxSymbols: 200, includeMethodHints: false, languages: ["js", "ts", "py"], importRoots: [] } });
 });
