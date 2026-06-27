@@ -18,10 +18,14 @@ export function selectSymbolUnits({ message = "", symbolTable, byFile, graph, so
     else if (warmed.has(sym.file)) seed(sym.symbol_id, "warm");
   }
 
-  // Expand neighbors (priority 2 by hop).
+  // Expand neighbors (resolved -> priority 2, probable -> priority 3).
   for (const id of [...priorityById.keys()]) {
-    for (const n of graph.neighbors(id, { hops, direction: "out" })) {
-      if (!priorityById.has(n)) { priorityById.set(n, 2); reasonById.set(n, "graph-neighbor"); }
+    for (const [n, conf] of graph.neighbors(id, { hops, direction: "out" })) {
+      if (!priorityById.has(n)) {
+        const probable = conf === "probable";
+        priorityById.set(n, probable ? 3 : 2);
+        reasonById.set(n, probable ? "graph-neighbor-probable" : "graph-neighbor");
+      }
     }
   }
 
