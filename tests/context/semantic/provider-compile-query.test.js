@@ -9,5 +9,5 @@ test("compileQuery compiles + caches; unknown language -> null", async () => {
   const q2 = p.compileQuery("js", "(function_declaration name: (identifier) @n) @fn");
   assert.equal(typeof q1.matches, "function");
   assert.equal(q1, q2);                                  // cached (same instance)
-  assert.equal(p.compileQuery("py", "(x) @y"), null);    // grammar not loaded
+  assert.equal(p.compileQuery("go", "(x) @y"), null);    // grammar not loaded
 });

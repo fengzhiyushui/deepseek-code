@@ -23,6 +23,11 @@ const samples = [
     file: "tree-sitter-tsx.wasm",
     source: "export const App = () => <main>Hello</main>;",
   },
+  {
+    name: "python",
+    file: "tree-sitter-python.wasm",
+    source: "def main():\n    helper()\nclass S:\n    def run(self):\n        self.x()",
+  },
 ];
 
 const results = [];

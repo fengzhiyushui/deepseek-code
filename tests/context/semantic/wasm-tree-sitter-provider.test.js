@@ -5,7 +5,8 @@ import { createWasmTreeSitterProvider } from "../../../src/context/semantic/wasm
 test("provider parses JS into a tree", async () => {
   const p = createWasmTreeSitterProvider();
   assert.equal(p.supports(".js"), true);
-  assert.equal(p.supports(".py"), false);
+  assert.equal(p.supports(".py"), true);
+  assert.equal(p.supports(".rb"), false);
   await p.load();
   const out = p.parseTree("a.js", "function main(){ foo(); }");
   assert.equal(out.ok, true);
