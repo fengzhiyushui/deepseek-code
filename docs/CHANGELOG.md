@@ -16,6 +16,13 @@
 - **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。支柱① 语义级上下文 **Phase B 首版已落地**(见下)。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
+### 已落地 — Phase C5 重规划 + 持续派发回合循环(同进程编排级续跑)
+- **确定性回合循环**:orchestrator 由「规划一次→派发一次」一般化为 `plan → dispatch → replan({completed,failed})→{done,subtasks} → 终止闸 → 下一轮`。**失败重规划**(补/换 corrective 子任务)+ **长任务持续派发**统一为一套机制。回合数/终止/预算由**程序逻辑**判,`replan` 只产结构化下一批(模型不决定"派几轮")。
+- **同进程编排级续跑**:回合中串行主区 Worker 命中审批暂停 → 保存编排状态(plan/round/allCollected/两套 seen 集合/budget + 被暂停 worker 实例引用)→ `kernel.agent.approve` **路由到 `orchestrator.resume`** → 从原状态续跑,**不重 plan、不重复派发**;多次暂停-恢复成链。`agent-runtime` **一行未改**。
+- **5 处状态一致性硬约束**:① `maxRounds`=总 dispatch 回合数(=1 退化 C1+C2);② 结算单一来源 `allCollected`(暂停不重复计入);③ 两套集合 `seenSubtaskIds`(id 唯一)/ `seenFp`(无进展守卫,防换 id 原地打转)不混用;④ `validateReplan` 严格(id 跨轮唯一、依赖只指 completed/同轮、不依赖 failed 除非 `corrective_for`);⑤ `done:true` 仅停派发不代表成功,终判恒由 `classifyOutcome` 依 collected 判(完成/部分完成/未完成)。
+- 默认零回归(`maxRounds=1` 或无 `replan`/首轮 `done` → 单轮 == C1+C2)。`config.orchestration.maxRounds`(默认 2)可配,replan 调用计入聚合预算。
+- 8 任务 TDD(全程主控内联);测试 **644 全绿**(含真链路 e2e:supervised 编辑暂停→`kernel.agent.approve` 续跑到完成、`plan` 仅调 1 次)、check OK。计划:[`plans/backend/2026-06-27-v3-phase-c5-replan-resume.md`](plans/backend/2026-06-27-v3-phase-c5-replan-resume.md);设计:[`specs/backend/2026-06-27-v3-phase-c5-replan-resume-design.md`](specs/backend/2026-06-27-v3-phase-c5-replan-resume-design.md)。
+
 ### 已落地 — Phase C3 并行 Worker 写隔离(fs 拷贝 + 回放合并)
 - **无依赖 + 声明范围不重叠**的子任务**并行**执行:每个并行 Worker 在 **fs 拷贝隔离工作区**(排除 `.git`/`node_modules`/`.deepseek-code`)里改动,完成后经**快照一致性校验 + 每 subtask 原子事务**回放合并进主工作区。`maxParallelWorkers=1` 或批大小=1 → 与 C1+C2 串行**逐字节一致**(零回归)。
 - **机制**:fs 拷贝(非 git worktree)抓当前精确状态含脏改动;`buildToolPlane(root)` 给每个隔离区一套绑定该目录的工具平面(`agent-runtime` 仍**一行未改**);合并 = 整文件净 diff 经主 `editService.apply`(事务 + change 记录 + 可回滚)。

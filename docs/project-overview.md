@@ -347,3 +347,13 @@ kernel.send(message) → task-router
 **零残留**:每 Worker `finally` 删拷贝(`removeIso` retry+backoff 抗 Windows 句柄)+ 批末删 run 目录;kernel 启动 `sweepOrphans`(owner pid + TTL,只清超时/本进程旧 run,不误删活跃)。**降级**:`maxCopyFiles` 超阈值 → 该子任务失败诚实上报。`config.orchestration.parallel = { maxParallelWorkers:4, maxCopyFiles:5000, sweepTtlMs:1h }`,`maxParallelWorkers=1` 即关并行。
 
 组件:[`src/core/orchestration/`](../src/core/orchestration/) 的 `batch-planner` · `path-overlap` · `workspace-snapshot` · `iso-workspace` · `iso-worker-runner` · `merge-back`;`index.js` 的 `buildToolPlane(root)`。
+
+### 14.2 重规划 + 持续派发回合循环 + 同进程续跑(C5)
+
+`orchestrator.run` 由「规划一次→派发一次」一般化为**确定性回合循环**(`driveFrom`):`plan → runDispatchLoop → gateAndReplan → 下一轮`,直到 done / 预算 / `maxRounds`(默认 2,`=1` 退化 C1+C2)。
+
+- **重规划**:`planner.replan({message,done_when,completed,failed}) → {done,subtasks}`(模型 + `validateReplan` 严格校验 + 有界重试 + 保守收尾)。失败子任务 → corrective 子任务;不完整 → 继续子任务;真完成 → `done:true`。
+- **终止闸 `gateAndReplan`**(程序逻辑,非模型):`round>=maxRounds` / `budget.exceeded()` / `replan.done` / 空 / **无进展守卫**(本轮零新增 completed 且 replan 指纹全已见,`fingerprint=goal+sorted(files)+profile`,防换 id 原地打转)任一 → 停。两套集合 `seenSubtaskIds`(id 跨轮唯一)/ `seenFp`(无进展)**不混用**。
+- **终判 `classifyOutcome`**(`synthesizer.js`):`done:true` 仅停派发**不代表成功**;有 failed → `partial`;被 cap 停且无 failed → `incomplete`;否则 `complete`。
+- **同进程编排级续跑**:回合中串行主区 Worker 命中审批暂停 → `dispatch-loop` 返回 `RoundResume{pausedWorker,pausedApprovalId,pausedSubtask,remaining,deps}`;orchestrator 存内存 `orchPaused`(键=approvalId)连同编排状态;`kernel.agent.approve` 路由 `orchestrator.hasPaused(id) ? orchestrator.resume : runtime.approve`。`resume`:消费旧条目 → `resumeDispatchLoop`(approve/deny 被暂停 worker → 续本回合 `remaining`)→ `driveFrom(afterPausedRound)` 续后续回合,**不重 plan、不重复派发**;再次暂停以新 id 入表。**结算单一来源 `allCollected`**;`agent-runtime` 不改(orchestrator 持 worker 实例引用续其 turn)。暂停只发生在串行主区 Worker(并行 iso 仍 `auto`)。跨进程崩溃恢复留「编排级 durable 恢复」后续片。
+- 新增/改:`subtask-schema`(`validateReplan`/`fingerprint`)· `planner.replan` · `synthesizer.classifyOutcome` · `dispatch-loop`(`RoundResume`/`resumeDispatchLoop`)· `orchestrator`(回合循环 + `resume`/`hasPaused`)· `config.orchestration.maxRounds` · `index.js`(approve 路由)。
