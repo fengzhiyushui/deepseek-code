@@ -74,6 +74,7 @@ docs/
 - [agent-layered-memory-design](specs/backend/2026-06-24-agent-layered-memory-design.md) — **Agent 分层记忆系统**:双记忆 + 七层 + 三级分化 + 巩固器
 - [v3-phase-b semantic-context](specs/backend/2026-06-26-v3-phase-b-semantic-context-design.md) — **Phase B 语义级上下文引擎**:WASM tree-sitter 单解析栈 + 可靠静态子集 + unresolved 一等事实 + confidence/provider 扩展口(opt-in)
 - [v3-phase-b+1 method-hints](specs/backend/2026-06-26-v3-phase-b-plus1-method-hints-design.md) — **B+1 方法消歧**:member-call 唯一匹配 → probable + CLI `--semantic-context` / `--include-method-hints`(默认关)
+- [v3-phase-b+3 multi-language](specs/backend/2026-06-26-v3-phase-b-plus3-multi-language-design.md) — **B+3 扩语言**:tree-sitter query 统一抽取(JS/TS shadow-parity 迁移)+ Python(尽力静态模块解析 + 可配 import roots)
 
 ### specs/frontend — 前端设计
 - [v2-14 gui-workbench-branch-rewind](specs/frontend/2026-05-31-v2-14-gui-workbench-branch-rewind-design.md)
