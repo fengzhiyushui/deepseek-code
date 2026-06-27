@@ -91,6 +91,7 @@ docs/
 
 ### plans/backend — 后端实施计划
 - [v3-phase-b semantic-context](plans/backend/2026-06-26-v3-phase-b-semantic-context.md) — **Phase B 实施计划**:15 任务 TDD(ParserProvider → extractor → indexer → dependency-graph → symbol-selector → 门面接线 → 文档)
+- [v3-phase-b+1 method-hints](plans/backend/2026-06-26-v3-phase-b-plus1-method-hints.md) — **B+1 实施计划**:6 任务 TDD(member_property → 唯一匹配 probable + Map neighbors → engine 透传 → kernel-options 合并 → CLI 标志 → 文档)
 - v2-0 skeleton-protocol-foundation · v2-1 deepseek-gateway · v2-2 tool-plane · v2-3 edit-service · v2-4 runtime-loop · v2-6 release-closure · v2-7 approval-resume · v2-8 verifier-repair-loop · v2-9 context-engine · v2-10 context-cache-usage-telemetry · v2-11 transactional-edit-dirty-workspace · v2-12 branching-conversation-rewind · v2-13 rewind-hardening-recovery · v2-17 chat-kernel-unification · v2-18 durable-recovery-resume-hardening · **v2-20a runtime-cost-timeout-guardrails** · **v2-20b guardrail-injection-graceful-stop** · **v2-20c malformed-toolcall-retry** · **v2-20d resume-path-guardrail-alignment** · **v2-20e repair-path-model-timeout** · **v2-20f guardrail-defaults-config** · **v2-19 delete-v1-legacy** · **v2-18c edit-rewind-journaling**
 - 文件位于 [`plans/backend/`](plans/backend/)
 
