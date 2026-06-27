@@ -131,12 +131,16 @@ function callFromNode(node, file, symbols) {
   const fn = node.childForFieldName("function");
   if (!fn) return null;
   if (fn.type === "identifier" && fn.text === "require") return null; // handled as import
-  let kind, callee_raw;
+  let kind, callee_raw, memberProperty = null;
   if (fn.type === "identifier") { kind = "identifier"; callee_raw = fn.text; }
-  else if (fn.type === "member_expression") { kind = "member"; callee_raw = fn.text; }
-  else { kind = "dynamic"; callee_raw = fn.text; }
+  else if (fn.type === "member_expression") {
+    kind = "member"; callee_raw = fn.text;
+    memberProperty = fn.childForFieldName("property")?.text || null;
+  } else { kind = "dynamic"; callee_raw = fn.text; }
   const line = lineOf(node);
-  return { caller_symbol_id: enclosingSymbolId(line, symbols), callee_raw, kind, file, line };
+  const call = { caller_symbol_id: enclosingSymbolId(line, symbols), callee_raw, kind, file, line };
+  if (memberProperty) call.member_property = memberProperty;
+  return call;
 }
 
 function enclosingSymbolId(line, symbols) {
