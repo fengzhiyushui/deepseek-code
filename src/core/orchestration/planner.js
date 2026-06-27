@@ -1,4 +1,4 @@
-import { validatePlan, hasCycle } from "./subtask-schema.js";
+import { validatePlan, hasCycle, validateReplan } from "./subtask-schema.js";
 
 export function createPlanner({ callModel, maxPlanRepairs = 2 }) {
   async function plan({ message, context }) {
@@ -16,7 +16,24 @@ export function createPlanner({ callModel, maxPlanRepairs = 2 }) {
     }
     return degradeToSingle(message);
   }
-  return { plan };
+
+  async function replan({ message, done_when, completed, failed, seenSubtaskIds, completedIds, failedIds }) {
+    let feedback = null;
+    for (let attempt = 0; attempt <= maxPlanRepairs; attempt += 1) {
+      let raw;
+      try { raw = await callModel(replanPrompt(message, done_when, completed, failed, feedback)); }
+      catch (e) { feedback = `model error: ${e.message}`; continue; }
+      const obj = extractJson(raw);
+      if (!obj || typeof obj.done !== "boolean" || !Array.isArray(obj.subtasks)) { feedback = 'reply ONLY {"done":bool,"subtasks":[...]}'; continue; }
+      if (obj.done || obj.subtasks.length === 0) return { done: true, subtasks: [] };
+      const v = validateReplan(obj.subtasks, { seenSubtaskIds, completedIds, failedIds });
+      if (!v.ok) { feedback = `replan invalid: ${v.error}`; continue; }
+      return { done: false, subtasks: obj.subtasks };
+    }
+    return { done: true, subtasks: [] };   // conservative: stop rather than loop badly
+  }
+
+  return { plan, replan };
 }
 
 function degradeToSingle(message) {
@@ -35,6 +52,20 @@ function plannerPrompt(message, context, feedback) {
     'Reply with ONLY JSON: {"task_summary","done_when","subtasks":[{"id","goal","acceptance":[...],"context_scope":{"files":[...]},"tool_profile":"edit"|"readonly","depends_on":[...]}]}',
     "Use depends_on to express ordering. Keep it minimal — do not over-decompose.",
     feedback ? `Your previous attempt was rejected: ${feedback}` : ""
+  ].filter(Boolean).join("\n\n");
+}
+
+function replanPrompt(message, done_when, completed, failed, feedback) {
+  const sum = (list) => (list || []).map((c) => `- ${c.id} (${c.goal}): ${c.note || ""}`).join("\n");
+  return [
+    "You are revising a multi-agent plan after a dispatch round.",
+    `Original request: ${message}`,
+    `Done when: ${done_when}`,
+    `Completed so far:\n${sum(completed) || "(none)"}`,
+    `Failed so far:\n${sum(failed) || "(none)"}`,
+    'If the goal is met, reply {"done":true,"subtasks":[]}. Otherwise reply {"done":false,"subtasks":[...]} with NEW sub-tasks (corrective for failures or continuation).',
+    'New subtask ids must be globally unique (not reuse any prior id). To redo a failed task add "corrective_for":"<failedId>". context_scope.files + tool_profile required.',
+    feedback ? `Previous attempt rejected: ${feedback}` : ""
   ].filter(Boolean).join("\n\n");
 }
 
