@@ -13,10 +13,15 @@ export async function runDispatchLoop({
   }
 
   const order = orderOf(plan);
+  const deps = { workerFactory, makeReviewer, synthesizer, budget, maxWorkerAttempts, autonomy, onEvent, toBatches, maxParallelWorkers, runIsolatedWorker, mergeSubtask, removeIso };
   const collected = [];
-  for (const st of order) {
+  for (let i = 0; i < order.length; i += 1) {
+    const st = order[i];
     const r = await processSubtask(st, { workerFactory, makeReviewer, maxWorkerAttempts, autonomy, onEvent });
-    if (r.control === "awaiting_approval") return { status: "awaiting_approval", approval: r.approval, collected };
+    if (r.control === "awaiting_approval") {
+      return { status: "awaiting_approval", approval: r.approval, collected,
+        resume: { pausedWorker: r.worker, pausedApprovalId: r.approval.id, pausedSubtask: st, remaining: order.slice(i + 1), deps } };
+    }
     collected.push(r.entry);
     if (budget.exceeded()) return finishPartial(collected, synthesizer, "budget");
   }
@@ -25,6 +30,32 @@ export async function runDispatchLoop({
 
 function orderOf(plan) {
   try { return topoOrder(plan.subtasks); } catch { return [...plan.subtasks]; }
+}
+
+// C5: resume a paused round — settle the approved (or denied) paused sub-task,
+// then dispatch the remaining sub-tasks. May pause again (carries a new resume).
+export async function resumeDispatchLoop(roundResume, decision) {
+  const { pausedWorker, pausedApprovalId, pausedSubtask, remaining, deps } = roundResume;
+  let pausedEntry;
+  if (decision === "deny") {
+    pausedEntry = { st: pausedSubtask, status: "failed", lastFeedback: "approval denied" };
+  } else {
+    const wres = await pausedWorker.approve(pausedApprovalId, "approve");
+    if (wres.status === "complete") {
+      const verdict = await deps.makeReviewer().review(pausedSubtask, wres);
+      pausedEntry = verdict.pass
+        ? { st: pausedSubtask, wres, verdict, status: "complete" }
+        : { st: pausedSubtask, status: "failed", lastFeedback: (verdict.reasons || []).join("; ") || "review rejected" };
+    } else {
+      pausedEntry = { st: pausedSubtask, status: "failed", lastFeedback: `resume not complete: ${wres.status}` };
+    }
+  }
+  const sub = await runDispatchLoop({ plan: { subtasks: remaining }, ...deps });
+  const collected = [pausedEntry, ...sub.collected];
+  if (sub.status === "awaiting_approval") {
+    return { status: "awaiting_approval", approval: sub.approval, collected, resume: sub.resume };
+  }
+  return { status: "complete", collected };
 }
 
 async function finishPartial(collected, synthesizer, stopped_reason) {
@@ -40,7 +71,7 @@ async function processSubtask(st, { workerFactory, makeReviewer, maxWorkerAttemp
     onEvent?.("subtask_started", { subtask_id: st.id, attempt, tool_profile: st.tool_profile });
     const worker = workerFactory.worker(st);
     const wres = await worker.send(workerPrompt(st, priorFeedback), { autonomy });
-    if (wres.status === "awaiting_approval") return { control: "awaiting_approval", approval: wres.approval };
+    if (wres.status === "awaiting_approval") return { control: "awaiting_approval", approval: wres.approval, worker };
     if (wres.status === "stopped") return { entry: { st, status: "failed", lastFeedback: "worker stopped (budget)" } };
     if (wres.status !== "complete") { priorFeedback = `self-audit failed: ${wres.content || wres.status}`; continue; }
     const verdict = await makeReviewer().review(st, wres);
@@ -62,7 +93,13 @@ async function runBatched({ plan, workerFactory, makeReviewer, synthesizer, budg
   for (const batch of batches) {
     if (batch.length === 1) {
       const r = await processSubtask(batch[0], { workerFactory, makeReviewer, maxWorkerAttempts, autonomy, onEvent });
-      if (r.control === "awaiting_approval") { await cleanupRun(runDir, removeIso); return { status: "awaiting_approval", approval: r.approval, collected }; }
+      if (r.control === "awaiting_approval") {
+        await cleanupRun(runDir, removeIso);
+        const remaining = batches.slice(batches.indexOf(batch) + 1).flat();
+        const deps = { workerFactory, makeReviewer, synthesizer, budget, maxWorkerAttempts, autonomy, onEvent, toBatches, maxParallelWorkers, runIsolatedWorker, mergeSubtask, removeIso };
+        return { status: "awaiting_approval", approval: r.approval, collected,
+          resume: { pausedWorker: r.worker, pausedApprovalId: r.approval.id, pausedSubtask: batch[0], remaining, deps } };
+      }
       collected.push(r.entry);
     } else {
       const results = await Promise.all(batch.map((st) =>
