@@ -26,7 +26,11 @@ export const DEFAULT_CONFIG = {
     semantic: { enabled: false, hops: 2, maxSymbols: 200, includeMethodHints: false, languages: ["js", "ts", "py"], importRoots: [] }
   },
   orchestration: {
-    router: { minComplexFiles: 2, markers: DEFAULT_ORCH_MARKERS },
+    router: {
+      minComplexFiles: 2,
+      markers: DEFAULT_ORCH_MARKERS,
+      model: { enabled: true, channel: "act", timeoutMs: 8000, maxRepairs: 1, complexThreshold: 3 }
+    },
     maxSubtasks: 8,
     maxWorkerAttempts: 2,
     maxRounds: 2,
@@ -141,11 +145,22 @@ export function normalizeOrchestration(raw = {}) {
   const b = safe.budget && typeof safe.budget === "object" ? safe.budget : {};
   const par = safe.parallel && typeof safe.parallel === "object" ? safe.parallel : {};
   const posInt = (v, fb) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.trunc(n) : fb; };
+  const nonNegInt = (v, fb) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : fb; };
+  const str = (v, fb) => (typeof v === "string" && v.trim() ? v : fb);
   const limOrNull = (v, fb) => (v === null ? null : posInt(v, fb));
+  const rm = r.model && typeof r.model === "object" ? r.model : {};
+  const dm = d.router.model;
   return {
     router: {
       minComplexFiles: posInt(r.minComplexFiles, d.router.minComplexFiles),
-      markers: Array.isArray(r.markers) && r.markers.every((x) => typeof x === "string") ? r.markers : [...d.router.markers]
+      markers: Array.isArray(r.markers) && r.markers.every((x) => typeof x === "string") ? r.markers : [...d.router.markers],
+      model: {
+        enabled: rm.enabled === undefined ? dm.enabled : Boolean(rm.enabled),
+        channel: str(rm.channel, dm.channel),
+        timeoutMs: posInt(rm.timeoutMs, dm.timeoutMs),
+        maxRepairs: nonNegInt(rm.maxRepairs, dm.maxRepairs),
+        complexThreshold: posInt(rm.complexThreshold, dm.complexThreshold)
+      }
     },
     maxSubtasks: posInt(safe.maxSubtasks, d.maxSubtasks),
     maxWorkerAttempts: posInt(safe.maxWorkerAttempts, d.maxWorkerAttempts),

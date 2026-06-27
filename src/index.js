@@ -187,7 +187,13 @@ export async function createKernel(root, options = {}) {
   const createRuntime = (overrides = {}) => createAgentRuntime({ ...runtimeConfig, ...overrides });
 
   const orch = normalizeOrchestration(options.orchestration);
-  const taskRouter = createTaskRouter(orch.router);
+  // C-Router: model-assisted tier for the ambiguous band (purpose = configured channel, short timeout).
+  const routerCallModel = async (prompt, { timeoutMs } = {}) => {
+    if (!modelGateway?.invoke) return "";
+    const res = await modelGateway.invoke([{ role: "user", content: prompt }], { purpose: orch.router.model.channel, timeoutMs });
+    return res?.content || "";
+  };
+  const taskRouter = createTaskRouter({ ...orch.router, model: { ...orch.router.model, callModel: routerCallModel } });
   // C3: sweep orphaned isolation dirs from prior crashed runs (owner/TTL guarded).
   await sweepOrphans({ root, ttlMs: orch.parallel.sweepTtlMs, pid: process.pid }).catch(() => {});
   const isoPlaneDeps = {
@@ -243,6 +249,12 @@ export async function createKernel(root, options = {}) {
   // Unified entry: the router decides single (today's path, zero new events) vs orchestrate.
   async function routedSend(message, sendOptions = {}) {
     const decision = await taskRouter.route(message, sendOptions);
+    if (decision.tier === "model" || decision.tier === "fallback") {
+      eventBus.publish("orchestration:route_resolved", {
+        band: decision.band, score: decision.score, features: decision.features,
+        finalLane: decision.lane, tier: decision.tier, reason: decision.reason
+      });
+    }
     if (decision.lane === "single") return runtime.send(message, sendOptions);
     eventBus.publish("orchestration:routed", { lane: decision.lane, reason: decision.reason, signals: decision.signals });
     return orchestrator.run({ message, options: sendOptions, routing: decision });
