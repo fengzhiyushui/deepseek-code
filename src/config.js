@@ -29,7 +29,8 @@ export const DEFAULT_CONFIG = {
     router: { minComplexFiles: 2, markers: DEFAULT_ORCH_MARKERS },
     maxSubtasks: 8,
     maxWorkerAttempts: 2,
-    budget: { maxTokens: null, maxModelCalls: 40 }
+    budget: { maxTokens: null, maxModelCalls: 40 },
+    parallel: { maxParallelWorkers: 4, maxCopyFiles: 5000, sweepTtlMs: 3600000 }
   }
 };
 
@@ -137,6 +138,7 @@ export function normalizeOrchestration(raw = {}) {
   const d = DEFAULT_CONFIG.orchestration;
   const r = safe.router && typeof safe.router === "object" ? safe.router : {};
   const b = safe.budget && typeof safe.budget === "object" ? safe.budget : {};
+  const par = safe.parallel && typeof safe.parallel === "object" ? safe.parallel : {};
   const posInt = (v, fb) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.trunc(n) : fb; };
   const limOrNull = (v, fb) => (v === null ? null : posInt(v, fb));
   return {
@@ -149,6 +151,11 @@ export function normalizeOrchestration(raw = {}) {
     budget: {
       maxTokens: b.maxTokens === undefined ? d.budget.maxTokens : limOrNull(b.maxTokens, d.budget.maxTokens),
       maxModelCalls: b.maxModelCalls === undefined ? d.budget.maxModelCalls : limOrNull(b.maxModelCalls, d.budget.maxModelCalls)
+    },
+    parallel: {
+      maxParallelWorkers: posInt(par.maxParallelWorkers, d.parallel.maxParallelWorkers),
+      maxCopyFiles: posInt(par.maxCopyFiles, d.parallel.maxCopyFiles),
+      sweepTtlMs: posInt(par.sweepTtlMs, d.parallel.sweepTtlMs)
     }
   };
 }
