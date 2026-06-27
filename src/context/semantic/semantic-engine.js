@@ -41,7 +41,7 @@ export function createSemanticEngine({ root, options = {}, eventBus = null, prov
       for (const pr of byFile.values()) {
         for (const imp of pr.imports) imp.resolved_file = resolveModule({ fromFile: pr.file, spec: imp.source_spec, fileSet });
       }
-      const graph = buildDependencyGraph({ byFile, symbolTable });
+      const graph = buildDependencyGraph({ byFile, symbolTable, methodHints: cfg.includeMethodHints === true });
       state = { byFile, symbolTable, graph, sources };
       eventBus?.publish?.("context:symbol_indexed", { files_parsed: stats.parsed, symbols: symbolTable.size, reused: stats.reused });
       eventBus?.publish?.("context:graph_built", {
