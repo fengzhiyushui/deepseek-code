@@ -29,7 +29,7 @@ Phase B 首版把 `obj.method()` 一律标 `confidence:"unresolved"`, `reason:"m
 ```
 
 - **唯一匹配策略**:只在项目内**恰好一个**同名符号时连边。`obj.toString()` / `obj.run()` 这类常见名通常匹配多个 → 维持 unresolved,避免边爆炸与误报。
-- **probable 边参与 `neighbors` 扩展**:邻接表纳入 `resolved` + `probable`。这是 hint 的意义——让 selector 浮出可能相关的符号。消费者仍可凭 `confidence` 区分"可能/确定"。
+- **probable 边参与 `neighbors` 扩展,但 confidence 不丢**:`callEdges` 始终保留完整边(含 `confidence`);`neighbors(id, {hops})` 返回 `Map<symbol_id, "resolved"|"probable">`(到达该邻居的最强 confidence;`Map.has` 兼容现有用例)。selector 据此区分:**resolved 邻居 priority 2 / reason `graph-neighbor`;probable 邻居 priority 3 / reason `graph-neighbor-probable`**(更可能但更靠后,预算紧时先让位给确定上下文)。
 - **唯一消费者无硬决策**:上下文引擎里 probable 边仅用于 selector 的邻居扩展(供给上下文),不参与任何硬判定,满足 §6"不作硬依赖"。
 - **默认关 = 不变**:`includeMethodHints` 为 false 时**不产生任何 probable 边**,邻接表与今天完全一致。
 
@@ -59,9 +59,13 @@ CallEdge:形状不变;member 调用在 methodHints 开+唯一匹配时取
   { confidence: "probable", reason: "member-call", callee_symbol_id: <符号> }
 ```
 
-`nameIndex` 在 `buildDependencyGraph` 内由 `symbolTable` 一次性构建:`name → [symbol_id...]`。仅当 `methodHints` 为真时用于 member 解析。
+`nameIndex` 在 `buildDependencyGraph` 内由 `symbolTable` 一次性构建,**只索引可调用符号**:`kind ∈ {function, method, variable}`(`variable` 在 extractor 中仅指**函数值的赋名箭头/函数**,故可调用),**排除 `class`**——避免 `obj.run()` 误连到同名类/非可调用符号。`name → [symbol_id...]`;仅当 `methodHints` 为真时用于 member 解析。
 
-> `member_property` 取最近一层 `property`:`a.b.c()` → `"c"`,callee_raw `"a.b.c"`。嵌套对象不深究,符合"可靠子集"取舍。
+> **`member_property` 抽取边界**(写死,避免测试被 AST 细节拖住):
+> - `obj.run()` → `"run"`;`a.b.c()` → `"c"`(取最近一层 `property`,callee_raw `"a.b.c"`)。
+> - `obj["run"]()`(计算成员)是 `subscript_expression`,callFromNode 归 `kind:"dynamic"`,**不出 `member_property`、不提示**。
+> - `obj?.run()`(可选链)若 grammar 仍给 `member_expression` 则取 `"run"`,否则归 dynamic——**实施时按实际 AST 验证**(打印节点确认)。
+> - `obj.#run()`(私有)取到的 property 文本(含 `#`)通常不匹配任何符号名 → 自然落 `unresolved`,不特殊处理。
 
 ---
 
@@ -75,6 +79,7 @@ CallEdge:形状不变;member 调用在 methodHints 开+唯一匹配时取
 
 - 合并规则:`options.context.semantic = { ...config.context.semantic, ...cliOverride }`,**CLI 覆盖 config**。
 - 覆盖对象:`--semantic-context` → `{ enabled: true }`;`--include-method-hints` → `{ enabled: true, includeMethodHints: true }`。
+- **仅在传了相关 flag 时才产生 override**:两个 flag 都没传 → **不创建任何 `context.semantic` 覆盖**,kernel options 原样走 config——避免无意把 config 结构归一化成新对象、扰动 disabled-parity。
 - 未给任何标志 → 完全走 config(现状),CLI 行为不变。
 
 ---
@@ -82,11 +87,13 @@ CallEdge:形状不变;member 调用在 methodHints 开+唯一匹配时取
 ## 6. 测试策略
 
 - **extractor**:member 调用抓到 `member_property`(`obj.run()` → `"run"`);identifier 调用不带该字段。
-- **dependency-graph**(四情形):
+- **dependency-graph**(情形):
   - methodHints **关** → member-call `unresolved`、无 probable 边、邻接表不变(回归)。
-  - 开 + **唯一**同名 → `probable` 边连到该符号;`neighbors` 含它。
+  - 开 + **唯一**同名(可调用)→ `probable` 边连到该符号;`neighbors` 含它且 confidence 为 `probable`。
   - 开 + **多个**同名 → `unresolved`、不连边。
   - 开 + **零**匹配 → `unresolved`。
+  - 开 + 唯一同名但该符号是 **class** → 不命中(nameIndex 只索引可调用 kind)。
+  - `neighbors` 返回 `Map<id, confidence>`;selector 把 probable 邻居置 priority 3 / reason `graph-neighbor-probable`。
 - **semantic-engine**:`includeMethodHints:true` → 图中出现 probable 边(经注入 provider 端到端)。
 - **CLI**:`--semantic-context` / `--include-method-hints` → 产出正确的 `options.context.semantic` 覆盖(单测选项构建,mock config);无标志 → 不引入 context 覆盖。
 - **兼容**:默认关 → 现有 dependency-graph 测试与 disabled-parity 全绿。
