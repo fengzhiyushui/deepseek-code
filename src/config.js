@@ -29,6 +29,7 @@ export const DEFAULT_CONFIG = {
     router: { minComplexFiles: 2, markers: DEFAULT_ORCH_MARKERS },
     maxSubtasks: 8,
     maxWorkerAttempts: 2,
+    maxRounds: 2,
     budget: { maxTokens: null, maxModelCalls: 40 },
     parallel: { maxParallelWorkers: 4, maxCopyFiles: 5000, sweepTtlMs: 3600000 }
   }
@@ -148,6 +149,7 @@ export function normalizeOrchestration(raw = {}) {
     },
     maxSubtasks: posInt(safe.maxSubtasks, d.maxSubtasks),
     maxWorkerAttempts: posInt(safe.maxWorkerAttempts, d.maxWorkerAttempts),
+    maxRounds: posInt(safe.maxRounds, d.maxRounds),
     budget: {
       maxTokens: b.maxTokens === undefined ? d.budget.maxTokens : limOrNull(b.maxTokens, d.budget.maxTokens),
       maxModelCalls: b.maxModelCalls === undefined ? d.budget.maxModelCalls : limOrNull(b.maxModelCalls, d.budget.maxModelCalls)
