@@ -1,5 +1,6 @@
 import { runDispatchLoop, resumeDispatchLoop } from "./dispatch-loop.js";
 import { fingerprint } from "./subtask-schema.js";
+import { classifyOutcome } from "./synthesizer.js";
 
 export function createOrchestrator({
   planner, makeWorkerFactory, makeReviewerFor, synthesizer, makeBudget, maxSubtasks, maxWorkerAttempts,
@@ -108,12 +109,6 @@ export function createOrchestrator({
 }
 
 // C5: final outcome — model's replan.done never auto-implies success.
-function classifyOutcome(collected, { stoppedByCap }) {
-  const failed = collected.filter((c) => c.status !== "complete").length;
-  if (failed > 0) return "partial";
-  if (stoppedByCap) return "incomplete";
-  return "complete";
-}
 
 function count(c, s) { return c.filter((x) => x.status === s).length; }
 function publish(bus, type, data) { if (bus && typeof bus.publish === "function") bus.publish(type, data); }

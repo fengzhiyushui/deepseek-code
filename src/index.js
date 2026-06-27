@@ -237,7 +237,8 @@ export async function createKernel(root, options = {}) {
       planeDeps: isoPlaneDeps
     }),
     mergeSubtask: (r) => mergeSubtask({ editService, mainRoot: root, isoRoot: r.isoRoot, baseManifest: r.baseManifest, actual: r.actual }),
-    removeIso: (dir) => removeIso(dir)
+    removeIso: (dir) => removeIso(dir),
+    maxRounds: orch.maxRounds
   });
   // Unified entry: the router decides single (today's path, zero new events) vs orchestrate.
   async function routedSend(message, sendOptions = {}) {
@@ -366,7 +367,7 @@ export async function createKernel(root, options = {}) {
     runtime,
     agent: {
       send: routedSend,
-      approve: runtime.approve,
+      approve: (id, decision) => (orchestrator.hasPaused(id) ? orchestrator.resume(id, decision) : runtime.approve(id, decision)),
       interrupt: runtime.interrupt,
       listPaused: runtime.listPaused,
       cancelPaused: runtime.cancelPaused
