@@ -2,7 +2,7 @@
 // Language-specific behavior lives in a `languageDef` (query string + handleMatch);
 // this runner owns match grouping, canonical byte-offset sorting, enclosing-symbol
 // attribution for calls, and per-file degrade (ok:false). ParseResult contract is
-// identical to js-ts-extractor — downstream (graph/selector) is language-agnostic.
+// language-agnostic — downstream (graph/selector) consumes it unchanged.
 
 const EMPTY = (file, language = null) => ({ file, language, symbols: [], imports: [], exports: [], calls: [], ok: false });
 

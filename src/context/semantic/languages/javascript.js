@@ -1,6 +1,6 @@
 // JS language definition for the query-extractor.
 // The query is intentionally a set of *node anchors*; the per-node extraction
-// logic is ported verbatim from js-ts-extractor.js so the ParseResult is
+// logic mirrors the original hand-written JS/TS extractor so the ParseResult is
 // multiset-identical (shadow parity). The runner owns walk/sort/enclosing/degrade.
 import { makeSymbolId } from "../symbol-id.js";
 
@@ -109,7 +109,7 @@ function exportFromNode(node, file) {
   return out.length ? out : null;
 }
 
-// call_expression handler: ports js-ts-extractor's callFromNode + the require()/import()
+// call_expression handler: classifies identifier/member/dynamic calls + the require()/import()
 // import-edge cases. require("lit") -> cjs import (no call); import("lit") -> esm dynamic
 // import AND a dynamic call edge (callee_raw "import"), matching the legacy two-pass walk.
 function handleCall(node, file) {
