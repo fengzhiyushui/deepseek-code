@@ -55,17 +55,19 @@ ParseResult(契约不变) -> symbol-indexer / dependency-graph / symbol-selector
 - **顺序**:M1 建 runner + JS 定义 → shadow parity 全绿 → 才把默认抽取切到 query → **最后**才删 `js-ts-extractor.js`。
 - parity 语料:至少覆盖 §4.4 checklist 的全部形态 + 现有 fixtures。
 
-### 4.2 确定性排序(规范键)
-query captures 返回顺序不保证稳定 → runner 对每类输出**按规范键排序**后产出:
+### 4.2 确定性排序(规范键,用字节偏移)
+match 返回顺序不保证稳定 → runner 对每类输出**按规范键排序**后产出。键用**字节偏移**(同一行多个符号/调用也稳定):
 
 ```text
-symbols: (file, range.start_line, range.end_line, kind, name)
-calls:   (file, line, callee_raw, kind)
-imports: (from_file, source_spec, names.join("|"))
-exports: (file, name, kind)
+排序键(取自捕获节点):(start_byte, end_byte, start_line, start_column, kind, name)
+  start_byte = node.startIndex;start_column = node.startPosition.column(已验证 0.20.8 可取)
 ```
 
+- 排序键仅用于**输出数组排序**(确定快照);**`symbol_id` 仍 = `${file}#${kind}:${name}:${start_line}`**(Phase B 契约,**不改**——同行同名同 kind 的罕见碰撞维持 Phase B 现状)。
 - parity 用**多重集相等**比较(顺序无关);下游按 `symbol_id` 建 Map、不依赖数组序;现有 js-ts 测试断言前已 `.sort()` → 规范排序不破坏它们。
+
+### 4.2b captures 按 match 分组(不做脆弱的 flat 后处理)
+组装用 **`query.matches(root)`**(已验证 0.20.8 支持),每个 match 的 captures 天然按模式分组——如 `export { foo as bar }` 的 `@imp.name=foo` 与 `@imp.alias=bar` 落在**同一 match**。语言定义按"**一个 match → 一个 `ParseResult` 元素**(symbol / import / export / call)"组装。**不**用 `captures(root)` 的扁平列表再按父节点/range 聚合(复杂 import/export 易被搅乱)。
 
 ### 4.3 enclosing-symbol 规则(写死)
 对一个 call 节点,enclosing symbol = **包含该 call 且行范围最小**的 symbol;若多个范围相同,按 `languageDef.callablePriority`(`method > function > variable > class`)再按 `symbol_id` 字典序 tie-break。方法 / 类 / 箭头 / 嵌套函数统一走此规则。
@@ -146,13 +148,15 @@ context.semantic.importRoots []          -> 默认 [projectRoot];配置追加(§
 M1  query-extractor runner + provider.compileQuery + JS 语言定义 + js.scm
      + shadow-parity 测试(old vs query,多重集);旧 extractor 仍在
 M2  TS 语言定义 + ts.scm;扩 parity 语料过 TS 行为
-M3  切默认抽取到 query(JS/TS 既有测试全绿)→ 退役 js-ts-extractor.js
+M3  切默认抽取到 query(JS/TS 既有测试全绿);**保留 js-ts-extractor + parity flag**
+     (测试仍可 old vs query 对跑,便于回滚)——本步不删旧实现
 M4  vendor tree-sitter-python.wasm + python 语言定义 + python.scm
      + Python 模块解析器 + importRoots 配置 + Python 测试
 M5  语言注册表接入 indexer/engine(按语言派发解析器)+ 文档(README 语言支持、CHANGELOG)
+M6  Python 接入稳定后,**真正退役 js-ts-extractor.js**(移除 parity flag 与旧实现)
 ```
 
-> M1–M3 是"等价迁移"(零行为变化,judge=parity);M4–M5 才是新能力(Python)。严格分段,降低回归风险。
+> M1–M3 是"等价迁移"(零行为变化,judge=parity);M4–M5 才是新能力(Python);**M3 只切默认不删旧、M6 才删**——给回滚留缓冲。严格分段,降低回归风险。
 
 ---
 
