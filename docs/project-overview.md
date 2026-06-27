@@ -297,3 +297,41 @@ git diff --check
 | `importRoots` | `[]` | Python 模块搜索根(**追加**非替换;`[]` ≡ 仅项目根) |
 
 模块位于 [`src/context/semantic/`](../src/context/semantic/):parser-provider · wasm-tree-sitter-provider · **query-extractor**(通用 runner:query.matches 组装 + 字节序排序 + enclosing + 降级)· **language-registry** + **languages/{javascript,typescript,python}**(每语言 query + 处理器)· **symbol-id** · symbol-cache · symbol-indexer · module-resolver · **python-module-resolver** · dependency-graph · symbol-unit · symbol-selector · semantic-engine。新事件 `context:symbol_indexed` / `context:graph_built` **仅在语义启用时**触发。
+
+---
+
+## 14. 多智能体编排(V3 Phase C1+C2)
+
+> 设计见 [C1+C2 spec](specs/backend/2026-06-27-v3-phase-c1-c2-orchestration-design.md);实施见 [C1+C2 plan](plans/backend/2026-06-27-v3-phase-c1-c2-orchestration.md)。
+
+**单 / 多 agent 合并为一条路**:`kernel.agent.send()` 内部经**确定性路由器**(`task-router.js`,升级 `classifier`,启发式、无模型调用、无 on/off 开关)判复杂度 ——
+
+```
+kernel.send(message) → task-router
+   ├─ lane="single"      → agentRuntime.send()   今天的路径,逐字节零回归、不发新事件
+   └─ lane="orchestrate" → orchestrator.run()     Planner → 串行 Worker → 两级审核 → Synthesizer
+```
+
+**关键不变量**:`agent-runtime.js` **一行未改** —— Worker / Reviewer 都是 `createAgentRuntime` 实例(经 `createRuntime` 覆盖工厂注入**工具子集** + **作用域上下文**),编排层只在公开边界 `send()` 之上组合。
+
+**组件**([`src/core/orchestration/`](../src/core/orchestration/)):
+
+| 单元 | 职责 |
+|------|------|
+| `task-router` | 启发式判 `single \| orchestrate`(markers + 文件数信号),产出 `RoutingDecision` |
+| `subtask-schema` | `Plan` / `SubTask` / `Verdict` 校验 + `topoOrder`(环检测) |
+| `planner` | 模型(thinking)→ 结构化 `Plan`;schema 校验 + 有界重试 + 环检测 + **降级单子任务** |
+| `tool-profiles` | 从 registry 过滤 `edit` / `readonly` 工具子集 |
+| `worker-factory` | 按 `SubTask` 建 Worker(`edit`)/ Reviewer(`readonly`)runtime |
+| `reviewer` | **独立**只读复查 Worker 产出 → `Verdict`;不可解析则保守 `pass:false/warn` |
+| `dispatch-loop` | 确定性循环:topo 串行 + 关卡1 子自审重试 + 关卡2 打回重试 + `maxWorkerAttempts` 有界 + 预算命中→部分完成 |
+| `synthesizer` | 汇总子任务产出 + 失败诚实汇报(模型,失败回退确定性摘要) |
+| `orchestrator` | 组装上述 + 聚合成本闸 + 发 `orchestration:*` 事件 + `maxSubtasks` 截断 |
+
+**两级审核**:关卡1 = Worker 内置 `verifyAndMaybeRepair`(局部、便宜);关卡2 = 独立 Reviewer(全局、只读工具物理不可改)。确定性 gate 读 `verdict.pass` 决定收 / 打回。
+
+**成本闸常开**(`config.orchestration`,无 on/off):`maxSubtasks` / `maxWorkerAttempts` / `budget`(聚合 token + 调用数,planner/worker/reviewer/synth 全计入)。命中→**优雅停止 + 部分完成**,不抛不崩。
+
+**事件**:`orchestration:routed` / `:planned` / `:subtask_started` / `:subtask_reviewed` / `:completed`,**仅 `orchestrate` 档触发**(`single` 档与今天一致)。
+
+**非目标(留后续片)**:C3 并行 Worker 的 worktree 写隔离、C4 跨任务经验记忆、C5 Reviewer 打回触发重规划 / 持续派发、编排级 durable 恢复、模型驱动路由(已规划为 router 的分层增强:明显档免费启发式,模糊档才调模型)。

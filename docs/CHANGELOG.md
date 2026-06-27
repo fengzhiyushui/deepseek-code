@@ -16,6 +16,14 @@
 - **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。支柱① 语义级上下文 **Phase B 首版已落地**(见下)。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
+### 已落地 — Phase C1+C2 多智能体编排(统一入口 + 两级审核)
+- **单 / 多 agent 合并为一条路**:唯一入口 `kernel.send()` → **确定性路由器**(升级 `classifier`,启发式、无模型调用、无 on/off 开关)判复杂度;简单任务走今天的 `agentRuntime.send()`(**逐字节零回归**),复杂任务走 **Orchestrator**(Planner 模型拆任务 → **串行** Worker 执行 → 两级审核 → Synthesizer 汇总)。
+- **Worker / Reviewer = `agent-runtime` 实例**(注入工具子集 + 作用域上下文),编排层只在公开边界 `send()` 之上组合 —— **`agent-runtime.js` 一行未改**。**两级审核**:关卡1 子自审(复用 Worker 内置验证-修复)+ 关卡2 **独立 Reviewer**(只读工具,物理不可改,出结构化 `Verdict`)。
+- **编排确定性**:派/收/打回由程序逻辑读结构化结果(`status` / `verdict.pass`),模型只在 planner/worker/reviewer/synth 节点内被调;打回有界重试,失败子任务诚实标记。
+- **成本闸常开**(替代 opt-in 闸):`maxSubtasks` / `maxWorkerAttempts` / 聚合预算命中即**优雅停止 + 部分完成**,不抛不崩。`config.orchestration` 可配(router 阈值 / 上限 / 预算),CLI/GUI 经 `kernel-options` 透传。
+- 子代理事件嵌入会话时间线(`orchestration:routed/planned/subtask_started/subtask_reviewed/completed`)。**非目标(留后续片)**:C3 并行写隔离、C4 经验记忆、C5 重规划、编排级 durable 恢复。
+- 12 任务 TDD(全程主控内联,无 429/联网依赖);测试 **594 全绿**、check OK。计划:[`plans/backend/2026-06-27-v3-phase-c1-c2-orchestration.md`](plans/backend/2026-06-27-v3-phase-c1-c2-orchestration.md);设计:[`specs/backend/2026-06-27-v3-phase-c1-c2-orchestration-design.md`](specs/backend/2026-06-27-v3-phase-c1-c2-orchestration-design.md)。
+
 ### 已落地 — Phase B 语义级上下文引擎(首版,opt-in)
 - 在文件级上下文之上加**符号层**([`src/context/semantic/`](../src/context/semantic/)):web-tree-sitter(WASM,`optionalDependencies`,仅启用时懒加载)解析 JS/TS → 符号表 + import/export 绑定 + **尽力静态调用图**(直接调用 `resolved`;`obj.method()` / 动态调用 `unresolved`,每条边带 `confidence` / `reason`)→ symbol-selector 从种子符号沿依赖图扩 N 跳、按预算选符号级片段。
 - **opt-in**:`context.semantic.enabled` 默认关;关闭时单元 / 事件 / 快照与文件级**逐字节一致**(`disabled-parity` 回归守护)。provider / grammar 不可用则回退文件级,**永不崩**。
