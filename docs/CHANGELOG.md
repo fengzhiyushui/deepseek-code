@@ -16,6 +16,13 @@
 - **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。支柱① 语义级上下文 **Phase B 首版已落地**(见下)。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
+### 已落地 — Phase C-Router 分层路由(模型辅助复杂度判定)
+- **分层**:确定性路由器从「纯关键词启发式」升级——启发式按特征算 `score` → 三档:`score==0` simple→single、`>=阈值`(默认3)complex→orchestrate **免费短路**,只有 `0<score<阈值` 的**模糊中间档**才花一次便宜模型(`act`/flash 档)判 lane。直接缓解「关键词太窄」(无关键词长编辑请求经**长 edit 捕手** +1 进模糊档由模型判),又避免「全问模型太贵」。
+- **模型档默认开**(本项目首次主动打破默认零回归);保留 **opt-out**:`router.model.enabled=false` → 逐字节回到今天(`signals`-only),**裸构造无 `callModel` 亦回退今天**(`modelActive` 双条件)。`signals`(今天 marker+文件)与 `score`(含长 edit 捕手)**严格分离**,长 edit 捕手永不进 `signals` → disabled-parity 守护。
+- **三条硬约束**:① 模型档**总调用 ≤ `maxRepairs+1`**(`0⇒≤1`)、**总超时 8000ms 跨重试**,畸形/超时/空网关/抛错**全收敛同一启发式兜底**带短码 `reason`;② 文件 token **归一化去重 + 首个免计**(`min(max(files-1,0),3)`,单文件非复杂度信号,对齐 `minComplexFiles`);③ 可解释输出:`route_resolved` 事件载 `score`/`features`(脱敏:短 token+计数,无完整消息),供实测调阈值。
+- `route()` 启发式档**同步**返回(逐字节同今天)、仅模糊档返回 `Promise`(`index.js` 已 await)。事件 `orchestration:route_resolved` 仅模型档发(eventBus 级,不入 `SESSION_EVENT_TYPES`)。`agent-runtime.js` / `classifier.js` **一行未改**。
+- 4 任务 / M1–M4 TDD(全程主控内联,模型全 mock);测试 **670 全绿**(M1 8 + M2 14 + M3 5 + M4 e2e 3;含 e2e:模糊→模型→orchestrate、`enabled:false` parity、triage 畸形→兜底不崩)、check OK。计划:[`plans/backend/2026-06-27-v3-phase-c-router-tiered.md`](plans/backend/2026-06-27-v3-phase-c-router-tiered.md);设计:[`specs/backend/2026-06-27-v3-phase-c-router-tiered-design.md`](specs/backend/2026-06-27-v3-phase-c-router-tiered-design.md)。
+
 ### 已落地 — Phase C5 重规划 + 持续派发回合循环(同进程编排级续跑)
 - **确定性回合循环**:orchestrator 由「规划一次→派发一次」一般化为 `plan → dispatch → replan({completed,failed})→{done,subtasks} → 终止闸 → 下一轮`。**失败重规划**(补/换 corrective 子任务)+ **长任务持续派发**统一为一套机制。回合数/终止/预算由**程序逻辑**判,`replan` 只产结构化下一批(模型不决定"派几轮")。
 - **同进程编排级续跑**:回合中串行主区 Worker 命中审批暂停 → 保存编排状态(plan/round/allCollected/两套 seen 集合/budget + 被暂停 worker 实例引用)→ `kernel.agent.approve` **路由到 `orchestrator.resume`** → 从原状态续跑,**不重 plan、不重复派发**;多次暂停-恢复成链。`agent-runtime` **一行未改**。

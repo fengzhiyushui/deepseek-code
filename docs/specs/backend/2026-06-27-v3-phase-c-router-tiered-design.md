@@ -78,7 +78,7 @@ route(message, options):                       # 真异步(index.js 已 await)
 - `\` → `/`;去前导 `./`;整体小写;去重复 `/`。
 - ⇒ `src/foo.ts`、`src\foo.ts`、`SRC/Foo.ts` 归一为同一 key `src/foo.ts` → **计 1 个**,分数不飘。
 - glob(`*.ts`、`src/**`)同样归一并各计为一个 scope token(去重后)。
-- 文件 token 贡献 **+1/个、封顶 +3**(避免长清单刷分)。
+- 文件 token 贡献 **首个免计、其后 +1/个、封顶 +3**(`min(max(files-1,0),3)`):单文件请求**非复杂度信号**(与今天 `minComplexFiles=2` 语义对齐 —— 1 文件不该把单文件编辑推进模糊档白白调模型),避免长清单刷分。
 > 归一化逻辑与 C3 [`path-overlap.js`](../../../src/core/orchestration/path-overlap.js) 的 `normalizePath` 同源理念(win32 大小写/分隔符),但路由侧只需 token 级去重、不碰 realpath。
 
 ### 4.3 评分可解释输出(用户硬点 ①)
@@ -87,7 +87,7 @@ route(message, options):                       # 真异步(index.js 已 await)
 score = 4,  band = "complex"                    # 顶层兄弟(与 §9 事件载荷一致)
 features = {
   strongMarkers: ["迁移", ...],   weak: 2,
-  files: ["src/a.ts","src/b.ts"], fileScore: 2,
+  files: ["src/a.ts","src/b.ts"], fileScore: 1,
   longEdit: true
 }
 ```
@@ -125,7 +125,7 @@ features = {
 |------|------|------|
 | **强 marker** | 内建子集:`重构整个`/`迁移`/`跨多个文件`/`跨文件`/`refactor the entire`/`migrate`/`across multiple` | **+2/个** |
 | **弱 marker** | 其余配置 `markers`(默认:`这几个`/`这些`/`分别`/`各自`/`逐个`/`逐一`/`for each`/`each of`) | **+1/个** |
-| **文件 token** | `normalizeFileToken` 去重后计数(§4.2) | **+1/个,封顶 +3** |
+| **文件 token** | `normalizeFileToken` 去重后计数(§4.2) | **首个免计、其后 +1/个,封顶 +3** |
 | **长 edit 捕手** | `classifyMessage().task_type === "edit"` 且归一消息长度 ≥ `LONG_EDIT_CHARS`(80) | **+1** |
 
 - 强/弱 marker 集:强集是内建常量(本片不提配置);配置 `markers` 里**非强集**的命中按弱(+1)。默认 `markers` 恰好被强/弱集完全覆盖。

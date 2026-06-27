@@ -357,3 +357,22 @@ kernel.send(message) → task-router
 - **终判 `classifyOutcome`**(`synthesizer.js`):`done:true` 仅停派发**不代表成功**;有 failed → `partial`;被 cap 停且无 failed → `incomplete`;否则 `complete`。
 - **同进程编排级续跑**:回合中串行主区 Worker 命中审批暂停 → `dispatch-loop` 返回 `RoundResume{pausedWorker,pausedApprovalId,pausedSubtask,remaining,deps}`;orchestrator 存内存 `orchPaused`(键=approvalId)连同编排状态;`kernel.agent.approve` 路由 `orchestrator.hasPaused(id) ? orchestrator.resume : runtime.approve`。`resume`:消费旧条目 → `resumeDispatchLoop`(approve/deny 被暂停 worker → 续本回合 `remaining`)→ `driveFrom(afterPausedRound)` 续后续回合,**不重 plan、不重复派发**;再次暂停以新 id 入表。**结算单一来源 `allCollected`**;`agent-runtime` 不改(orchestrator 持 worker 实例引用续其 turn)。暂停只发生在串行主区 Worker(并行 iso 仍 `auto`)。跨进程崩溃恢复留「编排级 durable 恢复」后续片。
 - 新增/改:`subtask-schema`(`validateReplan`/`fingerprint`)· `planner.replan` · `synthesizer.classifyOutcome` · `dispatch-loop`(`RoundResume`/`resumeDispatchLoop`)· `orchestrator`(回合循环 + `resume`/`hasPaused`)· `config.orchestration.maxRounds` · `index.js`(approve 路由)。
+
+### 14.3 分层路由(C-Router,模型辅助复杂度判定)
+
+> 设计见 [C-Router spec](specs/backend/2026-06-27-v3-phase-c-router-tiered-design.md);实施见 [C-Router plan](plans/backend/2026-06-27-v3-phase-c-router-tiered.md)。
+
+把确定性路由器从「纯关键词启发式」升级为**分层**:启发式按特征算 `score` → 三档,只有**模糊中间档**才花一次便宜模型调用判复杂度。
+
+```
+route(message) → 启发式评分(router-scoring,纯)
+   ├─ score==0           → simple     → single        免费(无模型调用)
+   ├─ score>=阈值(默认3) → complex    → orchestrate    免费(无模型调用)
+   └─ 0<score<阈值        → ambiguous  → 模型档判 lane(失败回退启发式)
+```
+
+- **评分特征**:强 marker +2 / 弱 marker +1 / 文件 token 首个免计其后 +1(封顶 3,与 `minComplexFiles` 对齐)/ **长 edit 捕手** +1(`task_type=edit` 且消息 ≥80 字 —— 修「无关键词长编辑被漏判」)。文件 token 归一化(`\`→`/`、去 `./`、小写、去重)防分数飘。
+- **模型档默认开**(首次主动打破默认零回归);**opt-out**:`router.model.enabled=false` → 逐字节回到今天(`signals`-only),且**裸构造无 `callModel` 亦回退今天**(`modelActive = enabled 且真注入 callModel`)。`signals`(今天 marker+文件)与 `score`(含长 edit 捕手)**严格分离**,长 edit 捕手永不进 `signals` → disabled-parity。
+- **模型档**(复刻 planner):`gateway.invoke({purpose: 配置 channel,默认 act/flash})`;**总调用 ≤ `maxRepairs+1`**、**总超时 = `timeoutMs`(默认 8000ms)跨重试**;畸形/超时/空网关/抛错**全收敛同一启发式兜底**,带短码 `reason`(`router_model_timeout`/`_invalid`/`_empty`/`_error`)。**`route()` 启发式档同步、仅模糊档返回 Promise**(`index.js` 已 await)。
+- **事件**:`orchestration:route_resolved`(eventBus 级、不入 `SESSION_EVENT_TYPES`,同现有 `orchestration:routed`)**仅模型档运行时**发,载 `score`/`features`(脱敏:短 token+计数,无完整消息)/`band`/`tier`/`reason`。
+- 配置:`config.orchestration.router.model = { enabled:true, channel:"act", timeoutMs:8000, maxRepairs:1, complexThreshold:3 }`。组件:[`src/core/orchestration/`](../src/core/orchestration/) 的 `router-scoring`(新)+ `task-router`(分层);`index.js` 注入 `routerCallModel`。`agent-runtime.js` / `classifier.js` **不改**。

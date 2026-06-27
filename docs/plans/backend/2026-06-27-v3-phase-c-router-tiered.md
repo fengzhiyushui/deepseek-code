@@ -606,3 +606,11 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - **Placeholder 扫描**:M1–M3 全为可运行代码;M4 e2e 装配引用现有 `c5-rounds-e2e`/`c3-parallel-e2e` 范式(非占位,是「照此装配」的明确指向),M4 实现步骤主要验证接线。
 - **类型一致**:`RoutingDecision` 字段(`lane/tier/reason/signals/score/band/features/classification`)在 M2 产出、M3 事件消费一致;`featuresForEvent` 形状(`strongMarkers/weak/files/fileScore/longEdit`)M1 定义、M3 直用;`model` 配置形状 M3 定义、M2 消费一致(`enabled/callModel/timeoutMs/maxRepairs/complexThreshold` + 注入 `now`)。
 - **零回归口**:`enabled:false` 与裸构造在 M2 同走 `legacySignals` 同步路径;现有 4 router 测试 + 644 全绿不改。
+
+---
+
+## 实施偏差(as-built,落地后回填)
+
+1. **文件计分「首个免计」**:`computeScore`/`featuresForEvent` 的文件项由 `min(files,3)` 改为 **`min(max(files-1,0),3)`**。集成测试 `v2-runtime-context` 暴露:单文件请求(`modify src/index.js`)原会 score 1 → ambiguous → 白白触发模型 triage 抢占"首个 model 调用"。单文件本就非复杂度信号(对齐 `minComplexFiles=2`),首个免计后 = score 0 = simple = 单 agent 零调用。新增 router-scoring 边界单测钉死(1→0、2→1、cap3)。对应提交 `fix(orchestration): single file mention is not a complexity signal`。
+2. **`now` 时钟为顶层注入**:`createTaskRouter({ ..., now })` 顶层参数(非 `model.now`)—— `now` 是时钟注入基础设施,不属 model 配置(config/index 均不产 `model.now`)。M2 测试片段里把 `now` 写进 `model` 是笔误,落地时置于顶层。
+3. **最终测试数**:M1 router-scoring 8 + M2 task-router 14(现有 4 不改)+ M3 config 5 + M4 e2e 3,全量 **670 全绿**、check OK、diff-check OK。
