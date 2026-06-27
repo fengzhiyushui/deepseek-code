@@ -5,7 +5,7 @@
 // statements -> exports always []. Imports carry a `level` (relative-dot count)
 // consumed by python-module-resolver; cross-file binding falls back to `exported`
 // symbols in the resolved module.
-import { makeSymbolId } from "../js-ts-extractor.js";
+import { makeSymbolId } from "../symbol-id.js";
 
 export const pythonLanguageDef = {
   language: "py",

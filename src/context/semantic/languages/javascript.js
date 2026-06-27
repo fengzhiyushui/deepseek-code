@@ -2,7 +2,7 @@
 // The query is intentionally a set of *node anchors*; the per-node extraction
 // logic is ported verbatim from js-ts-extractor.js so the ParseResult is
 // multiset-identical (shadow parity). The runner owns walk/sort/enclosing/degrade.
-import { makeSymbolId } from "../js-ts-extractor.js";
+import { makeSymbolId } from "../symbol-id.js";
 
 export const jsLanguageDef = {
   language: "js",

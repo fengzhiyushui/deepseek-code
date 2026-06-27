@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createWasmTreeSitterProvider } from "../../../src/context/semantic/wasm-tree-sitter-provider.js";
 import { extractWithDef } from "../../../src/context/semantic/query-extractor.js";
-import { makeSymbolId } from "../../../src/context/semantic/js-ts-extractor.js";
+import { makeSymbolId } from "../../../src/context/semantic/symbol-id.js";
 
 // minimal JS def: only top-level function symbols + identifier calls
 const miniDef = {
