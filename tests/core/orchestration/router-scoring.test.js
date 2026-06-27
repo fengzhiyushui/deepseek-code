@@ -28,7 +28,16 @@ test("computeScore: strong+2 weak+1 file+1(cap3) longEdit+1", () => {
   const weak = extractFeatures("这些 分别", {}, { markers: DEFAULT_WEAK_MARKERS });
   assert.equal(computeScore(weak), 2);                 // 2 weak
   const files = extractFeatures("a.ts b.ts c.ts d.ts", {}, { markers: [] });
-  assert.equal(computeScore(files), 3);                // 4 files capped at 3
+  assert.equal(computeScore(files), 3);                // 4 files → 3 (first free, cap 3)
+});
+
+test("file score: first file is free (not a complexity signal), then +1 each capped at 3", () => {
+  const one = extractFeatures("touch a.ts", {}, { markers: [] });
+  assert.equal(computeScore(one), 0);                  // 1 file → 0 (single-file = confidently simple)
+  const two = extractFeatures("touch a.ts b.ts", {}, { markers: [] });
+  assert.equal(computeScore(two), 1);                  // 2 files → 1
+  const five = extractFeatures("a.ts b.ts c.ts d.ts e.ts", {}, { markers: [] });
+  assert.equal(computeScore(five), 3);                 // capped at 3
 });
 
 test("longEdit only for edit task_type and length>=80", () => {

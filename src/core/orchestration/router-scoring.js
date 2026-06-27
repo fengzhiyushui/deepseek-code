@@ -35,8 +35,14 @@ export function extractFeatures(message, options = {}, { markers = DEFAULT_WEAK_
 export function computeScore(feat) {
   return feat.strong.length * 2
     + feat.weak.length
-    + Math.min(feat.files.length, 3)
+    + fileScore(feat.files)
     + (feat.longEdit ? 1 : 0);
+}
+
+// First file mention is free (a single-file request is not a complexity signal,
+// matching the legacy minComplexFiles=2 gate); each additional file +1, capped at 3.
+function fileScore(files) {
+  return Math.min(Math.max(files.length - 1, 0), 3);
 }
 
 export function classifyBand(score, complexThreshold) {
@@ -51,7 +57,7 @@ export function featuresForEvent(feat) {
     strongMarkers: feat.strong.slice(0, 8),
     weak: feat.weak.length,
     files: feat.files.slice(0, 8),
-    fileScore: Math.min(feat.files.length, 3),
+    fileScore: fileScore(feat.files),
     longEdit: feat.longEdit
   };
 }
