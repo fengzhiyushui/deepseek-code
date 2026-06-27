@@ -28,6 +28,7 @@ export function extractWithDef({ file, source, tree, query, def }) {
     if (!el) continue;
     if (el.symbol) symbols.push(el.symbol);
     if (el.import) imports.push(el.import);
+    if (el.imports) imports.push(...el.imports);
     if (el.exports) exports.push(...el.exports);
     if (el.rawCall) rawCalls.push(el.rawCall);
   }

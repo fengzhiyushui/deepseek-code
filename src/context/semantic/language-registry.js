@@ -3,10 +3,12 @@
 // languages without a def degrade to ok:false (skipped, never crash).
 import { jsLanguageDef } from "./languages/javascript.js";
 import { tsLanguageDef } from "./languages/typescript.js";
+import { pythonLanguageDef } from "./languages/python.js";
 
 export function createLanguageRegistry() {
   const m = new Map();
   m.set("js", jsLanguageDef);
   m.set("ts", tsLanguageDef);
+  m.set("py", pythonLanguageDef);
   return m;
 }
