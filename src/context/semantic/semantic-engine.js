@@ -2,6 +2,7 @@ import path from "node:path";
 import { createWasmTreeSitterProvider } from "./wasm-tree-sitter-provider.js";
 import { createSymbolCache } from "./symbol-cache.js";
 import { indexSymbols } from "./symbol-indexer.js";
+import { createLanguageRegistry } from "./language-registry.js";
 import { buildDependencyGraph } from "./dependency-graph.js";
 import { selectSymbolUnits } from "./symbol-selector.js";
 import { resolveModule } from "./module-resolver.js";
@@ -13,6 +14,7 @@ export function createSemanticEngine({ root, options = {}, eventBus = null, prov
   const cfg = options.semantic || {};
   const enabled = cfg.enabled === true;
   const activeProvider = provider || createWasmTreeSitterProvider();
+  const registry = createLanguageRegistry();
   const cache = createSymbolCache({ cacheRoot: path.join(root, ".deepseek-code", "v2", "context") });
   let state = null;          // { byFile, symbolTable, graph, sources }
   let degraded = false;
@@ -27,7 +29,7 @@ export function createSemanticEngine({ root, options = {}, eventBus = null, prov
         sources.set(file, t.content);
         return t.content;
       };
-      const { byFile, symbolTable, stats } = await indexSymbols({ root, records, provider: activeProvider, cache, readFile });
+      const { byFile, symbolTable, stats } = await indexSymbols({ root, records, provider: activeProvider, registry, cache, readFile });
       // Cache hits skip readFile, so fill sources for any indexed file not yet read —
       // the selector needs current source to slice symbol snippets.
       for (const file of byFile.keys()) {

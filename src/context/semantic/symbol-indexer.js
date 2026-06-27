@@ -1,6 +1,7 @@
-import { extractParseResult } from "./js-ts-extractor.js";
+import { extractParseResult as legacyExtract } from "./js-ts-extractor.js";
+import { extractParseResult as queryExtract } from "./query-extractor.js";
 
-export async function indexSymbols({ root, records, provider, cache, readFile }) {
+export async function indexSymbols({ root, records, provider, registry, cache, readFile, useLegacyExtractor = false }) {
   const byFile = new Map();
   const symbolTable = new Map();
   const stats = { parsed: 0, reused: 0, skipped: 0, failed: 0 };
@@ -15,7 +16,9 @@ export async function indexSymbols({ root, records, provider, cache, readFile })
     } else {
       let source;
       try { source = await readFile(file); } catch { stats.failed += 1; continue; }
-      parseResult = extractParseResult({ file, source, parseTree: (f, s) => provider.parseTree(f, s) });
+      parseResult = useLegacyExtractor
+        ? legacyExtract({ file, source, parseTree: (f, s) => provider.parseTree(f, s) })
+        : queryExtract({ file, source, provider, registry });
       if (!parseResult.ok) { stats.failed += 1; continue; }
       await cache.set(file, record.hash, parseResult);
       stats.parsed += 1;
