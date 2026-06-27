@@ -22,6 +22,14 @@ import { createRecoveryInbox } from "./core/recovery/recovery-inbox.js";
 import { createRecoveryService } from "./core/recovery/recovery-service.js";
 import { acquireProjectLock } from "./core/recovery/project-lock.js";
 import { createTransactionJournal } from "./core/recovery/transaction-journal.js";
+import { createTaskRouter } from "./core/orchestration/task-router.js";
+import { createOrchestrator } from "./core/orchestration/orchestrator.js";
+import { createPlanner } from "./core/orchestration/planner.js";
+import { createSynthesizer } from "./core/orchestration/synthesizer.js";
+import { createWorkerFactory } from "./core/orchestration/worker-factory.js";
+import { createReviewer } from "./core/orchestration/reviewer.js";
+import { createCostBudget } from "./core/runtime/cost-budget.js";
+import { normalizeOrchestration } from "./config.js";
 
 export async function createKernel(root, options = {}) {
   const eventBus = options.eventBus || createEventBus();
@@ -117,7 +125,7 @@ export async function createKernel(root, options = {}) {
     await contextEngine.scan();
   }
 
-  const runtime = createAgentRuntime({
+  const runtimeConfig = {
     eventBus,
     sessionId,
     projectId,
@@ -170,7 +178,42 @@ export async function createKernel(root, options = {}) {
       const fp = permissionEngine.fingerprint(securedCall, policyContext);
       approvalCache.grant(fp, { decision: "allow" });
     }
+  };
+
+  const runtime = createAgentRuntime(runtimeConfig);
+  // Worker/Reviewer sub-agents reuse the same runtime config with a filtered tool
+  // set + scoped context — agent-runtime itself is unchanged.
+  const createRuntime = (overrides = {}) => createAgentRuntime({ ...runtimeConfig, ...overrides });
+
+  const orch = normalizeOrchestration(options.orchestration);
+  const taskRouter = createTaskRouter(orch.router);
+  const callModel = async (prompt) => {
+    if (!modelGateway?.invoke) return "";
+    const res = await modelGateway.invoke([{ role: "user", content: prompt }], { purpose: "plan" });
+    return res?.content || "";
+  };
+  const orchestrator = createOrchestrator({
+    planner: createPlanner({ callModel }),
+    makeWorkerFactory: () => createWorkerFactory({
+      createRuntime,
+      baseToolSchemas: () => toolRegistry.toDeepSeekTools(),
+      makeContextSnapshot: (input) => contextEngine.snapshot(input)
+    }),
+    makeReviewerFor: (workerFactory) => createReviewer({ runtime: workerFactory.reviewerRuntime() }),
+    synthesizer: createSynthesizer({ callModel }),
+    makeBudget: () => createCostBudget({ maxTokens: orch.budget.maxTokens, maxModelCalls: orch.budget.maxModelCalls }),
+    maxSubtasks: orch.maxSubtasks,
+    maxWorkerAttempts: orch.maxWorkerAttempts,
+    eventBus,
+    makeContext: (input) => contextEngine.snapshot({ ...input, phase: "plan" })
   });
+  // Unified entry: the router decides single (today's path, zero new events) vs orchestrate.
+  async function routedSend(message, sendOptions = {}) {
+    const decision = await taskRouter.route(message, sendOptions);
+    if (decision.lane === "single") return runtime.send(message, sendOptions);
+    eventBus.publish("orchestration:routed", { lane: decision.lane, reason: decision.reason, signals: decision.signals });
+    return orchestrator.run({ message, options: sendOptions, routing: decision });
+  }
 
   const branches = branchStore ? {
     list: () => branchStore.listBranches(),
@@ -290,7 +333,7 @@ export async function createKernel(root, options = {}) {
     eventBus,
     runtime,
     agent: {
-      send: runtime.send,
+      send: routedSend,
       approve: runtime.approve,
       interrupt: runtime.interrupt,
       listPaused: runtime.listPaused,
