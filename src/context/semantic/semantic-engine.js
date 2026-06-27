@@ -6,6 +6,7 @@ import { createLanguageRegistry } from "./language-registry.js";
 import { buildDependencyGraph } from "./dependency-graph.js";
 import { selectSymbolUnits } from "./symbol-selector.js";
 import { resolveModule } from "./module-resolver.js";
+import { resolvePythonModule } from "./python-module-resolver.js";
 import { readWorkspaceTextFile } from "../../workspace/path-safety.js";
 
 const MAX_FILE_BYTES = 64 * 1024;
@@ -40,8 +41,13 @@ export function createSemanticEngine({ root, options = {}, eventBus = null, prov
         } catch { /* unreadable -> snippet falls back to empty */ }
       }
       const fileSet = new Set(byFile.keys());
+      const importRoots = cfg.importRoots || [];
       for (const pr of byFile.values()) {
-        for (const imp of pr.imports) imp.resolved_file = resolveModule({ fromFile: pr.file, spec: imp.source_spec, fileSet });
+        for (const imp of pr.imports) {
+          imp.resolved_file = pr.language === "py"
+            ? resolvePythonModule({ fromFile: pr.file, spec: imp.source_spec, level: imp.level || 0, fileSet, importRoots })
+            : resolveModule({ fromFile: pr.file, spec: imp.source_spec, fileSet });
+        }
       }
       const graph = buildDependencyGraph({ byFile, symbolTable, methodHints: cfg.includeMethodHints === true });
       state = { byFile, symbolTable, graph, sources };
