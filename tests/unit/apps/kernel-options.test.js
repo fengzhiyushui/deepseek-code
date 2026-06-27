@@ -32,3 +32,13 @@ test("buildKernelOptions forwards config limits to the kernel", async () => {
   assert.equal(options.limits.modelTimeoutMs, 120000);
   assert.equal(options.deepseek.apiKey, "sk-test");
 });
+
+test("buildKernelOptions forwards config orchestration to the kernel", async () => {
+  const options = await buildKernelOptions("/repo", {}, async () => ({
+    apiKey: "sk-test",
+    baseUrl: "https://example.invalid",
+    orchestration: { maxSubtasks: 5, maxWorkerAttempts: 2, router: { minComplexFiles: 3, markers: [] }, budget: { maxTokens: null, maxModelCalls: 40 } }
+  }));
+  assert.equal(options.orchestration.maxSubtasks, 5);
+  assert.equal(options.orchestration.router.minComplexFiles, 3);
+});

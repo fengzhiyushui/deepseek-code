@@ -17,6 +17,7 @@ export async function buildKernelOptions(root, overrides = {}, loadConfigImpl = 
     }
   };
   if (config.limits) result.limits = config.limits;
+  if (config.orchestration) result.orchestration = config.orchestration;
   if (overrides.context?.semantic) {
     result.context = {
       ...config.context,
