@@ -335,3 +335,15 @@ kernel.send(message) → task-router
 **事件**:`orchestration:routed` / `:planned` / `:subtask_started` / `:subtask_reviewed` / `:completed`,**仅 `orchestrate` 档触发**(`single` 档与今天一致)。
 
 **非目标(留后续片)**:C3 并行 Worker 的 worktree 写隔离、C4 跨任务经验记忆、C5 Reviewer 打回触发重规划 / 持续派发、编排级 durable 恢复、模型驱动路由(已规划为 router 的分层增强:明显档免费启发式,模糊档才调模型)。
+
+### 14.1 并行写隔离(C3)
+
+**无依赖 + 声明文件范围不重叠**的子任务**并行**执行;`dispatch-loop` 把 topo 序切成**批**(`batch-planner`:依赖已完成 ∩ 范围两两不重叠 的最大集)。批大小 1 或 `maxParallelWorkers=1` → 走 C1+C2 在主区的原路(零拷贝、零回归);批 >1 → 每 Worker 隔离执行后合并。
+
+并行 Worker 流程(`iso-worker-runner`):`createIso`(`.deepseek-code/v2/orchestration/iso/<runId>/<subtaskId>` + `.owner`)→ `fsCopyWorkspace`(排除 `.git`/`node_modules`/`.deepseek-code`,受 `maxCopyFiles`)→ `hashTree` 记 `baseManifest`(path→sha256)→ `buildToolPlane(isoRoot)` 给一套绑定隔离目录的工具(`agent-runtime` 不改)→ 隔离 runtime `send` → 独立 Reviewer(只读)→ `changedPaths` 算实际改动。
+
+合并(`merge-back`,按 subtask id 序):**实际写入范围校验**(`actual ⊆ 声明` 且批内实际不重叠,`path-overlap` 归一化判定)→ **CAS**(主区每路径 hash==base/create 不存在/delete==base)→ 整文件净 unified diff **一次 `editService.apply`**(原子:整 subtask 落主区 or 全回滚)。冲突/越界 → 该 subtask 失败,主区不变。**批次部分成功**(非整批 all-or-nothing)。
+
+**零残留**:每 Worker `finally` 删拷贝(`removeIso` retry+backoff 抗 Windows 句柄)+ 批末删 run 目录;kernel 启动 `sweepOrphans`(owner pid + TTL,只清超时/本进程旧 run,不误删活跃)。**降级**:`maxCopyFiles` 超阈值 → 该子任务失败诚实上报。`config.orchestration.parallel = { maxParallelWorkers:4, maxCopyFiles:5000, sweepTtlMs:1h }`,`maxParallelWorkers=1` 即关并行。
+
+组件:[`src/core/orchestration/`](../src/core/orchestration/) 的 `batch-planner` · `path-overlap` · `workspace-snapshot` · `iso-workspace` · `iso-worker-runner` · `merge-back`;`index.js` 的 `buildToolPlane(root)`。

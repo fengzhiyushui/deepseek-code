@@ -16,6 +16,13 @@
 - **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。支柱① 语义级上下文 **Phase B 首版已落地**(见下)。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
+### 已落地 — Phase C3 并行 Worker 写隔离(fs 拷贝 + 回放合并)
+- **无依赖 + 声明范围不重叠**的子任务**并行**执行:每个并行 Worker 在 **fs 拷贝隔离工作区**(排除 `.git`/`node_modules`/`.deepseek-code`)里改动,完成后经**快照一致性校验 + 每 subtask 原子事务**回放合并进主工作区。`maxParallelWorkers=1` 或批大小=1 → 与 C1+C2 串行**逐字节一致**(零回归)。
+- **机制**:fs 拷贝(非 git worktree)抓当前精确状态含脏改动;`buildToolPlane(root)` 给每个隔离区一套绑定该目录的工具平面(`agent-runtime` 仍**一行未改**);合并 = 整文件净 diff 经主 `editService.apply`(事务 + change 记录 + 可回滚)。
+- **五条硬约束**:① 每 subtask 一次原子事务、批次部分成功(非整批 all-or-nothing);② 快照 CAS(合并前校验主区 path hash==base,被改过→冲突回滚标失败);③ 实际写入范围校验(不信 `context_scope.files`,扫实际 diff + 批内不重叠);④ 路径归一化严格(Windows 大小写/分隔符/目录包含/create-delete-rename);⑤ 零残留(`finally` retry+backoff 删拷贝 + run 目录、启动 owner/TTL 清扫不误删活跃 run)。
+- **降级永不崩**:工作区文件数 > `maxCopyFiles` / 拷贝失败 → 该子任务失败诚实上报。`config.orchestration.parallel`(`maxParallelWorkers:4` / `maxCopyFiles:5000` / `sweepTtlMs:1h`)可配,无 on/off(=1 即关并行)。
+- 8 任务 TDD(全程主控内联);测试 **618 全绿**(含真链路 e2e:两隔离 Worker 改不同文件→合并主区→零残留)、check OK。计划:[`plans/backend/2026-06-27-v3-phase-c3-parallel-isolation.md`](plans/backend/2026-06-27-v3-phase-c3-parallel-isolation.md);设计:[`specs/backend/2026-06-27-v3-phase-c3-parallel-isolation-design.md`](specs/backend/2026-06-27-v3-phase-c3-parallel-isolation-design.md)。
+
 ### 已落地 — Phase C1+C2 多智能体编排(统一入口 + 两级审核)
 - **单 / 多 agent 合并为一条路**:唯一入口 `kernel.send()` → **确定性路由器**(升级 `classifier`,启发式、无模型调用、无 on/off 开关)判复杂度;简单任务走今天的 `agentRuntime.send()`(**逐字节零回归**),复杂任务走 **Orchestrator**(Planner 模型拆任务 → **串行** Worker 执行 → 两级审核 → Synthesizer 汇总)。
 - **Worker / Reviewer = `agent-runtime` 实例**(注入工具子集 + 作用域上下文),编排层只在公开边界 `send()` 之上组合 —— **`agent-runtime.js` 一行未改**。**两级审核**:关卡1 子自审(复用 Worker 内置验证-修复)+ 关卡2 **独立 Reviewer**(只读工具,物理不可改,出结构化 `Verdict`)。
