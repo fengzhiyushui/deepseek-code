@@ -117,7 +117,8 @@ async function runAsk(root, args, flags) {
     root,
     prompt,
     autonomy: stringFlag(flags, "autonomy") || "gated",
-    sendOptions: commonOptions(flags)
+    sendOptions: commonOptions(flags),
+    ...semanticKernelOptions(flags)
   });
 }
 
@@ -126,7 +127,8 @@ async function runChat(root, args, flags) {
   await runKernelChatCommand({
     root,
     prompt,
-    sendOptions: commonOptions(flags)
+    sendOptions: commonOptions(flags),
+    ...semanticKernelOptions(flags)
   });
 }
 
@@ -145,7 +147,8 @@ async function runEdit(root, args, flags) {
     root,
     prompt: buildEditPrompt(`${prompt}${fileHint}`, { dryRun }),
     autonomy: yes ? "gated" : "supervised",
-    sendOptions: commonOptions(flags)
+    sendOptions: commonOptions(flags),
+    ...semanticKernelOptions(flags)
   });
 }
 
@@ -276,6 +279,17 @@ function commonOptions(flags) {
   };
 }
 
+export function semanticOverrideFromFlags(flags) {
+  if (boolFlag(flags, "include-method-hints")) return { enabled: true, includeMethodHints: true };
+  if (boolFlag(flags, "semantic-context")) return { enabled: true };
+  return null;
+}
+
+function semanticKernelOptions(flags) {
+  const semantic = semanticOverrideFromFlags(flags);
+  return semantic ? { createKernelOptions: { context: { semantic } } } : {};
+}
+
 function boolFlag(flags, key) {
   const value = flags.get(key);
   return value === true || value === "true";
@@ -323,6 +337,8 @@ function printHelp() {
 ${commandLine("deepseek-code tui", "打开交互式终端界面")}
 ${commandLine("deepseek-code ask \"问题\"", "基于项目上下文提问")}
 ${commandLine("deepseek-code chat [问题]", "连续对话，自动保存上下文")}
+${commandLine("deepseek-code ask \"问题\" --semantic-context", "启用符号级语义上下文")}
+${commandLine("deepseek-code ask \"问题\" --include-method-hints", "语义上下文 + 方法调用提示(probable)")}
 ${commandLine("deepseek-code edit \"需求\" --file src/a.js", "生成补丁，确认后修改文件")}
 ${commandLine("deepseek-code search \"TODO\"", "搜索项目代码")}
 ${commandLine("deepseek-code scan", "扫描并打印项目上下文")}
