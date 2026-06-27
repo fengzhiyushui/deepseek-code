@@ -98,24 +98,20 @@ export async function createKernel(root, options = {}) {
   const modelGateway = resolveModelGateway(options);
   const approvalCache = options.approvalCache || createApprovalCache();
   const permissionEngine = options.permissionEngine || createPermissionEngine();
-  const editService = options.editService || createEditService({
-    projectRoot: root,
+  const mainPlane = buildToolPlane(root, {
     eventBus,
-    recoveryJournal: transactionJournal,
-    assertOwner: projectLock ? () => projectLock.assertOwner() : async () => {}
-  });
-  const toolRegistry = options.toolRegistry || createToolRegistry({
-    tools: createBuiltinTools({
-      editService,
-      webFetch: options.webFetch || {}
-    })
-  });
-  const toolExecutor = options.toolExecutor || createToolExecutor({
-    registry: toolRegistry,
     permissionEngine,
-    eventBus,
-    defaultToolTimeoutMs: options.limits?.toolTimeoutMs ?? null
+    recoveryJournal: transactionJournal,
+    assertOwner: projectLock ? () => projectLock.assertOwner() : async () => {},
+    webFetch: options.webFetch || {},
+    defaultToolTimeoutMs: options.limits?.toolTimeoutMs ?? null,
+    editService: options.editService,
+    toolRegistry: options.toolRegistry,
+    toolExecutor: options.toolExecutor
   });
+  const editService = mainPlane.editService;
+  const toolRegistry = mainPlane.toolRegistry;
+  const toolExecutor = mainPlane.toolExecutor;
   const contextEngine = options.contextEngine || createContextEngine({
     root,
     eventBus,
@@ -364,6 +360,28 @@ export async function createKernel(root, options = {}) {
       }
     }
   };
+}
+
+export function buildToolPlane(root, {
+  eventBus = null,
+  permissionEngine = null,
+  recoveryJournal = null,
+  assertOwner = async () => {},
+  webFetch = {},
+  defaultToolTimeoutMs = null,
+  editService = null,
+  toolRegistry = null,
+  toolExecutor = null
+} = {}) {
+  const svc = editService || createEditService({ projectRoot: root, eventBus, recoveryJournal, assertOwner });
+  const registry = toolRegistry || createToolRegistry({ tools: createBuiltinTools({ editService: svc, webFetch }) });
+  const executor = toolExecutor || createToolExecutor({
+    registry,
+    permissionEngine: permissionEngine || createPermissionEngine(),
+    eventBus,
+    defaultToolTimeoutMs
+  });
+  return { editService: svc, toolRegistry: registry, toolExecutor: executor, execute: (toolCall, ctx) => executor.execute(toolCall, ctx) };
 }
 
 async function createRecoveryServiceFacade({
