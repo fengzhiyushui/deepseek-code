@@ -1,4 +1,4 @@
-import { runDispatchLoop } from "./dispatch-loop.js";
+import { runDispatchLoop, resumeDispatchLoop } from "./dispatch-loop.js";
 import { fingerprint } from "./subtask-schema.js";
 
 export function createOrchestrator({
@@ -88,7 +88,23 @@ export function createOrchestrator({
 
   function sumEntry(c) { return { id: c.st.id, goal: c.st.goal, note: c.status === "complete" ? String(c.wres?.content ?? "").slice(0, 160) : String(c.lastFeedback ?? "") }; }
 
-  return { run, hasPaused: (id) => orchPaused.has(id), _orchPaused: orchPaused, _driveFrom: driveFrom };
+  // C5: same-process orchestration resume. Finish the paused round, then continue
+  // the round loop from saved state — no re-plan, no duplicate dispatch.
+  async function resume(id, decision = "approve") {
+    const saved = orchPaused.get(id);
+    if (!saved) { const e = new Error(`no paused orchestration: ${id}`); e.code = "ORCH_NOT_PAUSED"; throw e; }
+    orchPaused.delete(id);                                  // consume
+    const { state, dispatchResume } = saved;
+    const res = await resumeDispatchLoop(dispatchResume, decision);
+    state.allCollected.push(...res.collected);
+    if (res.status === "awaiting_approval") {
+      orchPaused.set(res.approval.id, { state, dispatchResume: res.resume });   // re-pause: new id
+      return { status: "awaiting_approval", approval: res.approval, collected: state.allCollected };
+    }
+    return driveFrom(state, { afterPausedRound: true });    // round done -> gate + further rounds
+  }
+
+  return { run, resume, hasPaused: (id) => orchPaused.has(id) };
 }
 
 // C5: final outcome — model's replan.done never auto-implies success.
