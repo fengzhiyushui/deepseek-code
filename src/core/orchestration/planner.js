@@ -1,17 +1,20 @@
 import { validatePlan, hasCycle, validateReplan } from "./subtask-schema.js";
 
 export function createPlanner({ callModel, maxPlanRepairs = 2 }) {
-  async function plan({ message, context }) {
+  async function plan({ message, context, experiences }) {
     let feedback = null;
     for (let attempt = 0; attempt <= maxPlanRepairs; attempt += 1) {
       let raw;
-      try { raw = await callModel(plannerPrompt(message, context, feedback)); }
+      try { raw = await callModel(plannerPrompt(message, context, feedback, experiences)); }
       catch (e) { feedback = `model error: ${e.message}`; continue; }
       const obj = extractJson(raw);
       if (!obj) { feedback = "output was not valid JSON; reply with ONLY the JSON plan"; continue; }
       const v = validatePlan(obj);
       if (!v.ok) { feedback = `plan invalid: ${v.error}`; continue; }
       if (hasCycle(v.plan.subtasks)) { feedback = "plan had a dependency cycle; remove it"; continue; }
+      v.plan.used_experience_ids = Array.isArray(obj.used_experience_ids)
+        ? obj.used_experience_ids.filter((x) => typeof x === "string")
+        : [];
       return v.plan;
     }
     return degradeToSingle(message);
@@ -40,16 +43,22 @@ function degradeToSingle(message) {
   return {
     task_summary: String(message || "").slice(0, 200),
     done_when: "the request is fulfilled",
-    subtasks: [{ id: "st_1", goal: String(message || ""), acceptance: ["request fulfilled"], context_scope: {}, tool_profile: "edit", depends_on: [] }]
+    subtasks: [{ id: "st_1", goal: String(message || ""), acceptance: ["request fulfilled"], context_scope: {}, tool_profile: "edit", depends_on: [] }],
+    used_experience_ids: []
   };
 }
 
-function plannerPrompt(message, context, feedback) {
+function plannerPrompt(message, context, feedback, experiences) {
+  const expBlock = experiences?.length
+    ? `Relevant past experience (heuristics, may be wrong — use judgement):\n${experiences.map((e) => `- [${e.id}] (tier ${e.tier}) ${e.lesson}`).join("\n")}`
+    : "";
   return [
     "Break the user's request into a minimal set of sub-tasks for sub-agents to execute SEQUENTIALLY.",
     `User request: ${message}`,
     context ? `Context summary: ${context.summary || ""}` : "",
-    'Reply with ONLY JSON: {"task_summary","done_when","subtasks":[{"id","goal","acceptance":[...],"context_scope":{"files":[...]},"tool_profile":"edit"|"readonly","depends_on":[...]}]}',
+    expBlock,
+    'Reply with ONLY JSON: {"task_summary","done_when","subtasks":[{"id","goal","acceptance":[...],"context_scope":{"files":[...]},"tool_profile":"edit"|"readonly","depends_on":[...]}]'
+      + (experiences?.length ? ',"used_experience_ids":["<id of experience you actually relied on>"]' : "") + "}",
     "Use depends_on to express ordering. Keep it minimal — do not over-decompose.",
     feedback ? `Your previous attempt was rejected: ${feedback}` : ""
   ].filter(Boolean).join("\n\n");
