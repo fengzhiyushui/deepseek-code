@@ -49,14 +49,22 @@ export function createPermissionEngine() {
     }
 
     for (const rule of context.projectRules || []) {
+      if (rule.escalate_only) continue; // risk-escalation rules are handled monotonically below, never returned here
       if (ruleMatches(rule, toolCall)) {
         return { decision: rule.decision, matched_rule: rule.id, source: "project-rules" };
       }
     }
 
     const matrix = DEFAULT_POLICY_MATRIX[autonomy] || DEFAULT_POLICY_MATRIX.gated;
+    const decision = matrix[category] || "ask";
+    // C4 risk→permission: monotonic escalation. ONLY upgrade a default-matrix "allow"
+    // to "ask" when a risk cue matches; never downgrade deny/ask, never override the
+    // explicit user decisions above (trust-store / approval-cache / project-rules).
+    if (decision === "allow" && matchesRiskCue(context.projectRules, toolCall)) {
+      return { decision: "ask", matched_rule: "risk-experience:escalate", source: "risk-experience", escalated: true };
+    }
     return {
-      decision: matrix[category] || "ask",
+      decision,
       matched_rule: `default:${autonomy}:${category}`,
       source: "default-matrix"
     };
@@ -88,8 +96,21 @@ export function createPermissionEngine() {
   return { decide, explain, fingerprint };
 }
 
-function ruleMatches(rule, toolCall) {
-  if (rule.tool && rule.tool !== toolCall.name) return false;
+// True if any escalate_only risk cue appears in the tool call's surface (tool/path/argv/command).
+function matchesRiskCue(rules, toolCall) {
+  const cues = (rules || []).filter((r) => r && r.escalate_only && typeof r.cue === "string" && r.cue);
+  if (!cues.length) return false;
+  const params = toolCall.params || {};
+  const surface = [
+    toolCall.name,
+    params.path,
+    Array.isArray(params.argv) ? params.argv.join(" ") : "",
+    typeof params.command === "string" ? params.command : ""
+  ].filter(Boolean).join(" ").toLowerCase();
+  return cues.some((r) => surface.includes(r.cue));
+}
+
+function ruleMatches(rule, toolCall) {  if (rule.tool && rule.tool !== toolCall.name) return false;
   if (rule.category && rule.category !== toolCall.category) return false;
   if (rule.pattern) {
     if (!toolCall.params?.path) return false;

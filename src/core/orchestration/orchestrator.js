@@ -1,6 +1,7 @@
 import { runDispatchLoop, resumeDispatchLoop } from "./dispatch-loop.js";
 import { fingerprint } from "./subtask-schema.js";
 import { classifyOutcome } from "./synthesizer.js";
+import { riskRules } from "../memory/risk-rules.js";
 
 export function createOrchestrator({
   planner, makeWorkerFactory, makeReviewerFor, synthesizer, makeBudget, maxSubtasks, maxWorkerAttempts,
@@ -46,7 +47,8 @@ export function createOrchestrator({
       synthesizer, budget: state.budget, maxWorkerAttempts,
       autonomy: state.options.autonomy || "gated",
       onEvent: (type, data) => publish(eventBus, `orchestration:${type}`, data),
-      toBatches, maxParallelWorkers, runIsolatedWorker, mergeSubtask, removeIso
+      toBatches, maxParallelWorkers, runIsolatedWorker, mergeSubtask, removeIso,
+      projectRules: learningOn ? riskRules(state.riskCues) : []
     };
   }
 

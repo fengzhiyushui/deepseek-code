@@ -4,20 +4,20 @@ import path from "node:path";
 
 export async function runDispatchLoop({
   plan, workerFactory, makeReviewer, synthesizer, budget, maxWorkerAttempts, autonomy, onEvent,
-  toBatches, maxParallelWorkers = 1, runIsolatedWorker, mergeSubtask, removeIso
+  toBatches, maxParallelWorkers = 1, runIsolatedWorker, mergeSubtask, removeIso, projectRules = []
 }) {
   // C3 batched parallel path: only when explicitly wired + allowed. Otherwise the
   // C1+C2 sequential path runs verbatim (zero regression).
   if (maxParallelWorkers > 1 && typeof toBatches === "function" && typeof runIsolatedWorker === "function") {
-    return runBatched({ plan, workerFactory, makeReviewer, synthesizer, budget, maxWorkerAttempts, autonomy, toBatches, maxParallelWorkers, runIsolatedWorker, mergeSubtask, removeIso, onEvent });
+    return runBatched({ plan, workerFactory, makeReviewer, synthesizer, budget, maxWorkerAttempts, autonomy, toBatches, maxParallelWorkers, runIsolatedWorker, mergeSubtask, removeIso, onEvent, projectRules });
   }
 
   const order = orderOf(plan);
-  const deps = { workerFactory, makeReviewer, synthesizer, budget, maxWorkerAttempts, autonomy, onEvent, toBatches, maxParallelWorkers, runIsolatedWorker, mergeSubtask, removeIso };
+  const deps = { workerFactory, makeReviewer, synthesizer, budget, maxWorkerAttempts, autonomy, onEvent, toBatches, maxParallelWorkers, runIsolatedWorker, mergeSubtask, removeIso, projectRules };
   const collected = [];
   for (let i = 0; i < order.length; i += 1) {
     const st = order[i];
-    const r = await processSubtask(st, { workerFactory, makeReviewer, maxWorkerAttempts, autonomy, onEvent });
+    const r = await processSubtask(st, { workerFactory, makeReviewer, maxWorkerAttempts, autonomy, onEvent, projectRules });
     if (r.control === "awaiting_approval") {
       return { status: "awaiting_approval", approval: r.approval, collected,
         resume: { pausedWorker: r.worker, pausedApprovalId: r.approval.id, pausedSubtask: st, remaining: order.slice(i + 1), deps } };
@@ -65,12 +65,12 @@ async function finishPartial(collected, synthesizer, stopped_reason) {
 
 // One sub-task in the MAIN workspace (C1+C2): worker self-audit + retry, then
 // independent reviewer + retry, bounded by maxWorkerAttempts.
-async function processSubtask(st, { workerFactory, makeReviewer, maxWorkerAttempts, autonomy, onEvent }) {
+async function processSubtask(st, { workerFactory, makeReviewer, maxWorkerAttempts, autonomy, onEvent, projectRules = [] }) {
   let priorFeedback = null;
   for (let attempt = 1; attempt <= maxWorkerAttempts; attempt += 1) {
     onEvent?.("subtask_started", { subtask_id: st.id, attempt, tool_profile: st.tool_profile });
     const worker = workerFactory.worker(st);
-    const wres = await worker.send(workerPrompt(st, priorFeedback), { autonomy });
+    const wres = await worker.send(workerPrompt(st, priorFeedback), { autonomy, projectRules });
     if (wres.status === "awaiting_approval") return { control: "awaiting_approval", approval: wres.approval, worker };
     if (wres.status === "stopped") return { entry: { st, status: "failed", lastFeedback: "worker stopped (budget)" } };
     if (wres.status !== "complete") { priorFeedback = `self-audit failed: ${wres.content || wres.status}`; continue; }
@@ -83,7 +83,7 @@ async function processSubtask(st, { workerFactory, makeReviewer, maxWorkerAttemp
 }
 
 // C3: batches (size 1 → main path, no copy; size >1 → isolated parallel + merge).
-async function runBatched({ plan, workerFactory, makeReviewer, synthesizer, budget, maxWorkerAttempts, autonomy, toBatches, maxParallelWorkers, runIsolatedWorker, mergeSubtask, removeIso, onEvent }) {
+async function runBatched({ plan, workerFactory, makeReviewer, synthesizer, budget, maxWorkerAttempts, autonomy, toBatches, maxParallelWorkers, runIsolatedWorker, mergeSubtask, removeIso, onEvent, projectRules = [] }) {
   const order = orderOf(plan);
   const runId = `run_${order.map((s) => s.id).join("-")}`.slice(0, 80);
   const batches = toBatches(order, { completedIds: new Set(), maxParallelWorkers });
@@ -92,11 +92,11 @@ async function runBatched({ plan, workerFactory, makeReviewer, synthesizer, budg
 
   for (const batch of batches) {
     if (batch.length === 1) {
-      const r = await processSubtask(batch[0], { workerFactory, makeReviewer, maxWorkerAttempts, autonomy, onEvent });
+      const r = await processSubtask(batch[0], { workerFactory, makeReviewer, maxWorkerAttempts, autonomy, onEvent, projectRules });
       if (r.control === "awaiting_approval") {
         await cleanupRun(runDir, removeIso);
         const remaining = batches.slice(batches.indexOf(batch) + 1).flat();
-        const deps = { workerFactory, makeReviewer, synthesizer, budget, maxWorkerAttempts, autonomy, onEvent, toBatches, maxParallelWorkers, runIsolatedWorker, mergeSubtask, removeIso };
+        const deps = { workerFactory, makeReviewer, synthesizer, budget, maxWorkerAttempts, autonomy, onEvent, toBatches, maxParallelWorkers, runIsolatedWorker, mergeSubtask, removeIso, projectRules };
         return { status: "awaiting_approval", approval: r.approval, collected,
           resume: { pausedWorker: r.worker, pausedApprovalId: r.approval.id, pausedSubtask: batch[0], remaining, deps } };
       }
