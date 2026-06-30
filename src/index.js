@@ -28,6 +28,9 @@ import { createPlanner } from "./core/orchestration/planner.js";
 import { createSynthesizer } from "./core/orchestration/synthesizer.js";
 import { createWorkerFactory } from "./core/orchestration/worker-factory.js";
 import { createReviewer } from "./core/orchestration/reviewer.js";
+import { createExperienceStore } from "./core/memory/experience-store.js";
+import { createConsolidator } from "./core/memory/experience-consolidator.js";
+import { query as experienceQuery } from "./core/memory/experience-retrieval.js";
 import { createCostBudget } from "./core/runtime/cost-budget.js";
 import { normalizeOrchestration } from "./config.js";
 import { toBatches } from "./core/orchestration/batch-planner.js";
@@ -209,6 +212,17 @@ export async function createKernel(root, options = {}) {
     const res = await modelGateway.invoke([{ role: "user", content: prompt }], { purpose: "plan" });
     return res?.content || "";
   };
+  // C4 cross-task experience memory (opt-in; "off" => fully inert: no dir, no retrieval,
+  // no consolidation, no new events, decide() unchanged).
+  const experienceNow = () => Date.now();
+  let experienceStore = null;
+  let experienceRetrieval = null;
+  let experienceConsolidator = null;
+  if (orch.crossTaskLearning !== "off") {
+    experienceStore = createExperienceStore({ dir: path.join(root, ".deepseek-code", "v2", "experience"), now: experienceNow });
+    experienceConsolidator = createConsolidator({ callModel, store: experienceStore, now: experienceNow, cfg: orch.experience });
+    experienceRetrieval = { query: (input) => experienceQuery(experienceStore, input, { retrieveK: orch.experience.retrieveK }) };
+  }
   const orchestrator = createOrchestrator({
     planner: createPlanner({ callModel }),
     makeWorkerFactory: () => createWorkerFactory({
@@ -244,7 +258,11 @@ export async function createKernel(root, options = {}) {
     }),
     mergeSubtask: (r) => mergeSubtask({ editService, mainRoot: root, isoRoot: r.isoRoot, baseManifest: r.baseManifest, actual: r.actual }),
     removeIso: (dir) => removeIso(dir),
-    maxRounds: orch.maxRounds
+    maxRounds: orch.maxRounds,
+    crossTaskLearning: orch.crossTaskLearning,
+    experienceRetrieval,
+    experienceConsolidator,
+    now: experienceNow
   });
   // Unified entry: the router decides single (today's path, zero new events) vs orchestrate.
   async function routedSend(message, sendOptions = {}) {
@@ -390,9 +408,16 @@ export async function createKernel(root, options = {}) {
     context,
     config,
     tools,
+    experience: {
+      listPending: () => experienceStore?.listPending?.() || [],
+      resolvePending: (id, decision) => experienceStore?.resolvePending?.(id, decision),
+      flush: () => orchestrator.flushExperience()
+    },
     async dispose() {
       if (kernelDisposed) return;
       kernelDisposed = true;
+      try { await orchestrator.flushExperience?.(); } catch { /* best-effort */ }
+      try { await experienceStore?.flush?.(); } catch { /* best-effort */ }
       try { sessionManager.dispose?.(); } catch { /* best-effort */ }
       try { await projectLock?.release?.(); } catch { /* best-effort */ }
     },

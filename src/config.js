@@ -34,6 +34,11 @@ export const DEFAULT_CONFIG = {
     maxSubtasks: 8,
     maxWorkerAttempts: 2,
     maxRounds: 2,
+    crossTaskLearning: "off",
+    experience: {
+      cap: 200, decayPerDay: 0.02, thresholds: { T1: 0.7, T2: 0.4, T3: 0.2 },
+      dedupThreshold: 0.6, maxLessonsPerTask: 5, retrieveK: 5, pendingTtlMs: 86400000
+    },
     budget: { maxTokens: null, maxModelCalls: 40 },
     parallel: { maxParallelWorkers: 4, maxCopyFiles: 5000, sweepTtlMs: 3600000 }
   }
@@ -150,6 +155,11 @@ export function normalizeOrchestration(raw = {}) {
   const limOrNull = (v, fb) => (v === null ? null : posInt(v, fb));
   const rm = r.model && typeof r.model === "object" ? r.model : {};
   const dm = d.router.model;
+  const unit01 = (v, fb) => { const n = Number(v); return Number.isFinite(n) && n >= 0 && n <= 1 ? n : fb; };
+  const posNum = (v, fb) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : fb; };
+  const exp = safe.experience && typeof safe.experience === "object" ? safe.experience : {};
+  const de = d.experience;
+  const eth = exp.thresholds && typeof exp.thresholds === "object" ? exp.thresholds : {};
   return {
     router: {
       minComplexFiles: posInt(r.minComplexFiles, d.router.minComplexFiles),
@@ -165,6 +175,20 @@ export function normalizeOrchestration(raw = {}) {
     maxSubtasks: posInt(safe.maxSubtasks, d.maxSubtasks),
     maxWorkerAttempts: posInt(safe.maxWorkerAttempts, d.maxWorkerAttempts),
     maxRounds: posInt(safe.maxRounds, d.maxRounds),
+    crossTaskLearning: ["off", "on", "gated"].includes(safe.crossTaskLearning) ? safe.crossTaskLearning : d.crossTaskLearning,
+    experience: {
+      cap: posInt(exp.cap, de.cap),
+      decayPerDay: posNum(exp.decayPerDay, de.decayPerDay),
+      thresholds: {
+        T1: unit01(eth.T1, de.thresholds.T1),
+        T2: unit01(eth.T2, de.thresholds.T2),
+        T3: unit01(eth.T3, de.thresholds.T3)
+      },
+      dedupThreshold: unit01(exp.dedupThreshold, de.dedupThreshold),
+      maxLessonsPerTask: posInt(exp.maxLessonsPerTask, de.maxLessonsPerTask),
+      retrieveK: posInt(exp.retrieveK, de.retrieveK),
+      pendingTtlMs: posInt(exp.pendingTtlMs, de.pendingTtlMs)
+    },
     budget: {
       maxTokens: b.maxTokens === undefined ? d.budget.maxTokens : limOrNull(b.maxTokens, d.budget.maxTokens),
       maxModelCalls: b.maxModelCalls === undefined ? d.budget.maxModelCalls : limOrNull(b.maxModelCalls, d.budget.maxModelCalls)

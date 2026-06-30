@@ -4,20 +4,36 @@ import { classifyOutcome } from "./synthesizer.js";
 
 export function createOrchestrator({
   planner, makeWorkerFactory, makeReviewerFor, synthesizer, makeBudget, maxSubtasks, maxWorkerAttempts,
-  eventBus, makeContext, maxParallelWorkers = 1, toBatches, runIsolatedWorker, mergeSubtask, removeIso, maxRounds = 1
+  eventBus, makeContext, maxParallelWorkers = 1, toBatches, runIsolatedWorker, mergeSubtask, removeIso, maxRounds = 1,
+  crossTaskLearning = "off", experienceRetrieval = null, experienceConsolidator = null, now = () => Date.now()
 }) {
-  const orchPaused = new Map();   // approvalId -> { state, dispatchResume }  (C5 same-process resume; M6 uses it)
+  const orchPaused = new Map();   // approvalId -> { state, dispatchResume }  (C5 same-process resume)
+  const pendingConsolidations = new Set();   // C4: background experience consolidation promises
+  const learningOn = crossTaskLearning !== "off" && !!experienceRetrieval && !!experienceConsolidator;
 
   async function run({ message, options = {}, routing = {} }) {
     const context = await makeContext?.({ message, options });
-    const plan = await planner.plan({ message, context });
+    let experiences = [];
+    let presentedIds = [];
+    let riskCues = new Set();
+    if (learningOn) {
+      const r = experienceRetrieval.query({ message }) || {};
+      experiences = r.procedural || [];
+      presentedIds = r.presentedIds || [];
+      riskCues = r.riskCues || new Set();
+      publish(eventBus, "experience:retrieved", { count: experiences.length, tiers: experiences.map((e) => e.tier), riskCueCount: riskCues.size });
+    }
+    const plan = await planner.plan({ message, context, experiences });
     if (plan.subtasks.length > maxSubtasks) plan.subtasks = plan.subtasks.slice(0, maxSubtasks);
     publish(eventBus, "orchestration:planned", { subtasks: plan.subtasks.length, done_when: plan.done_when });
+    const adoptedExperienceIds = learningOn ? intersect(plan.used_experience_ids, presentedIds) : [];
     const state = {
       message, options, plan, round: 1, allCollected: [],
       seenSubtaskIds: new Set(plan.subtasks.map((s) => s.id)),
       seenFp: new Set(plan.subtasks.map(fingerprint)),
-      budget: makeBudget(), stoppedByCap: false, done_when: plan.done_when
+      budget: makeBudget(), stoppedByCap: false, done_when: plan.done_when,
+      adoptedExperienceIds, riskCues,
+      taskId: "task_" + Math.trunc(now()).toString(36), sessionId: options.sessionId || "session"
     };
     return driveFrom(state, { afterPausedRound: false });
   }
@@ -84,8 +100,25 @@ export function createOrchestrator({
     const content = await synthesizer.synthesize({ message: state.message, collected: state.allCollected });
     const status = classifyOutcome(state.allCollected, { stoppedByCap: state.stoppedByCap });
     publish(eventBus, "orchestration:completed", { rounds: state.round, completed: count(state.allCollected, "complete"), failed: count(state.allCollected, "failed"), status });
+    if (learningOn) kickConsolidation(state, status);
     return { status: "complete", content, collected: state.allCollected, outcome: status };
   }
+
+  // C4: consolidate experience in the background — never blocks the user's result.
+  // Tracked so flushExperience()/dispose can await it (no lost writes).
+  function kickConsolidation(state, outcome) {
+    const p = Promise.resolve()
+      .then(() => experienceConsolidator.consolidate({
+        message: state.message, done_when: state.done_when, allCollected: state.allCollected,
+        outcome, adoptedExperienceIds: state.adoptedExperienceIds, taskId: state.taskId, sessionId: state.sessionId
+      }))
+      .then((r) => publish(eventBus, "experience:consolidated", { taskId: state.taskId, written: r?.written || 0 }))
+      .catch(() => {});
+    pendingConsolidations.add(p);
+    p.finally(() => pendingConsolidations.delete(p));
+  }
+
+  async function flushExperience() { await Promise.allSettled([...pendingConsolidations]); }
 
   function sumEntry(c) { return { id: c.st.id, goal: c.st.goal, note: c.status === "complete" ? String(c.wres?.content ?? "").slice(0, 160) : String(c.lastFeedback ?? "") }; }
 
@@ -105,7 +138,12 @@ export function createOrchestrator({
     return driveFrom(state, { afterPausedRound: true });    // round done -> gate + further rounds
   }
 
-  return { run, resume, hasPaused: (id) => orchPaused.has(id) };
+  return { run, resume, hasPaused: (id) => orchPaused.has(id), flushExperience };
+}
+
+function intersect(a, b) {
+  const s = new Set(b || []);
+  return (a || []).filter((x) => s.has(x));
 }
 
 // C5: final outcome — model's replan.done never auto-implies success.
