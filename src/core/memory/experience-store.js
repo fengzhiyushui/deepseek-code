@@ -70,6 +70,14 @@ export function createExperienceStore({ dir, now = () => Date.now() }) {
     return enqueue(async () => { entries = (next || []).slice(); await persistLib(); });
   }
 
+  // Batch-append eviction records (used by the upsert pipeline, which computes the
+  // survivor set wholesale via replaceAll and logs evictions separately).
+  function recordEvictions(records) {
+    return enqueue(async () => {
+      for (const r of records || []) logEviction(r.id, r.reason);
+    });
+  }
+
   function listPending() { return pending.slice(); }
 
   function putPending(p) {
@@ -95,5 +103,5 @@ export function createExperienceStore({ dir, now = () => Date.now() }) {
 
   function flush() { return queue; }
 
-  return { all, get, put, remove, replaceAll, listPending, putPending, resolvePending, flush };
+  return { all, get, put, remove, replaceAll, recordEvictions, listPending, putPending, resolvePending, flush };
 }
