@@ -7,7 +7,7 @@ const DEFAULT_THRESHOLDS = { T1: 0.7, T2: 0.4, T3: 0.2 };
 
 // The consolidator = secondary agent at task boundary. Model only distills lessons;
 // program logic does adopted reinforce/weaken + the upsert pipeline (deterministic).
-export function createConsolidator({ callModel, store, now = () => Date.now(), upsert = defaultUpsert, cfg = {}, maxRepairs = 1 }) {
+export function createConsolidator({ callModel, store, now = () => Date.now(), upsert = defaultUpsert, cfg = {}, maxRepairs = 1, mode = "on", onPending = null }) {
   const {
     maxLessonsPerTask = 5, cap = 200, thresholds = DEFAULT_THRESHOLDS,
     decayPerDay = 0.02, dedupThreshold = 0.6
@@ -20,6 +20,7 @@ export function createConsolidator({ callModel, store, now = () => Date.now(), u
     const lessons = await distill({ message, done_when, allCollected, outcome });
     const subtaskIds = subtaskIdsOf(allCollected);
     let written = 0;
+    let pending = 0;
     for (const [i, l] of lessons.slice(0, maxLessonsPerTask).entries()) {
       const cues = normalizeCues(l.cues);
       if (effectiveCues(cues).length < 1) continue;   // empty/low-info → not stored
@@ -34,10 +35,19 @@ export function createConsolidator({ callModel, store, now = () => Date.now(), u
         validations: 0, misleads: 0,
         created: iso, lastReinforced: iso, tier: 3
       };
+      // gated: high-impact (risk-kind) writes wait in the pending area for human approval
+      // before they can influence retrieval / permission escalation.
+      if (mode === "gated" && entry.kind === "risk") {
+        const pendingId = "pend_" + createHash("sha256").update(`${taskId}|${i}|${l.lesson}`).digest("hex").slice(0, 12);
+        await store.putPending({ pendingId, entry, created: iso });
+        if (onPending) onPending({ pendingId, kind: entry.kind });
+        pending += 1;
+        continue;
+      }
       await upsert(store, entry, upsertCfg);
       written += 1;
     }
-    return { written };
+    return { written, pending };
   }
 
   // Program logic: task succeeded → reinforce adopted; otherwise → weaken. (Model not involved.)

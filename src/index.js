@@ -220,7 +220,11 @@ export async function createKernel(root, options = {}) {
   let experienceConsolidator = null;
   if (orch.crossTaskLearning !== "off") {
     experienceStore = createExperienceStore({ dir: path.join(root, ".deepseek-code", "v2", "experience"), now: experienceNow });
-    experienceConsolidator = createConsolidator({ callModel, store: experienceStore, now: experienceNow, cfg: orch.experience });
+    experienceConsolidator = createConsolidator({
+      callModel, store: experienceStore, now: experienceNow, cfg: orch.experience,
+      mode: orch.crossTaskLearning,
+      onPending: (info) => eventBus.publish("experience:pending_approval", info)
+    });
     experienceRetrieval = { query: (input) => experienceQuery(experienceStore, input, { retrieveK: orch.experience.retrieveK }) };
   }
   const orchestrator = createOrchestrator({
@@ -409,8 +413,16 @@ export async function createKernel(root, options = {}) {
     config,
     tools,
     experience: {
-      listPending: () => experienceStore?.listPending?.() || [],
-      resolvePending: (id, decision) => experienceStore?.resolvePending?.(id, decision),
+      listPending: async () => {
+        if (!experienceStore) return [];
+        await experienceStore.prunePending?.(orch.experience.pendingTtlMs);
+        return experienceStore.listPending();
+      },
+      resolvePending: async (id, decision) => {
+        const r = await experienceStore?.resolvePending?.(id, decision);
+        eventBus.publish("experience:pending_resolved", { pendingId: id, decision });
+        return r;
+      },
       flush: () => orchestrator.flushExperience()
     },
     async dispose() {

@@ -101,7 +101,22 @@ export function createExperienceStore({ dir, now = () => Date.now() }) {
     });
   }
 
+  // gated TTL: pending older than ttlMs are auto-denied (conservative — never auto-commit).
+  function prunePending(ttlMs) {
+    return enqueue(async () => {
+      const cutoff = now() - ttlMs;
+      const kept = [];
+      let changed = false;
+      for (const p of pending) {
+        const t = Date.parse(p.created || "");
+        if (Number.isFinite(t) && t < cutoff) { logEviction(p.entry.id, "gated_expired"); changed = true; }
+        else kept.push(p);
+      }
+      if (changed) { pending = kept; await persistPending(); }
+    });
+  }
+
   function flush() { return queue; }
 
-  return { all, get, put, remove, replaceAll, recordEvictions, listPending, putPending, resolvePending, flush };
+  return { all, get, put, remove, replaceAll, recordEvictions, listPending, putPending, resolvePending, prunePending, flush };
 }
