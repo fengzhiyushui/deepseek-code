@@ -79,6 +79,7 @@ docs/
 - [v3-phase-c3 parallel-isolation](specs/backend/2026-06-27-v3-phase-c3-parallel-isolation-design.md) — **C3 并行写隔离**:无依赖+不重叠子任务并行,每 Worker fs 拷贝隔离工作区 + 绑定该目录工具平面 → 每 subtask 原子事务回放合并(快照一致性 CAS + 实际范围校验 + 严格路径归一化 + 零残留 retry/启动清扫);`maxParallelWorkers=1` 退化串行零回归
 - [v3-phase-c5 replan-resume](specs/backend/2026-06-27-v3-phase-c5-replan-resume-design.md) — **C5 重规划 + 持续派发**:确定性回合循环(`planner.replan→{done,subtasks}`,模型只产结构化、程序闸控终止)+ 严格 replan schema + 无进展守卫 + **同进程编排级续跑**(暂停存编排状态、`approve` 路由 orchestrator、不重 plan/不重复派发);`maxRounds=1` 退化 C1+C2 零回归
 - [v3-phase-c-router tiered](specs/backend/2026-06-27-v3-phase-c-router-tiered-design.md) — **C-Router 分层路由**:启发式评分三档(明显简单/复杂免费短路、模糊中间档调一次便宜模型判 lane)+ 长 edit 捕手修「关键词太窄」+ 文件 token 归一化首个免计 + 模型档总调用/总超时上限 + 全失败收敛启发式兜底;**默认开**、`router.model.enabled=false` opt-out 逐字节回今天(`agent-runtime`/`classifier` 不改)
+- [v3-phase-c4 experience-memory](specs/backend/2026-06-27-v3-phase-c4-experience-memory-design.md) — **C4 跨任务经验记忆(完整)**:独立经验库 + 三级分化(打分/老化/末位淘汰)+ Jaccard 聚簇去重 + 巩固器(次 agent 任务边界异步)+ planner 检索注入(adopted=used∩presented)+ **风险经验单调升级权限**(只 allow→ask、不改 agent-runtime)+ 开关 off/on/gated;默认 off 零回归
 
 ### specs/frontend — 前端设计
 - [v2-14 gui-workbench-branch-rewind](specs/frontend/2026-05-31-v2-14-gui-workbench-branch-rewind-design.md)
@@ -102,6 +103,7 @@ docs/
 - [v3-phase-c3 parallel-isolation](plans/backend/2026-06-27-v3-phase-c3-parallel-isolation.md) — **C3 实施计划**:8 任务 / M1–M8(path-overlap → workspace-snapshot → iso-workspace → buildToolPlane 重构 → merge-back(净 diff+CAS) → batch-planner → 批次并行派发 → config+sweep+文档)
 - [v3-phase-c5 replan-resume](plans/backend/2026-06-27-v3-phase-c5-replan-resume.md) — **C5 实施计划**:8 任务 / M1–M8(validateReplan+fingerprint → planner.replan → config.maxRounds → dispatch 暂停/续跑 → orchestrator 回合循环 → 同进程续跑 → kernel 路由+终判+e2e → 回归+文档)
 - [v3-phase-c-router tiered](plans/backend/2026-06-27-v3-phase-c-router-tiered.md) — **C-Router 实施计划**:4 任务 / M1–M4(router-scoring 纯函数 → task-router 分层+模型档 → config 归一化+index 注入+route_resolved 事件 → e2e+回归 670+文档)
+- [v3-phase-c4 experience-memory](plans/backend/2026-06-27-v3-phase-c4-experience-memory.md) — **C4 实施计划**:M0–M9 / TDD(契约 → store 写队列 → scoring → cluster → upsert → consolidator → retrieval+planner → orchestrator 接线 → permission 单调升级 → gated+e2e+回归 739+文档)
 - v2-0 skeleton-protocol-foundation · v2-1 deepseek-gateway · v2-2 tool-plane · v2-3 edit-service · v2-4 runtime-loop · v2-6 release-closure · v2-7 approval-resume · v2-8 verifier-repair-loop · v2-9 context-engine · v2-10 context-cache-usage-telemetry · v2-11 transactional-edit-dirty-workspace · v2-12 branching-conversation-rewind · v2-13 rewind-hardening-recovery · v2-17 chat-kernel-unification · v2-18 durable-recovery-resume-hardening · **v2-20a runtime-cost-timeout-guardrails** · **v2-20b guardrail-injection-graceful-stop** · **v2-20c malformed-toolcall-retry** · **v2-20d resume-path-guardrail-alignment** · **v2-20e repair-path-model-timeout** · **v2-20f guardrail-defaults-config** · **v2-19 delete-v1-legacy** · **v2-18c edit-rewind-journaling**
 - 文件位于 [`plans/backend/`](plans/backend/)
 

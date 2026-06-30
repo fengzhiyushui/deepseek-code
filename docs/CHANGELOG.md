@@ -16,6 +16,15 @@
 - **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。支柱① 语义级上下文 **Phase B 首版已落地**(见下)。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
+### 已落地 — Phase C4 跨任务经验记忆(完整,默认关)
+- **跨任务沉淀闭环**:次 agent 在任务边界**提炼教训** → 独立**经验库**(三级分化 + Jaccard 聚簇去重)→ 新任务 planner **检索**相关经验注入拆派 + **风险经验联动权限层**。开关 `config.orchestration.crossTaskLearning = "off"|"on"|"gated"`,**默认 `off`**:关闭时无检索/巩固/升级/事件/目录,与 C1–C5 **逐字节一致**(zero-regression)。
+- **两套记忆彻底分开**:经验库存 `<root>/.deepseek-code/v2/experience/`(富 schema + 写队列串行化 + 原子写),与主事实库(`memory` 工具)互不污染;可一键清空而不碰事实与事件时间线。
+- **三级分化**(纯函数):`score = conf + 0.1·ln(1+validations) − decay·age − 0.2·misleads` → `T1/T2/T3`(.7/.4/.2);跌破 T3 即删 + 超 `cap`(200)末位淘汰(确定性 tie-break);**聚簇 token-集 Jaccard ≥.6**(修正旧 spec 的「Phase B 符号图」硬伤——那是代码图非文本相似度),`risk`/`procedural` 永不同簇,cue 护栏(停用词/低信息/最少 2 有效 cue)。
+- **巩固器 = readonly `agent-runtime` 实例**(引擎不改):模型**只提炼**,程序逻辑控聚簇/打分/定级/淘汰/升降。**后台异步**(`pendingConsolidations`),用户结果不等巩固;`kernel.experience.flush()`/`dispose` 收口不丢写。**「读到≠用到」**:planner 回 `used_experience_ids`,`adopted = used ∩ presented` 才升降(防错误强化)。
+- **风险经验 → 权限单调升级**:`riskCues → escalate_only projectRules` 注入**串行主区** worker(并行 iso `auto` worker 不施加);`permission-engine` **只把 default-matrix 的 `allow` 升 `ask`**,绝不降级 / 绝不覆盖用户显式 trust/cache。**`agent-runtime.js` 一行不改**(走已有 `options.projectRules` 转发通道)。
+- **`gated` 模式**:risk-kind 高影响写入先入 `pending/` 待审区(`experience:pending_approval`,不影响检索/权限)→ `kernel.experience.{listPending,resolvePending}` 带外审批;TTL(默认 24h)过期自动 deny;`dispose` 未决保留磁盘、绝不自动落库。
+- M0–M9 / TDD(全程主控内联,模型全 mock;subagent/codex 复审本环境 429,对抗复审改主控内联补做、钉死 8 处 F1–F8)。测试 **739 全绿**(含真链路 e2e:on 沉淀→检索影响 plan + 风险 allow→ask;off 全链路逐字节同今天)、check OK。计划:[`plans/backend/2026-06-27-v3-phase-c4-experience-memory.md`](plans/backend/2026-06-27-v3-phase-c4-experience-memory.md);设计:[`specs/backend/2026-06-27-v3-phase-c4-experience-memory-design.md`](specs/backend/2026-06-27-v3-phase-c4-experience-memory-design.md)。
+
 ### 已落地 — Phase C-Router 分层路由(模型辅助复杂度判定)
 - **分层**:确定性路由器从「纯关键词启发式」升级——启发式按特征算 `score` → 三档:`score==0` simple→single、`>=阈值`(默认3)complex→orchestrate **免费短路**,只有 `0<score<阈值` 的**模糊中间档**才花一次便宜模型(`act`/flash 档)判 lane。直接缓解「关键词太窄」(无关键词长编辑请求经**长 edit 捕手** +1 进模糊档由模型判),又避免「全问模型太贵」。
 - **模型档默认开**(本项目首次主动打破默认零回归);保留 **opt-out**:`router.model.enabled=false` → 逐字节回到今天(`signals`-only),**裸构造无 `callModel` 亦回退今天**(`modelActive` 双条件)。`signals`(今天 marker+文件)与 `score`(含长 edit 捕手)**严格分离**,长 edit 捕手永不进 `signals` → disabled-parity 守护。

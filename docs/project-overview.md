@@ -376,3 +376,24 @@ route(message) → 启发式评分(router-scoring,纯)
 - **模型档**(复刻 planner):`gateway.invoke({purpose: 配置 channel,默认 act/flash})`;**总调用 ≤ `maxRepairs+1`**、**总超时 = `timeoutMs`(默认 8000ms)跨重试**;畸形/超时/空网关/抛错**全收敛同一启发式兜底**,带短码 `reason`(`router_model_timeout`/`_invalid`/`_empty`/`_error`)。**`route()` 启发式档同步、仅模糊档返回 Promise**(`index.js` 已 await)。
 - **事件**:`orchestration:route_resolved`(eventBus 级、不入 `SESSION_EVENT_TYPES`,同现有 `orchestration:routed`)**仅模型档运行时**发,载 `score`/`features`(脱敏:短 token+计数,无完整消息)/`band`/`tier`/`reason`。
 - 配置:`config.orchestration.router.model = { enabled:true, channel:"act", timeoutMs:8000, maxRepairs:1, complexThreshold:3 }`。组件:[`src/core/orchestration/`](../src/core/orchestration/) 的 `router-scoring`(新)+ `task-router`(分层);`index.js` 注入 `routerCallModel`。`agent-runtime.js` / `classifier.js` **不改**。
+
+### 14.4 跨任务经验记忆(C4,默认关)
+
+> 设计见 [C4 spec](specs/backend/2026-06-27-v3-phase-c4-experience-memory-design.md);实施见 [C4 plan](plans/backend/2026-06-27-v3-phase-c4-experience-memory.md)。
+
+在编排之上加**跨任务经验沉淀**:次 agent 在任务边界提炼教训 → 独立经验库 → 新任务 planner 检索影响拆派 + 风险经验联动权限。**开关 `config.orchestration.crossTaskLearning = "off"|"on"|"gated"`,默认 `off`**——关闭时无检索/巩固/升级/事件/目录,与 C1–C5 逐字节一致。
+
+```
+新任务: 检索经验(retrieval) → planner 拆派(prompt 注入判断简报)
+任务边界: 巩固器(次 agent,后台异步) → 提炼教训 → 经验库(三级分化)
+                                       └ adopted 经验按 task outcome 强化/削弱
+```
+
+- **彻底分开主记忆**:经验库存 `<root>/.deepseek-code/v2/experience/`(独立目录、富 schema:置信度/层级/出处/验证次数),与 `tools/builtin/memory.js` 的项目事实库互不污染;可一键清空而不碰事实与事件时间线。
+- **三级分化**(`experience-scoring`,纯):`score = conf + 0.1·ln(1+validations) − decay·age − 0.2·misleads`,`tierOf` 按 `T1/T2/T3`(默认 .7/.4/.2);跌破 T3 即删、超 `cap`(默认 200)末位淘汰(确定性 tie-break:score→lastReinforced→created→id)。**聚簇去重**用 token-集 **Jaccard ≥.6**(`experience-cluster`,非 Phase B 符号图);`risk`/`procedural` 永不同簇;cue 护栏(停用词/低信息/最少 2 有效 cue)。
+- **巩固器**(`experience-consolidator` = readonly `agent-runtime` 实例):模型**只提炼** `{kind,lesson,cues,confidence}`,程序逻辑控聚簇/打分/定级/淘汰/升降。后台 tracked promise(`pendingConsolidations`),用户结果**不等**巩固;`kernel.experience.flush()` / `dispose` 收口不丢写。
+- **检索注入**(`experience-retrieval`,纯读):cue 重叠 × tier 权重取 top-K → planner prompt;**「读到≠用到」**:planner 回 `used_experience_ids`,`adopted = used ∩ presented` 才参与升降(防错误强化)。
+- **风险经验 → 权限(单调升级)**:retrieval 的 `riskCues` → `risk-rules` 生成 `escalate_only` projectRules → orchestrator 注入**串行主区** worker 的 `options.projectRules`(并行 iso `auto` worker 不施加,F8)→ `permission-engine` **只把 default-matrix 的 `allow` 升 `ask`**,绝不降级 / 绝不覆盖用户显式 trust/cache(§9.1)。**`agent-runtime.js` 不改**(走已有 `options.projectRules` 转发通道)。
+- **`gated` 模式**:risk-kind 高影响写入先入 `pending/` 待审区(发 `experience:pending_approval`,不影响检索/权限)→ `kernel.experience.{listPending,resolvePending}` 带外审批;`pendingTtlMs`(默认 24h)过期自动 deny;`dispose` 未决保留磁盘、绝不自动落库。
+- **事件**(eventBus 级,仅非 off):`experience:retrieved` / `:consolidated` / `:evicted` / `:reinforced` / `:weakened` / `:pending_approval` / `:pending_resolved`。
+- 组件:[`src/core/memory/`](../src/core/memory/) 的 `experience-schema` · `experience-store`(写队列 + 原子写 + pending)· `experience-scoring` · `experience-cluster` · `experience-upsert` · `experience-consolidator` · `experience-retrieval` · `risk-rules`;接线 `orchestrator` / `dispatch-loop` / `permission-engine` / `planner` / `config` / `index.js`(`kernel.experience` facade)。

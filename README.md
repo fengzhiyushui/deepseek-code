@@ -23,6 +23,7 @@ DeepSeek Code 在你的项目目录里运行,读代码、改代码、跑测试,�
 - **语义级上下文(可选)** —— 启用后按符号(函数/类)而非整文件检索,沿 import / 调用依赖图扩展;基于 web-tree-sitter(WASM,无原生构建依赖),**支持 JS / TS / Python**(tree-sitter query 统一驱动),**默认关闭**。启用:`--semantic-context`(符号级)/ `--include-method-hints`(并开方法调用提示,`obj.method()` 唯一同名时给 `probable`);可配 `context.semantic.languages` 与 Python 模块搜索根 `importRoots`。
 - **分支与时间旅行** —— 会话可从任意 turn 分叉(branch),也可 rewind 回到历史状态。
 - **自动多智能体编排** —— 复杂任务(多文件 / 多子目标)由**分层路由器**自动判别(明显档免费启发式、模糊中间档调一次便宜模型判复杂度;**默认开**,`router.model.enabled=false` 可关)并拆成子任务、子代理执行(**无依赖且文件不重叠的子任务在隔离工作区并行、改完合并**)、**两级独立审核**后汇总;失败/不完整会**多回合自适应**(看审核摘要重规划或继续派发,`maxRounds` 可配)、审批中断**可续跑**(不重规划);简单任务零开销走原路。统一入口、确定性编排、成本闸常开,**无需开关**。
+- **跨任务经验记忆(可选,默认关)** —— 开启后,次 agent 在任务边界提炼教训存入**独立经验库**(三级分化衰减 + Jaccard 去重),新任务自动**检索**相关经验影响拆派,**风险经验联动权限层**(只升不降、绝不放松);`crossTaskLearning: "off" | "on" | "gated"`,默认关、零回归。
 - **持久化恢复(可选)** —— 进程崩溃后凭项目锁 + 暂停 sidecar + 事务日志恢复未完成的回合;**默认关闭**,opt-in 开启。
 - **运行护栏** —— 工具/模型调用超时默认 120s 开启;token、模型调用次数、畸形 tool-call 重试均可配额;命中后**优雅停止**而非崩溃。
 - **DeepSeek 原生适配** —— 按用途路由模型(reply/act/plan/review/repair/fim)、JSON mode guard、SSE 流式、FIM 代码补全、用量遥测。
