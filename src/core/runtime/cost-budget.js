@@ -1,6 +1,6 @@
-export function createCostBudget({ maxTokens = null, maxModelCalls = null } = {}) {
-  let tokens = 0;
-  let modelCalls = 0;
+export function createCostBudget({ maxTokens = null, maxModelCalls = null, initialTokens = 0, initialModelCalls = 0 } = {}) {
+  let tokens = initialTokens;
+  let modelCalls = initialModelCalls;
 
   function recordModelResult(modelResult) {
     const usage = modelResult?.usage;
