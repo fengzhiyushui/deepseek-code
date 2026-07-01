@@ -53,6 +53,16 @@ export function useKernel(dispatch) {
     interrupt: () => api?.interrupt?.(),
     setPreferences: (patch) => api?.setPreferences?.(patch),
     rewindPreview: (o) => api?.rewindPreview?.(o),
-    rewindApply: (o) => api?.rewindApply?.(o)
-  }), [api]);
+    rewindApply: (o) => api?.rewindApply?.(o),
+    openFile: async (path) => {
+      if (!api?.readFile) return;
+      try {
+        const r = await api.readFile(path);
+        if (r && r.error) dispatch(errorToAction("readFile", new Error(r.error)));
+        else dispatch({ type: "file_opened", file: r });
+      } catch (err) {
+        dispatch(errorToAction("readFile", err));
+      }
+    }
+  }), [api, dispatch]);
 }

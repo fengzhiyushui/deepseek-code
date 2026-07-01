@@ -66,8 +66,10 @@ export default function App() {
       <TitleBar t={t} language={state.language} theme={state.theme} title="index.js — deepseek-code" onToggleTheme={toggleTheme} onToggleLang={toggleLang} />
       <div className="body" style={{ gridTemplateColumns: cols }}>
         {layout.rail && <ActivityBar t={t} active={activeAct} onSelect={setActiveAct} />}
-        {layout.sidebar && <Explorer t={t} state={state} onSelectBranch={selectBranch} />}
-        <EditorGroup t={t} />
+        {layout.sidebar && <Explorer t={t} state={state} onSelectBranch={selectBranch} onOpenFile={kernel.openFile} />}
+        <EditorGroup t={t} state={state}
+          onActivate={(p) => dispatch({ type: "file_activated", path: p })}
+          onClose={(p) => dispatch({ type: "file_closed", path: p })} />
         {layout.chat && <AgentPanel t={t} state={state} actions={actions} />}
       </div>
       <StatusBar t={t} state={state} offline={!kernel.available} />

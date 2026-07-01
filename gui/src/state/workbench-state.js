@@ -28,6 +28,9 @@ export function createInitialState() {
     degraded: false,
     errors: [],
     approval: null,
+    fileTree: [],
+    openFiles: [],
+    activeFile: null,
     loading: {},
     usage: null,
     metrics: {
@@ -128,6 +131,28 @@ export function applyWorkbenchAction(state, action) {
   }
   if (action.type === "language_changed") {
     return copy(current, { language: normalize(action.language, LANGUAGES, "zh") });
+  }
+  if (action.type === "tree_loaded") {
+    return copy(current, { fileTree: Array.isArray(action.files) ? action.files.slice() : [] });
+  }
+  if (action.type === "file_opened") {
+    var file = action.file || {};
+    if (!file.path) return current;
+    var exists = (current.openFiles || []).some(function (f) { return f.path === file.path; });
+    var openFiles = exists
+      ? current.openFiles.map(function (f) { return f.path === file.path ? file : f; })
+      : current.openFiles.concat([file]);
+    return copy(current, { openFiles: openFiles, activeFile: file.path });
+  }
+  if (action.type === "file_activated") {
+    return copy(current, { activeFile: action.path || current.activeFile });
+  }
+  if (action.type === "file_closed") {
+    var remaining = (current.openFiles || []).filter(function (f) { return f.path !== action.path; });
+    var nextActive = current.activeFile === action.path
+      ? (remaining.length ? remaining[remaining.length - 1].path : null)
+      : current.activeFile;
+    return copy(current, { openFiles: remaining, activeFile: nextActive });
   }
   if (action.type === "loading_changed") {
     return copy(current, {

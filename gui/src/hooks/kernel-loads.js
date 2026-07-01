@@ -8,7 +8,8 @@ export function buildInitialLoads() {
     { call: "getPreferences", toAction: (preferences) => ({ type: "preferences_loaded", preferences: preferences || {} }) },
     { call: "listCheckpoints", toAction: (checkpoints) => ({ type: "checkpoints_loaded", checkpoints: Array.isArray(checkpoints) ? checkpoints : [] }) },
     { call: "getUsage", toAction: (usage) => ({ type: "usage_loaded", usage: usage || {} }) },
-    { call: "getState", toAction: (runtime) => ({ type: "runtime_loaded", runtime: runtime || { current: "idle", channel: null } }) }
+    { call: "getState", toAction: (runtime) => ({ type: "runtime_loaded", runtime: runtime || { current: "idle", channel: null } }) },
+    { call: "listTree", toAction: (files) => ({ type: "tree_loaded", files: Array.isArray(files) ? files : [] }) }
   ];
 }
 

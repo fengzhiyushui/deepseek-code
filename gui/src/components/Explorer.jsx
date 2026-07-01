@@ -1,43 +1,67 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
+import Placeholder from "./Placeholder.jsx";
+import { buildTree } from "../state/file-tree.js";
 import { shortId } from "../state/workbench-state.js";
 
-const FILES = [
-  { n: "src", type: "folder", chev: "▾", i: 0 },
-  { n: "core", type: "folder", chev: "▸", i: 1 },
-  { n: "index.js", type: "js", i: 1, active: true },
-  { n: "config.js", type: "js", i: 1, flag: "m" },
-  { n: "tui.js", type: "js", i: 1, flag: "u" },
-  { n: "deepseek", type: "folder", chev: "▸", i: 1 },
-  { n: "tools", type: "folder", chev: "▸", i: 1 },
-  { n: "gui", type: "folder", chev: "▸", i: 0 },
-  { n: "docs", type: "folder", chev: "▸", i: 0 },
-  { n: "package.json", type: "json", i: 0 },
-  { n: "README.md", type: "md", i: 0 }
-];
-
-function Ico({ type }) {
-  if (type === "folder") return <span className="ico folder">{"📁"}</span>;
-  const label = type === "json" ? "{}" : type === "md" ? "MD" : "JS";
-  return <span className={`ico ${type}`}>{label}</span>;
+function FileIcon({ name }) {
+  const ext = name.split(".").pop().toLowerCase();
+  if (ext === "json") return <span className="ico json">{"{}"}</span>;
+  if (ext === "md") return <span className="ico md">MD</span>;
+  if (["js", "mjs", "cjs", "jsx", "ts", "tsx"].includes(ext)) return <span className="ico js">JS</span>;
+  return <span className="ico" style={{ background: "none", color: "var(--text-mut)" }}>·</span>;
 }
 
-export default function Explorer({ t, state, onSelectBranch }) {
+function TreeNode({ node, depth, expanded, toggle, onOpen, activeFile }) {
+  const pad = { paddingLeft: 8 + depth * 14 };
+  if (node.type === "dir") {
+    const open = expanded.has(node.path);
+    return (
+      <>
+        <button type="button" className="row" style={pad} onClick={() => toggle(node.path)} aria-expanded={open}>
+          <span className="chev">{open ? "▾" : "▸"}</span>
+          <span className="ico folder">{"📁"}</span>
+          <span className="name">{node.name}</span>
+        </button>
+        {open && node.children.map((c) => (
+          <TreeNode key={c.path} node={c} depth={depth + 1} expanded={expanded} toggle={toggle} onOpen={onOpen} activeFile={activeFile} />
+        ))}
+      </>
+    );
+  }
+  return (
+    <button type="button" className={`row ${activeFile === node.path ? "active" : ""}`} style={pad}
+      title={node.path} aria-selected={activeFile === node.path} onClick={() => onOpen(node.path)}>
+      <span className="chev" />
+      <FileIcon name={node.name} />
+      <span className="name">{node.name}</span>
+    </button>
+  );
+}
+
+export default function Explorer({ t, state, onSelectBranch, onOpenFile }) {
+  const tree = useMemo(() => buildTree(state.fileTree), [state.fileTree]);
+  const [expanded, setExpanded] = useState(() => new Set(tree.filter((n) => n.type === "dir").map((n) => n.path)));
+  const toggle = (p) => setExpanded((prev) => {
+    const next = new Set(prev);
+    next.has(p) ? next.delete(p) : next.add(p);
+    return next;
+  });
+  const hasTree = tree.length > 0;
+
   return (
     <aside className="side" aria-label={t("explorer")}>
-      <div className="head">
-        <span>{t("explorer").toUpperCase()}</span>
-        <span style={{ color: "var(--text-mut)", fontSize: 10 }}>{t("placeholder.badge")}</span>
-      </div>
+      <div className="head"><span>{t("explorer").toUpperCase()}</span></div>
       <div className="project"><span>{"▾"}</span> DEEPSEEK-CODE</div>
-      <div className="tree" role="tree" aria-label={t("placeholder.files")}>
-        {FILES.map((f, idx) => (
-          <div key={idx} className={`row indent-${f.i} ${f.active ? "active" : ""}`} role="treeitem" tabIndex={f.active ? 0 : -1}>
-            <span className="chev">{f.chev || ""}</span>
-            <Ico type={f.type} />
-            <span className="name">{f.n}</span>
-            {f.flag && <span className={`flag ${f.flag}`}>{f.flag.toUpperCase()}</span>}
-          </div>
-        ))}
+      <div className="tree" role="tree">
+        {hasTree
+          ? tree.map((n) => (
+              <TreeNode key={n.path} node={n} depth={0} expanded={expanded} toggle={toggle} onOpen={onOpenFile} activeFile={state.activeFile} />
+            ))
+          : (
+            <Placeholder badge={t("placeholder.badge")} label={t("placeholder.files")}>
+              <div>src/</div><div>&nbsp;&nbsp;index.js</div>
+            </Placeholder>
+          )}
 
         <div className="section-head">{t("branches")}</div>
         {state.branches.length === 0 && (

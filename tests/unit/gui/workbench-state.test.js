@@ -213,3 +213,24 @@ test("language defaults to zh and switches via action + preferences", () => {
   const fromPrefs = state.applyWorkbenchAction(state.createInitialState(), { type: "preferences_loaded", preferences: { language: "en" } });
   assert.equal(fromPrefs.language, "en");
 });
+
+// D2-M2: file tree + open-files state
+test("tree_loaded / file open / activate / close", () => {
+  let s = state.createInitialState();
+  s = state.applyWorkbenchAction(s, { type: "tree_loaded", files: ["a.js", "b.js"] });
+  assert.deepEqual(s.fileTree, ["a.js", "b.js"]);
+  s = state.applyWorkbenchAction(s, { type: "file_opened", file: { path: "a.js", content: "x", language: "javascript" } });
+  assert.equal(s.activeFile, "a.js");
+  assert.equal(s.openFiles.length, 1);
+  s = state.applyWorkbenchAction(s, { type: "file_opened", file: { path: "a.js", content: "x2" } });
+  assert.equal(s.openFiles.length, 1);                 // dedupe by path
+  assert.equal(s.openFiles[0].content, "x2");          // content updated
+  s = state.applyWorkbenchAction(s, { type: "file_opened", file: { path: "b.js", content: "y" } });
+  assert.equal(s.openFiles.length, 2);
+  assert.equal(s.activeFile, "b.js");
+  s = state.applyWorkbenchAction(s, { type: "file_activated", path: "a.js" });
+  assert.equal(s.activeFile, "a.js");
+  s = state.applyWorkbenchAction(s, { type: "file_closed", path: "a.js" });
+  assert.equal(s.openFiles.length, 1);
+  assert.equal(s.activeFile, "b.js");                  // fallback to remaining
+});
