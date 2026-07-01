@@ -18,7 +18,8 @@ const IPC_CHANNELS = [
   "context:snapshot", "model:usage",
   "gui:preferences-get", "gui:preferences-set",
   "config:get", "orchestrator:state",
-  "window:minimize", "window:maximize", "window:close"
+  "window:minimize", "window:maximize", "window:close",
+  "fs:tree", "fs:read"
 ];
 
 if (process.env.DEEPSEEK_CODE_GUI_SMOKE === "1") {
@@ -134,6 +135,16 @@ function registerIpcHandlers() {
     if (w) { w.isMaximized() ? w.unmaximize() : w.maximize(); }
   });
   ipcMain.handle("window:close", (e) => { BrowserWindow.fromWebContents(e.sender)?.close(); });
+
+  // File bridge (read-only project files for the tree + editor).
+  ipcMain.handle("fs:tree", async () => {
+    try { return await host.listTree(); }
+    catch (error) { return { error: error.message }; }
+  });
+  ipcMain.handle("fs:read", async (_event, rel) => {
+    try { return await host.readFile(rel); }
+    catch (error) { return { error: error.message }; }
+  });
 
   ipcMain.handle("agent:send", async (_event, message, opts) => {
     try { return await host.send(message, opts || {}); }

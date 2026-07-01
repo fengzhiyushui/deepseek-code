@@ -6,11 +6,34 @@ const { pathToFileURL } = require("url");
 const GUI_PREFERENCE_DEFAULTS = Object.freeze({
   schema: 1,
   theme: "night",
+  language: "zh",
   railMode: "chat",
   contextCollapsed: false
 });
 
 const GUI_RAIL_MODES = new Set(["chat", "context", "branches", "timeline", "settings"]);
+
+const EXT_LANGUAGE = {
+  js: "javascript", mjs: "javascript", cjs: "javascript", jsx: "javascript",
+  ts: "typescript", tsx: "typescript", py: "python", json: "json", md: "markdown",
+  css: "css", scss: "scss", html: "html", htm: "html", yml: "yaml", yaml: "yaml",
+  sh: "shell", bash: "shell", txt: "plaintext"
+};
+
+function languageForExt(relPath) {
+  const ext = String(relPath || "").split(".").pop().toLowerCase();
+  return EXT_LANGUAGE[ext] || "plaintext";
+}
+
+// Lazily load the ESM workspace path-safety util (kernel-host is CommonJS).
+let pathSafetyPromise = null;
+function loadPathSafety() {
+  if (!pathSafetyPromise) {
+    const p = path.join(__dirname, "..", "src", "workspace", "path-safety.js");
+    pathSafetyPromise = import(pathToFileURL(p).href);
+  }
+  return pathSafetyPromise;
+}
 
 function resolveProjectRoot(argv = process.argv, fallback = path.resolve(__dirname, "..")) {
   const projectArg = argv.find((arg) => arg.startsWith("--project="));
@@ -42,6 +65,7 @@ function normalizeGuiPreferences(value = {}) {
   return {
     schema: 1,
     theme: input.theme === "day" ? "day" : "night",
+    language: input.language === "en" ? "en" : "zh",
     railMode: GUI_RAIL_MODES.has(input.railMode) ? input.railMode : "chat",
     contextCollapsed: typeof input.contextCollapsed === "boolean" ? input.contextCollapsed : false
   };
@@ -189,6 +213,17 @@ function createKernelHost({
     return saveGuiPreferences(projectRoot, patch);
   }
 
+  async function listTree() {
+    const { walkWorkspaceFiles } = await loadPathSafety();
+    return walkWorkspaceFiles(projectRoot);
+  }
+
+  async function readFile(rel) {
+    const { readWorkspaceTextFile } = await loadPathSafety();
+    const r = await readWorkspaceTextFile(projectRoot, rel);
+    return { ...r, language: languageForExt(rel) };
+  }
+
   function dispose() {
     subscription?.unsubscribe?.();
     subscription = null;
@@ -196,7 +231,7 @@ function createKernelHost({
 
   return { init, ready, send, approve, interrupt, getTimeline, getSnapshot, getUsage, getConfig, getState,
            listBranches, listCheckpoints, rewindPreview, rewindApply, getActiveBranch,
-           getPreferences, setPreferences, dispose };
+           getPreferences, setPreferences, listTree, readFile, dispose };
 }
 
 module.exports = { createKernelHost, resolveProjectRoot, zeroUsage, buildKernelOptions,

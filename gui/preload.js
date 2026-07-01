@@ -25,4 +25,6 @@ contextBridge.exposeInMainWorld("deepseek", {
   minimize: () => ipcRenderer.invoke("window:minimize"),
   maximizeToggle: () => ipcRenderer.invoke("window:maximize"),
   closeWindow: () => ipcRenderer.invoke("window:close"),
+  listTree: () => ipcRenderer.invoke("fs:tree"),
+  readFile: (rel) => ipcRenderer.invoke("fs:read", rel),
 });
