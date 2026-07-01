@@ -16,12 +16,13 @@
 - **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。支柱① 语义级上下文 **Phase B 首版已落地**(见下)。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
-### 已落地 — Phase D-1 GUI React 外壳(地基 + 视觉外壳)
-- **渲染层迁 React + Vite + Semi UI**:Electron GUI 从原生 DOM 迁到 React 四栏 IDE 外壳(TopBar / ActivityRail / Sidebar / CodeWorkspace / ChatPanel,Semi UI + lucide-react + react19 适配器);**后端 kernel-host / preload / IPC / `window.deepseek` 契约一字不改**,`main.js` 仅改加载目标(dev→Vite devserver / prod→`renderer-dist` / 旧原生休眠回退)。
-- **状态复用纯 reducer**:`workbench-state.js` UMD→ESM(逻辑不改)→ `useReducer`;`useKernel` 桥 `window.deepseek` 事件流。取数编排 / 断点 / 占位判定抽**纯函数**(`buildInitialLoads` / `layoutForWidth` / `isLivePanel`)→ node:test 全测;**reducer 不可变返回防线**(改状态 action 返回新引用)。
-- **前端易翻车点前置**:**布局契约**(列宽 / 断点 760·1060·1340 / 独立滚动 / composer 固定底 / 截断)、**a11y 基线**(键盘可达 / `aria-label` / ApprovalBanner `role=alertdialog` / WCAG AA,D-1 即打底)、**占位强标记**(文件树 / 编辑器 / 终端 / 未接卡片带「示例·Placeholder」徽标,真假不混淆)。
-- **真数据接线**:对话 / composer / 中断、审批 banner、分支 / 检查点 / 状态栏 / 主题(night/day),全走现有 IPC + reducer;文件树 / 编辑器 / 终端为**标记占位**(Monaco/xterm 留 D-2)。
-- **依赖门控 + 测试**:React/Semi/Vite 只进 `gui/package.json`(不碰核心 CLI 零依赖);build/smoke 无 gui deps 时优雅跳过。装依赖 + `vite build`(4601 模块)通过;**Electron smoke** 断言 React 外壳 + a11y,产 **desktop(1440)+ narrow(800)截图**验收(四栏 / 折叠 / composer / 占位徽标均正确)。测试 **796 全绿**、check OK。计划:[`plans/frontend/2026-06-27-v3-phase-d1-gui-react-shell.md`](plans/frontend/2026-06-27-v3-phase-d1-gui-react-shell.md);设计:[`specs/frontend/2026-06-27-v3-phase-d1-gui-react-shell-design.md`](specs/frontend/2026-06-27-v3-phase-d1-gui-react-shell-design.md)。
+### 已落地 — Phase D-1 GUI React 外壳(手写 VS Code 风格 + 双语)
+- **渲染层迁 React + Vite,手写 VS Code 风格外壳(不用第三方 UI 组件库)**:Electron GUI 从原生 DOM 迁到 React 四栏 IDE 外壳(TitleBar / ActivityBar / Explorer / EditorGroup / AgentPanel / StatusBar),**原创 CSS 设计系统 + 内联 SVG 图标,零第三方 UI 套件**(曾试 Semi UI,因观感不够原创、像「二次开发」被移除,构建 4601→43 模块)。设计基准 = 已批准的 `gui/mockups/deepseek-code-ide-mockup.html`。**后端 kernel-host / preload / IPC / `window.deepseek` 契约一字不改**,`main.js` 仅改加载目标。
+- **双语 i18n**:zh / en 用户可自行切换(标题栏切换钮),**默认中文**,经 preferences 持久化;`language` 入纯 reducer(可测)、`i18n/strings.js` 字典。
+- **状态复用纯 reducer**:`workbench-state.js` UMD→ESM(逻辑不改,+`language`)→ `useReducer`;`useKernel` 桥事件流。取数编排 / 断点 / 占位判定抽**纯函数** → node:test 全测;**reducer 不可变返回防线**。
+- **前端易翻车点前置**:**布局契约**(列宽 / 断点 760·1060·1340 / 独立滚动 / composer 固定底 / 截断)、**a11y 基线**(键盘可达 / `aria-label` / ApprovalBanner `role=alertdialog` / WCAG AA)、**占位强标记**(文件树 / 编辑器 / 终端 / 智能体示例卡带「示例·占位 / Sample·Placeholder」)。
+- **真数据接线**:对话 / composer / 中断、审批 banner、分支 / 检查点 / 状态栏 / 主题 / 语言,全走现有 IPC + reducer;文件树 / 编辑器 / 终端为**标记占位**(Monaco/xterm 留 D-2,作为功能引擎按需引入)。
+- **依赖门控 + 测试**:仅 react/react-dom/vite 进 `gui/package.json`(不碰核心 CLI 零依赖);build/smoke 无 gui deps 时优雅跳过。装依赖 + `vite build` 通过;**Electron smoke** 断言外壳 + a11y(class 选择器、语言无关),产 **desktop / narrow / en 截图**验收。测试 **799 全绿**、check OK。计划:[`plans/frontend/2026-06-27-v3-phase-d1-gui-react-shell.md`](plans/frontend/2026-06-27-v3-phase-d1-gui-react-shell.md);设计:[`specs/frontend/2026-06-27-v3-phase-d1-gui-react-shell-design.md`](specs/frontend/2026-06-27-v3-phase-d1-gui-react-shell-design.md)。
 
 ### 已落地 — Phase C-Durable 跨进程编排级 durable 恢复(默认关)
 - **跨进程编排续跑**:C5 同进程续跑之上,崩溃/重启后从暂停的编排回合续跑(Option B 完整 worker turn 重水化)。暂停双写(worker turn sidecar + 新 `orchestration-paused/<approvalId>.json`,同 approvalId 关联);重启 `recovery-service` 扫描交叉校验 → `orchestration_paused` inbox;`recovery.resume` 经校验门 → `worker-factory` 确定性重建 worker → 共享 `pausedTurnStore` 重水化 approve → 续跑,不重 plan。**opt-in `recovery.enabled`,默认关**:关闭时 C5 逐字节不变。

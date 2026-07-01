@@ -2,8 +2,19 @@
 
 > 类型:前端设计 spec(frontend)
 > 日期:2026-06-27
-> 状态:待评审(brainstorming 产出),待 user review → writing-plans
+> 状态:**已落地(含实施后 pivot)**
 > 关联:[GUI 前端优化方案](../../plans/frontend/gui-frontend-optimization-plan.md) · [future GUI redesign(早期,已被 V3 路线图取代)](../../plans/frontend/2026-06-01-future-gui-deepseek-code-ide-redesign.md) · [V3 路线图](../architecture/2026-06-24-v3-roadmap-design.md) Phase D
+
+---
+
+## 0. 实施后修订(pivot,以此为准)
+
+本 spec 正文原按「**React + Vite + Semi UI**」写。实施出成品后用户判定 Semi UI 观感像「在别人界面上二次开发」,遂 **pivot**:
+
+- **弃用 Semi UI(及任何会强加观感的成品 UI 套件)**;渲染层改为**手写 VS Code 风格** —— 原创 CSS 设计系统 + 内联 SVG 图标。第三方库只用于**不带界面风格的功能引擎**(Monaco/xterm/diff,D-2 按需)。设计基准 = 已批准的 [`gui/mockups/deepseek-code-ide-mockup.html`](../../../gui/mockups/deepseek-code-ide-mockup.html)。
+- **新增中英双语 i18n**:zh/en 可切换、**默认中文**,`language` 入 reducer + preferences 持久化,`gui/src/i18n/strings.js` 字典。
+- 组件重命名:TopBar→TitleBar、ActivityRail→ActivityBar、Sidebar→Explorer、CodeWorkspace→EditorGroup、ChatPanel→AgentPanel、+StatusBar/Icons。其余不变量(后端零改动、reducer 纯函数复用 + 不可变防线、布局契约 §6.1、a11y 基线 §6.2、占位强标记 §6.3、依赖门控测试)**全部延续**。
+- 正文 §4/§6 中的「Semi UI」「lucide」描述作废,以本节为准;其余章节仍有效。
 
 ---
 
