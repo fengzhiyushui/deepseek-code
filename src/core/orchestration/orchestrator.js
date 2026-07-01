@@ -52,7 +52,8 @@ export function createOrchestrator({
       autonomy: state.options.autonomy || "gated",
       onEvent: (type, data) => publish(eventBus, `orchestration:${type}`, data),
       toBatches, maxParallelWorkers, runIsolatedWorker, mergeSubtask, removeIso,
-      projectRules: learningOn ? riskRules(state.riskCues) : []
+      projectRules: learningOn ? riskRules(state.riskCues) : [],
+      orchestrationMarker: orchPersistence ? { taskId: state.taskId, sessionId: state.sessionId } : null
     };
   }
 
