@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import Editor from "@monaco-editor/react";
 
 function tabIco(path) {
   const ext = (path || "").split(".").pop().toLowerCase();
@@ -42,7 +43,23 @@ export default function EditorGroup({ t, state, onActivate, onClose }) {
               <React.Fragment key={i}>{i > 0 && <span className="sep">›</span>} {seg}</React.Fragment>
             ))}</div>
             <div className="code" role="document" aria-label={active.path}>
-              <pre className="editor-pre" style={{ margin: 0, padding: "8px 16px" }}>{active.content}</pre>
+              <Editor
+                height="100%"
+                theme={state.theme === "day" ? "vs" : "vs-dark"}
+                path={active.path}
+                language={active.language}
+                value={active.content}
+                options={{
+                  readOnly: true,
+                  minimap: { enabled: false },
+                  fontFamily: '"Cascadia Code", "Consolas", monospace',
+                  fontSize: 13,
+                  scrollBeyondLastLine: false,
+                  lineNumbers: "on",
+                  renderWhitespace: "selection",
+                  smoothScrolling: true
+                }}
+              />
             </div>
           </>
         )
