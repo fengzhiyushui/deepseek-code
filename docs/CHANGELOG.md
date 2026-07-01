@@ -16,6 +16,14 @@
 - **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。支柱① 语义级上下文 **Phase B 首版已落地**(见下)。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
+### 已落地 — Phase D-3 GUI 全功能可用 + 设置页(API 列表 / 模型获取 / 编辑保存 / 分支 rewind)
+- **设置页(左活动栏齿轮 → 主区)**:七组二级菜单(通用 / 模型接入 / 运行护栏 / 多智能体 / 语义上下文 / 经验与恢复 / 关于);`settings-schema.js` 纯定义 7 组字段 + 不可变 path get/set + 归一(posInt/nullableInt/bool/enum,对齐 `config.js`);config 表单整段回写 `configureProject`(浅合并→归一)。
+- **模型接入 = API 列表管理**:每个 API 一条(增/删/改/激活),`api-profiles.js` 原子存 `.deepseek-code/`(随仓忽略);激活写 `config.json` 供内核读。**模型获取**:`listModels` 拉 `GET {baseUrl}/models`(Bearer)填下拉,**不设默认、失败红字报错**;连接测试复用 `provider.testDeepSeekConnection`。**API Key 密码框输入、只以掩码回渲染层,绝不回明文**。
+- **可编辑保存 + diff**:Monaco 转可编辑,改动标脏(标签 ● + 标题栏 ●),`Ctrl/⌘+S` 经 `kernel-host.writeFile` = 整文件 unified diff → **独立 `editService.apply`**(事务 + 回滚 + change 记录 + workspace 边界;非内核那只带 recoveryJournal 的实例,agent 回合不受影响);`DiffView`(Monaco `DiffEditor`)看原↔改。
+- **切视图 / 菜单 / 状态栏 / 面板**:活动栏真切 explorer/search/scm/run/ext(搜索按文件名过滤树);标题栏自绘下拉菜单(`menuModel` → 切视图/主题/语言/保存/关于,Esc/失焦关);窗口标题跟随当前文件(脏 ●);状态栏真 Ln/Col(Monaco 光标)+ 语言 + 模型徽标 + 问题数;底部面板 问题/输出 由 `derivePanels` 渲染(终端保留)。
+- **分支真切换 / 检查点 rewind**:SCM 点分支 → `activateBranch` → 刷新;点检查点 → `rewindPreview` → 确认弹层(强制开关)→ `rewindApply` → 结果。
+- **kernel(`src/`)零改动**;新纯逻辑(`settings-schema`/`file-filter`/`menu-model`/`panels-derive`/`save-diff` + reducer railView/dirty/cursor/config + `writeFile`)全 node:test;设置表单/Monaco 编辑/diff/真切换走 build + 门控 smoke。测试 **837 全绿**、check OK;截图验收:桌面外壳 + 设置页(通用/模型接入/运行护栏)。计划:[`plans/frontend/2026-07-02-v3-phase-d3-gui-full-functional.md`](plans/frontend/2026-07-02-v3-phase-d3-gui-full-functional.md);设计:[`specs/frontend/2026-07-02-v3-phase-d3-gui-full-functional-design.md`](specs/frontend/2026-07-02-v3-phase-d3-gui-full-functional-design.md)。
+
 ### 已落地 — Phase D-2 GUI 做「真」(文件树 / Monaco / 实时 Agent 卡片 / node-pty 终端)
 - **真文件树**:`kernel-host` 加 `listTree`/`readFile`(复用 `src/workspace/path-safety.js` realpath 边界,拒目录/超大/二进制/symlink 逃逸;`src` 零改动);点文件 → 载入编辑器。`buildTree` 纯函数组装折叠树。
 - **Monaco 只读编辑器**:VS Code 同款内核,真语法高亮 + 主题联动;**本地 worker**(`?worker` Vite 打包,Electron `file://` 离线,不走 CDN);多标签页反映已打开文件。**可编辑/保存留 D-3**。

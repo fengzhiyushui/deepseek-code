@@ -412,3 +412,13 @@ C5 的**同进程**编排续跑之上,增加**跨进程**恢复:崩溃/重启后
 - 5 边界钉死:孤儿 blocked / 不存 raw options / 版本指纹门 / approval 归属校验 / 预算续扣。
 - 组件:[`src/core/orchestration/orchestration-recovery-contract.js`](../src/core/orchestration/orchestration-recovery-contract.js)(纯契约:serialize/deserialize/validate/fingerprint/ownership 门)· [`src/core/recovery/orchestration-persistence.js`](../src/core/recovery/orchestration-persistence.js)(原子写 + 隔离);接线 `orchestrator`(`resumeDurable`/`serializeState`)· `dispatch-loop`(`__orchestration` 标记)· `recovery-service`(扫描 + 孤儿 blocked)· `cost-budget`(续扣种子)· `index.js`(共享 store + 注入 + durable approve 路由)。
 
+## 15. 前端 GUI(V3 Phase D · 手写 VS Code 风格 + 双语)
+
+Electron 桌面端(`gui/`),React + Vite 渲染层,**原创手写 VS Code 风格 CSS 设计系统 + 内联 SVG 图标**(不引 Semi 等成品 UI 套件;第三方库只用引擎 Monaco / xterm / node-pty)。**双语 zh/en 默认中文**,经 `gui-preferences.json` 持久化。**kernel(`src/`)零改动**:GUI 只经 `gui/kernel-host.js`(CommonJS,动态 import 复用 `src` 工具)+ preload IPC 白名单接内核。
+
+- **外壳与状态**:四栏 IDE(TitleBar / ActivityBar / Explorer / EditorGroup / AgentPanel / StatusBar)+ 无原生标题栏(`titleBarStyle:"hidden"` + `Menu.setApplicationMenu(null)`,自绘窗口控件经 IPC)。状态是纯 reducer `workbench-state.js`(`useReducer`,不可变返回,node:test 全测);取数/派生/过滤/归一全抽纯函数。
+- **文件与编辑(D-2/D-3)**:真文件树(`listTree`/`readFile` 复用 `path-safety.js` realpath 边界,拒目录/超大/二进制/symlink 逃逸)+ Monaco 编辑器(本地 worker 离线,不走 CDN)。**D-3 起可编辑**:改动标脏,`Ctrl/⌘+S` 经 `kernel-host.writeFile` = 整文件 unified diff → **独立 `editService.apply`**(事务 + 回滚 + change 记录 + workspace 边界,不复用内核那只带 recoveryJournal 的实例,agent 回合不受影响);`DiffView` 看原↔改。真终端 `node-pty` + xterm(N-API 预编译免重编译)。
+- **设置页(D-3,活动栏齿轮 → 主区)**:七组二级菜单(通用/模型接入/运行护栏/多智能体/语义上下文/经验与恢复/关于)。`settings-schema.js` 纯定义字段 + 归一;config 表单整段回写 `configureProject`。**模型接入 = API 列表管理**(增/删/改/激活,`api-profiles.js` 原子存 `.deepseek-code/`;激活写 `config.json` 供内核读)+ **模型获取**(`GET {baseUrl}/models`,不设默认、失败报错)+ 连接测试。
+- **安全不变量**:**API Key 绝不回渲染层明文**——只回 `hasKey` / 掩码(`sk-…abcd`);明文仅落盘 `.deepseek-code/`(随仓忽略)。保存经 `editService`(非裸 fs 写)且过 workspace 边界。GUI 进程 `nodeIntegration:false` + `contextIsolation:true` + `sandbox:true` + IPC 白名单(见 §8)。
+- **测试策略**:纯逻辑(reducer / `settings-schema` / `file-filter` / `menu-model` / `panels-derive` / `save-diff` / `api-profiles` / `kernel-host` 桥与 `writeFile`)全 node:test;React 组件 / Monaco / 真切换走 `vite build` + **门控 Electron smoke**(装 gui deps 才跑,断言外壳 + 设置页渲染并产截图),无 gui deps 时优雅 skip,核心 `npm test` 不受影响。
+

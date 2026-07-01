@@ -116,7 +116,9 @@ node ./bin/deepseek-code.js tui
 
 ## 🖥️ Desktop GUI
 
-The GUI is an Electron workbench with a **hand-built VS Code-style** React + Vite four-column IDE shell (original CSS design system + inline SVG, **no third-party UI kit**; **bilingual zh/en**, Chinese by default, switchable from the title bar; the kernel-host / IPC backend is unchanged). **Now wired to real data**: real file tree + **Monaco** read-only editor (real syntax highlighting) + **node-pty** interactive terminal + live agent cards (editing/save later):
+The GUI is an Electron workbench with a **hand-built VS Code-style** React + Vite four-column IDE shell (original CSS design system + inline SVG, **no third-party UI kit**; **bilingual zh/en**, Chinese by default, switchable from the title bar; the kernel-host / IPC backend is unchanged). **Now fully functional**: real file tree + an **editable Monaco editor** (`Ctrl/⌘+S` saves through the transactional `editService` + original↔modified diff) + **node-pty** interactive terminal + live agent cards + activity-bar view switching / file-name search + title-bar menus + a real status bar + branch switching / checkpoint rewind + a **Settings page**:
+
+- **Settings page (activity-bar gear)**: General / Model Access / Run Guardrails / Multi-Agent / Semantic Context / Experience & Recovery / About. **Model Access** manages **multiple API endpoints** (add/edit/delete/activate), **fetches the model list online** (no default — errors on failure), and tests the connection; **API keys are password inputs shown only as a mask and never returned in plaintext** (plaintext lives only on disk under `.deepseek-code/`, gitignored).
 
 ```bash
 cd gui

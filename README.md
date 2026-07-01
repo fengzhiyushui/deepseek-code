@@ -116,7 +116,9 @@ node ./bin/deepseek-code.js tui
 
 ## 🖥️ 桌面 GUI
 
-GUI 是基于 Electron 的工作台,渲染层为**手写 VS Code 风格**的 React + Vite 四栏 IDE 外壳(原创 CSS 设计系统 + 内联 SVG,**不用第三方 UI 组件库**;**中英双语**、默认中文、可在标题栏切换;后端 kernel-host / IPC 不变)。**已接真**:真实文件树 + **Monaco** 只读编辑器(真语法高亮)+ **node-pty** 交互终端 + 实时 Agent 卡片(可编辑保存留后续):
+GUI 是基于 Electron 的工作台,渲染层为**手写 VS Code 风格**的 React + Vite 四栏 IDE 外壳(原创 CSS 设计系统 + 内联 SVG,**不用第三方 UI 组件库**;**中英双语**、默认中文、可在标题栏切换;后端 kernel-host / IPC 不变)。**已全功能可用**:真实文件树 + **Monaco 可编辑器**(`Ctrl/⌘+S` 保存经事务式 `editService` + 原↔改 diff)+ **node-pty** 交互终端 + 实时 Agent 卡片 + 活动栏切视图/文件名搜索 + 标题栏菜单 + 真状态栏 + 分支切换 / 检查点 rewind + **设置页**:
+
+- **设置页(活动栏齿轮)**:通用 / 模型接入 / 运行护栏 / 多智能体 / 语义上下文 / 经验与恢复 / 关于。**模型接入**支持**管理多条 API**(增/删/改/激活)、**在线获取模型列表**(不设默认、失败报错)、连接测试;**API Key 以密码框输入、只以掩码显示,绝不回传明文**(明文仅落盘 `.deepseek-code/`,随仓忽略)。
 
 ```bash
 cd gui
