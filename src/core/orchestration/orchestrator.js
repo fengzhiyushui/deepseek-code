@@ -2,7 +2,7 @@ import { runDispatchLoop, resumeDispatchLoop } from "./dispatch-loop.js";
 import { fingerprint } from "./subtask-schema.js";
 import { classifyOutcome } from "./synthesizer.js";
 import { riskRules } from "../memory/risk-rules.js";
-import { serializeOrchestrationState, deserializeOrchestrationState } from "./orchestration-recovery-contract.js";
+import { serializeOrchestrationState, deserializeOrchestrationState, orchestrationResumeGate } from "./orchestration-recovery-contract.js";
 
 export function createOrchestrator({
   planner, makeWorkerFactory, makeReviewerFor, synthesizer, makeBudget, maxSubtasks, maxWorkerAttempts,
@@ -144,6 +144,69 @@ export function createOrchestrator({
     return driveFrom(state, { afterPausedRound: true });    // round done -> gate + further rounds
   }
 
+  function blocked(reason) {
+    const e = new Error(`orchestration recovery blocked: ${reason}`);
+    e.code = "ORCH_RECOVERY_BLOCKED";
+    return e;
+  }
+
+  // Consume a worker sidecar the deny path leaves behind (resumeDispatchLoop never
+  // calls the worker's approve on deny, so agent-runtime never consumed it). No-op
+  // primitives when recovery is off. Reused by the same-process resume (M5).
+  async function consumeWorkerSidecar(approvalId) {
+    await pausedTurnPersistence?.consume?.(approvalId);
+    pausedTurnStore?.delete?.(approvalId);
+  }
+
+  // Persist a durable snapshot of a fresh pause (initial or re-pause). Opt-in: no-op
+  // unless orchPersistence is injected (recovery.enabled). Used by driveFrom/resume (M5)
+  // and resumeDurable's re-pause branch.
+  async function persistDurablePause(state, roundResult) {
+    if (!orchPersistence) return;
+    const json = serializeState(state, {
+      approvalId: roundResult.approval.id,
+      pausedSubtask: roundResult.resume.pausedSubtask,
+      remaining: roundResult.resume.remaining
+    });
+    await orchPersistence.save(roundResult.approval.id, json);
+  }
+
+  // Cross-process orchestration resume. Rebuild the paused worker from the persisted
+  // subtask, rehydrate its turn via the shared store, settle, then continue the round
+  // loop from saved state — no re-plan, no duplicate dispatch (CST-3).
+  async function resumeDurable(approvalId, decision = "approve") {
+    let sidecar;
+    try { sidecar = await orchPersistence.load(approvalId); }
+    catch (e) { throw blocked(`orchestration sidecar unreadable: ${e.message}`); }
+    if (sidecar?.status === "consumed") throw blocked("orchestration sidecar already consumed");
+    const workerRecord = pausedTurnStore?.get?.(approvalId) || null;
+    const gate = orchestrationResumeGate({ sidecar, workerRecord });   // CST-6 + CST-7, fail-closed
+    if (!gate.ok) throw blocked(gate.reason);
+
+    const state = deserializeState(sidecar);
+    const pausedWorker = makeWorkerFactory().worker(state.pausedSubtask);   // deterministic rebuild (CST-3)
+    const dispatchResume = {
+      pausedWorker, pausedApprovalId: approvalId,
+      pausedSubtask: state.pausedSubtask, remaining: state.remaining, deps: dispatchDeps(state)
+    };
+    const res = await resumeDispatchLoop(dispatchResume, decision);
+    state.allCollected.push(...res.collected);
+    if (decision === "deny") await consumeWorkerSidecar(approvalId);
+    if (res.status === "awaiting_approval") {
+      await persistDurablePause(state, res);                // re-pause: new durable sidecar
+      await orchPersistence.consume(approvalId);            // consume the old one
+      orchPaused.set(res.approval.id, { state, dispatchResume: res.resume });   // same-process re-resume too
+      return { status: "awaiting_approval", approval: res.approval, collected: state.allCollected };
+    }
+    await orchPersistence.consume(approvalId);              // round settled: consume this sidecar
+    return driveFrom(state, { afterPausedRound: true });
+  }
+
+  function hasDurablePaused(approvalId) {
+    if (!orchPersistence) return Promise.resolve(false);
+    return orchPersistence.load(approvalId).then((r) => !!r && r.status !== "consumed").catch(() => false);
+  }
+
   // Durable recovery (opt-in): serialize the wrapper state to a sidecar JSON, and
   // rebuild it after restart with a live budget that continues from prior spend.
   function serializeState(state, pauseInfo) {
@@ -155,7 +218,7 @@ export function createOrchestrator({
     return { ...s, budget, stoppedByCap: false };
   }
 
-  return { run, resume, hasPaused: (id) => orchPaused.has(id), flushExperience, serializeState, deserializeState };
+  return { run, resume, hasPaused: (id) => orchPaused.has(id), flushExperience, serializeState, deserializeState, resumeDurable, hasDurablePaused };
 }
 
 function intersect(a, b) {
