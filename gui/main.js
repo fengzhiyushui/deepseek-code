@@ -118,12 +118,44 @@ async function createWindow() {
             }, 100);
           })
         `);
-        // Best-effort visual QA: desktop (1440) + narrow (800) screenshots (§11).
+        // Best-effort visual QA: desktop (1440) + settings view + narrow (800) (§11).
         try {
           const dir = path.join(__dirname, "__screenshots__");
           await fs.promises.mkdir(dir, { recursive: true });
           const desktop = await win.webContents.capturePage();
           await fs.promises.writeFile(path.join(dir, "shell-desktop.png"), desktop.toPNG());
+          // Switch to the Settings view (gear = last activity-bar button) and capture it.
+          try {
+            const opened = await win.webContents.executeJavaScript(`
+              new Promise((resolve) => {
+                const btns = document.querySelectorAll('.activity button[role="tab"]');
+                const gear = btns[btns.length - 1];
+                if (gear) gear.click();
+                let n = 0;
+                const iv = setInterval(() => {
+                  if (document.querySelector('.settings .settings-nav') || n++ > 30) { clearInterval(iv); resolve(Boolean(document.querySelector('.settings'))); }
+                }, 100);
+              })
+            `);
+            if (opened) {
+              const general = await win.webContents.capturePage();
+              await fs.promises.writeFile(path.join(dir, "settings-general.png"), general.toPNG());
+              // Model Access pane (API list + fetch/test) = 2nd second-level nav item.
+              await win.webContents.executeJavaScript(`(document.querySelectorAll('.settings-nav .snav-item')[1]||{}).click?.()`);
+              await new Promise((r) => setTimeout(r, 250));
+              const model = await win.webContents.capturePage();
+              await fs.promises.writeFile(path.join(dir, "settings-model.png"), model.toPNG());
+              // A config form (运行护栏 / limits) = 3rd nav item.
+              await win.webContents.executeJavaScript(`(document.querySelectorAll('.settings-nav .snav-item')[2]||{}).click?.()`);
+              await new Promise((r) => setTimeout(r, 250));
+              const form = await win.webContents.capturePage();
+              await fs.promises.writeFile(path.join(dir, "settings-form.png"), form.toPNG());
+            }
+            // Back to explorer for the narrow capture.
+            await win.webContents.executeJavaScript(`document.querySelector('.activity button[role="tab"]').click()`);
+          } catch (setErr) {
+            console.log("SMOKE_SETTINGS_SKIPPED:" + setErr.message);
+          }
           win.setSize(800, 720);
           await new Promise((r) => setTimeout(r, 400));
           const narrow = await win.webContents.capturePage();

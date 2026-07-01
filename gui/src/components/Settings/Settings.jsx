@@ -129,7 +129,7 @@ export default function Settings({ t, state, kernel, dispatch }) {
       <div className="settings-main">
         <h2>{t(group.labelKey)}</h2>
         {error && <div className="err set-error">{error}</div>}
-        {group.kind === "general" && <General t={t} state={state} kernel={kernel} dispatch={dispatch} />}
+        {group.kind === "prefs" && <General t={t} state={state} kernel={kernel} dispatch={dispatch} />}
         {group.kind === "model" && (
           <ModelAccess t={t} kernel={kernel}
             profiles={settings?.apiProfiles || []} activeProfileId={settings?.activeProfileId || null}
