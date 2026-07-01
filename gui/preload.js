@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld("deepseek", {
   closeWindow: () => ipcRenderer.invoke("window:close"),
   listTree: () => ipcRenderer.invoke("fs:tree"),
   readFile: (rel) => ipcRenderer.invoke("fs:read", rel),
+  writeFile: (rel, content) => ipcRenderer.invoke("fs:write", rel, content),
   ptyStart: (cols, rows) => ipcRenderer.invoke("pty:start", cols, rows),
   ptyInput: (data) => ipcRenderer.invoke("pty:input", data),
   ptyResize: (cols, rows) => ipcRenderer.invoke("pty:resize", cols, rows),

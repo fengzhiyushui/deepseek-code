@@ -10,6 +10,8 @@ test("buildInitialLoads maps single-call apis to reducer actions", () => {
   assert.equal(byCall.listCheckpoints.toAction([{ seq: 1 }]).type, "checkpoints_loaded");
   assert.equal(byCall.getUsage.toAction({ requests: 3 }).type, "usage_loaded");
   assert.equal(byCall.getState.toAction({ current: "idle" }).type, "runtime_loaded");
+  assert.equal(byCall.getSettings.toAction({ config: { model: "m1", hasApiKey: true } }).type, "settings_loaded");
+  assert.equal(byCall.getSettings.toAction({ config: { model: "m1" } }).config.model, "m1");
 });
 
 test("branchesAction combines list + active branch", () => {

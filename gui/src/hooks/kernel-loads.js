@@ -9,7 +9,8 @@ export function buildInitialLoads() {
     { call: "listCheckpoints", toAction: (checkpoints) => ({ type: "checkpoints_loaded", checkpoints: Array.isArray(checkpoints) ? checkpoints : [] }) },
     { call: "getUsage", toAction: (usage) => ({ type: "usage_loaded", usage: usage || {} }) },
     { call: "getState", toAction: (runtime) => ({ type: "runtime_loaded", runtime: runtime || { current: "idle", channel: null } }) },
-    { call: "listTree", toAction: (files) => ({ type: "tree_loaded", files: Array.isArray(files) ? files : [] }) }
+    { call: "listTree", toAction: (files) => ({ type: "tree_loaded", files: Array.isArray(files) ? files : [] }) },
+    { call: "getSettings", toAction: (s) => ({ type: "settings_loaded", config: (s && s.config) || {} }) }
   ];
 }
 

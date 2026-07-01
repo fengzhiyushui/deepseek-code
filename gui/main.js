@@ -26,7 +26,7 @@ const IPC_CHANNELS = [
   "gui:preferences-get", "gui:preferences-set",
   "config:get", "orchestrator:state",
   "window:minimize", "window:maximize", "window:close",
-  "fs:tree", "fs:read",
+  "fs:tree", "fs:read", "fs:write",
   "pty:start", "pty:input", "pty:resize", "pty:kill",
   "settings:get", "config:set", "api:list", "api:save", "api:delete", "api:activate",
   "models:list", "conn:test", "session:branch-activate"
@@ -160,6 +160,10 @@ function registerIpcHandlers() {
   });
   ipcMain.handle("fs:read", async (_event, rel) => {
     try { return await host.readFile(rel); }
+    catch (error) { return { error: error.message }; }
+  });
+  ipcMain.handle("fs:write", async (_event, rel, content) => {
+    try { return await host.writeFile(rel, content); }
     catch (error) { return { error: error.message }; }
   });
 

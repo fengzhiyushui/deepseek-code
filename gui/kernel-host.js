@@ -15,6 +15,18 @@ function loadProviderMod() {
   return providerModPromise;
 }
 
+let editServiceModPromise = null;
+function loadEditServiceMod() {
+  if (!editServiceModPromise) editServiceModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "edits", "edit-service.js")).href);
+  return editServiceModPromise;
+}
+
+let saveDiffModPromise = null;
+function loadSaveDiffMod() {
+  if (!saveDiffModPromise) saveDiffModPromise = import(pathToFileURL(path.join(__dirname, "src", "state", "save-diff.js")).href);
+  return saveDiffModPromise;
+}
+
 function maskKeyStr(k) {
   if (!k) return "";
   const s = String(k);
@@ -147,10 +159,12 @@ function createKernelHost({
   kernelFactory = null,
   kernelOptions = {},
   configLoader = loadLegacyConfig,
+  editService = null,
   pushEvent = () => {}
 } = {}) {
   let kernel = null;
   let subscription = null;
+  let guiEditService = editService;
 
   async function init() {
     if (!kernelFactory) {
@@ -251,6 +265,36 @@ function createKernelHost({
     return { ...r, language: languageForExt(rel) };
   }
 
+  // A standalone edit service for GUI saves. It is intentionally NOT the kernel's own
+  // (that one is wired with recoveryJournal/assertOwner for agent turns); GUI saves are
+  // synchronous user actions. Still transactional + boundary-checked + change-recorded.
+  async function getGuiEditService() {
+    if (guiEditService) return guiEditService;
+    const { createEditService } = await loadEditServiceMod();
+    guiEditService = createEditService({
+      projectRoot,
+      eventBus: { publish: (type, data) => pushEvent({ type, ...(data || {}) }) }
+    });
+    return guiEditService;
+  }
+
+  async function writeFile(rel, content) {
+    const { readWorkspaceTextFile } = await loadPathSafety();
+    let before = "";
+    try {
+      const cur = await readWorkspaceTextFile(projectRoot, rel);
+      before = cur.content;
+    } catch (error) {
+      return { error: error.message };   // missing / binary / outside workspace → refuse
+    }
+    const { wholeFileDiff } = await loadSaveDiffMod();
+    const diff = wholeFileDiff(rel, before, String(content ?? ""));
+    if (!diff) return { ok: true, unchanged: true };
+    const svc = await getGuiEditService();
+    const result = await svc.apply({ diff, prompt: `GUI edit ${rel}` });
+    return { ok: true, result };
+  }
+
   const apiProfiles = createApiProfiles({ dir: path.join(projectRoot, ".deepseek-code") });
 
   async function getSettings() {
@@ -311,7 +355,7 @@ function createKernelHost({
 
   return { init, ready, send, approve, interrupt, getTimeline, getSnapshot, getUsage, getConfig, getState,
            listBranches, listCheckpoints, rewindPreview, rewindApply, getActiveBranch,
-           getPreferences, setPreferences, listTree, readFile,
+           getPreferences, setPreferences, listTree, readFile, writeFile,
            getSettings, setConfig, listApiProfiles, saveApiProfile, deleteApiProfile, activateApiProfile,
            listModels, testConnection, activateBranch, dispose };
 }

@@ -2,6 +2,7 @@
 // the legacy UMD gui/renderer/workbench-state.js, now consumed by React useReducer).
 
 var RAIL_MODES = ["chat", "context", "branches", "timeline", "settings"];
+var RAIL_VIEWS = ["explorer", "search", "scm", "run", "ext", "agent", "settings"];
 var INSPECTOR_MODES = ["activity", "approval", "rewind", "details", "checkpoints", "branch"];
 var THEMES = ["night", "day"];
 var LANGUAGES = ["zh", "en"];
@@ -20,6 +21,7 @@ export function createInitialState() {
     rewindResult: null,
     forceRewind: false,
     railMode: "chat",
+    railView: "explorer",
     contextCollapsed: false,
     inspectorMode: "activity",
     theme: "night",
@@ -31,6 +33,9 @@ export function createInitialState() {
     fileTree: [],
     openFiles: [],
     activeFile: null,
+    dirty: {},
+    cursor: { line: 1, column: 1 },
+    config: { model: null, hasApiKey: false },
     loading: {},
     usage: null,
     metrics: {
@@ -102,11 +107,29 @@ export function applyWorkbenchAction(state, action) {
   if (action.type === "rewind_result_loaded") {
     return copy(current, { rewindResult: action.result || null, inspectorMode: "rewind" });
   }
+  if (action.type === "rewind_dismissed") {
+    return copy(current, { rewindPreview: null, rewindResult: null, selectedCheckpoint: null, selectedTarget: null });
+  }
   if (action.type === "force_rewind_changed") {
     return copy(current, { forceRewind: Boolean(action.force) });
   }
   if (action.type === "rail_mode_changed") {
     return copy(current, { railMode: normalize(action.mode, RAIL_MODES, "chat"), contextCollapsed: false });
+  }
+  if (action.type === "rail_view_changed") {
+    return copy(current, { railView: normalize(action.view, RAIL_VIEWS, "explorer") });
+  }
+  if (action.type === "cursor_moved") {
+    var pos = action.position || {};
+    return copy(current, {
+      cursor: { line: Math.max(1, Number(pos.line) || 1), column: Math.max(1, Number(pos.column) || 1) }
+    });
+  }
+  if (action.type === "settings_loaded") {
+    var cfg = action.config || {};
+    return copy(current, {
+      config: { model: cfg.model || null, hasApiKey: Boolean(cfg.hasApiKey) }
+    });
   }
   if (action.type === "context_collapsed_changed") {
     return copy(current, { contextCollapsed: Boolean(action.collapsed) });
@@ -140,19 +163,38 @@ export function applyWorkbenchAction(state, action) {
     if (!file.path) return current;
     var exists = (current.openFiles || []).some(function (f) { return f.path === file.path; });
     var openFiles = exists
-      ? current.openFiles.map(function (f) { return f.path === file.path ? file : f; })
-      : current.openFiles.concat([file]);
+      ? current.openFiles.map(function (f) {
+          return f.path === file.path ? copy(file, { original: typeof f.original === "string" ? f.original : (file.content || "") }) : f;
+        })
+      : current.openFiles.concat([copy(file, { original: file.content || "" })]);
     return copy(current, { openFiles: openFiles, activeFile: file.path });
   }
   if (action.type === "file_activated") {
     return copy(current, { activeFile: action.path || current.activeFile });
+  }
+  if (action.type === "file_edited") {
+    var edited = (current.openFiles || []).map(function (f) {
+      return f.path === action.path ? copy(f, { content: action.content }) : f;
+    });
+    var editedFile = edited.find(function (f) { return f.path === action.path; });
+    var isDirty = editedFile ? editedFile.content !== (editedFile.original || "") : true;
+    return copy(current, {
+      openFiles: edited,
+      dirty: isDirty ? copy(current.dirty || {}, keyPatch(action.path, true)) : dropKey(current.dirty || {}, action.path)
+    });
+  }
+  if (action.type === "file_saved") {
+    var saved = (current.openFiles || []).map(function (f) {
+      return f.path === action.path && typeof action.content === "string" ? copy(f, { content: action.content, original: action.content }) : f;
+    });
+    return copy(current, { openFiles: saved, dirty: dropKey(current.dirty || {}, action.path) });
   }
   if (action.type === "file_closed") {
     var remaining = (current.openFiles || []).filter(function (f) { return f.path !== action.path; });
     var nextActive = current.activeFile === action.path
       ? (remaining.length ? remaining[remaining.length - 1].path : null)
       : current.activeFile;
-    return copy(current, { openFiles: remaining, activeFile: nextActive });
+    return copy(current, { openFiles: remaining, activeFile: nextActive, dirty: dropKey(current.dirty || {}, action.path) });
   }
   if (action.type === "loading_changed") {
     return copy(current, {
@@ -292,6 +334,12 @@ function keyPatch(key, value) {
   var patch = {};
   patch[key] = value;
   return patch;
+}
+
+function dropKey(base, key) {
+  var next = {};
+  Object.keys(base).forEach(function (k) { if (k !== key) next[k] = base[k]; });
+  return next;
 }
 
 function sanitizeMessage(message) {

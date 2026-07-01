@@ -39,3 +39,42 @@ test("api profiles CRUD + activate writes config; getSettings masks keys", async
   await host.deleteApiProfile(p.id);
   assert.equal((await host.listApiProfiles()).length, 0);
 });
+
+test("writeFile builds a whole-file diff and applies it via the injected edit service", async () => {
+  const root = await tmp();
+  await fs.writeFile(path.join(root, "a.txt"), "one\ntwo\n", "utf8");
+  const calls = [];
+  const editService = { apply: async ({ diff, prompt }) => { calls.push({ diff, prompt }); return { status: "success" }; } };
+  const host = createKernelHost({ projectRoot: root, editService });
+
+  const r = await host.writeFile("a.txt", "one\nTWO\n");
+  assert.equal(r.ok, true);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].diff, /--- a\/a\.txt/);
+  assert.match(calls[0].diff, /\+\+\+ b\/a\.txt/);
+  assert.match(calls[0].diff, /\+one/);           // new content present
+  assert.match(calls[0].prompt, /a\.txt/);
+});
+
+test("writeFile is a no-op when content is unchanged (no apply)", async () => {
+  const root = await tmp();
+  await fs.writeFile(path.join(root, "b.txt"), "same\n", "utf8");
+  let applied = 0;
+  const editService = { apply: async () => { applied++; return {}; } };
+  const host = createKernelHost({ projectRoot: root, editService });
+
+  const r = await host.writeFile("b.txt", "same\n");
+  assert.equal(r.unchanged, true);
+  assert.equal(applied, 0);
+});
+
+test("writeFile refuses paths outside the workspace / missing files", async () => {
+  const root = await tmp();
+  const editService = { apply: async () => ({}) };
+  const host = createKernelHost({ projectRoot: root, editService });
+
+  const escape = await host.writeFile("../evil.txt", "x");
+  assert.ok(escape.error);                          // boundary rejection
+  const missing = await host.writeFile("nope.txt", "x");
+  assert.ok(missing.error);                          // file must exist to diff against
+});

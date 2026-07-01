@@ -234,3 +234,42 @@ test("tree_loaded / file open / activate / close", () => {
   assert.equal(s.openFiles.length, 1);
   assert.equal(s.activeFile, "b.js");                  // fallback to remaining
 });
+
+// D3-M3: activity-bar viewlet switching (distinct from legacy railMode)
+test("rail_view_changed switches the active viewlet; invalid falls back", () => {
+  assert.equal(state.createInitialState().railView, "explorer");
+  const scm = state.applyWorkbenchAction(state.createInitialState(), { type: "rail_view_changed", view: "scm" });
+  assert.equal(scm.railView, "scm");
+  const settings = state.applyWorkbenchAction(scm, { type: "rail_view_changed", view: "settings" });
+  assert.equal(settings.railView, "settings");
+  const bad = state.applyWorkbenchAction(settings, { type: "rail_view_changed", view: "nope" });
+  assert.equal(bad.railView, "explorer");
+});
+
+// D3-M10: per-file dirty tracking for editable Monaco + save
+test("file edit marks dirty; save/close clears it", () => {
+  let s = state.createInitialState();
+  s = state.applyWorkbenchAction(s, { type: "file_opened", file: { path: "a.js", content: "x", language: "javascript" } });
+  assert.deepEqual(s.dirty, {});
+  s = state.applyWorkbenchAction(s, { type: "file_edited", path: "a.js", content: "x2" });
+  assert.equal(s.dirty["a.js"], true);
+  assert.equal(s.openFiles[0].content, "x2");          // draft content tracked on the tab
+  s = state.applyWorkbenchAction(s, { type: "file_saved", path: "a.js", content: "x2" });
+  assert.equal(s.dirty["a.js"], undefined);            // saved → no longer dirty
+  s = state.applyWorkbenchAction(s, { type: "file_edited", path: "a.js", content: "x3" });
+  assert.equal(s.dirty["a.js"], true);
+  s = state.applyWorkbenchAction(s, { type: "file_closed", path: "a.js" });
+  assert.equal(s.dirty["a.js"], undefined);            // closing drops dirty flag
+});
+
+// D3-M5: cursor position + config slice feed the status bar
+test("cursor_moved clamps to >=1; settings_loaded stores model/hasApiKey", () => {
+  let s = state.createInitialState();
+  assert.deepEqual(s.cursor, { line: 1, column: 1 });
+  s = state.applyWorkbenchAction(s, { type: "cursor_moved", position: { line: 12, column: 5 } });
+  assert.deepEqual(s.cursor, { line: 12, column: 5 });
+  s = state.applyWorkbenchAction(s, { type: "cursor_moved", position: { line: 0, column: -3 } });
+  assert.deepEqual(s.cursor, { line: 1, column: 1 });   // clamped
+  s = state.applyWorkbenchAction(s, { type: "settings_loaded", config: { model: "deepseek-chat", hasApiKey: true } });
+  assert.deepEqual(s.config, { model: "deepseek-chat", hasApiKey: true });
+});
