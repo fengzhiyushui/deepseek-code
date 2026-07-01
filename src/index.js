@@ -19,6 +19,7 @@ import { createPolicyContext } from "./tools/permissions/policy-loader.js";
 import { createContextEngine } from "./context/index.js";
 import { createPausedTurnPersistence } from "./core/recovery/paused-turn-persistence.js";
 import { createPausedTurnStore } from "./core/approval/paused-turn-store.js";
+import { createOrchestrationPersistence } from "./core/recovery/orchestration-persistence.js";
 import { createRecoveryInbox } from "./core/recovery/recovery-inbox.js";
 import { createRecoveryService } from "./core/recovery/recovery-service.js";
 import { acquireProjectLock } from "./core/recovery/project-lock.js";
@@ -77,6 +78,9 @@ export async function createKernel(root, options = {}) {
   // default store (byte-for-byte today's behavior). Never null (null bypasses the
   // createAgentRuntime default param and would crash on .size()).
   const sharedPausedTurnStore = recoveryEnabled ? createPausedTurnStore() : null;
+  const orchPersistence = recoveryEnabled
+    ? createOrchestrationPersistence({ root, projectId, faults: options.recovery?.faults || options.recoveryFaults })
+    : null;
   let kernelDisposed = false;
 
   const recoveryInbox = recoveryEnabled
@@ -274,7 +278,12 @@ export async function createKernel(root, options = {}) {
     crossTaskLearning: orch.crossTaskLearning,
     experienceRetrieval,
     experienceConsolidator,
-    now: experienceNow
+    now: experienceNow,
+    orchPersistence,
+    makeResumedBudget: (s) => createCostBudget({ maxTokens: s.maxTokens, maxModelCalls: s.maxModelCalls, initialTokens: s.initialTokens, initialModelCalls: s.initialModelCalls }),
+    env: { root, orchestrationConfig: orch },
+    pausedTurnStore: sharedPausedTurnStore || undefined,
+    pausedTurnPersistence
   });
   // Unified entry: the router decides single (today's path, zero new events) vs orchestrate.
   async function routedSend(message, sendOptions = {}) {
@@ -399,7 +408,9 @@ export async function createKernel(root, options = {}) {
         sessionManager,
         eventBus,
         options,
-        transactionJournal
+        transactionJournal,
+        orchPersistence,
+        resumeOrchestration: (approvalId, decision) => orchestrator.resumeDurable(approvalId, decision)
       })
     : disabledRecoveryFacade();
 
@@ -409,7 +420,11 @@ export async function createKernel(root, options = {}) {
     runtime,
     agent: {
       send: routedSend,
-      approve: (id, decision) => (orchestrator.hasPaused(id) ? orchestrator.resume(id, decision) : runtime.approve(id, decision)),
+      approve: async (id, decision) => {
+        if (orchestrator.hasPaused(id)) return orchestrator.resume(id, decision);
+        if (recoveryEnabled && await orchestrator.hasDurablePaused(id)) return orchestrator.resumeDurable(id, decision);
+        return runtime.approve(id, decision);
+      },
       interrupt: runtime.interrupt,
       listPaused: runtime.listPaused,
       cancelPaused: runtime.cancelPaused
@@ -487,7 +502,9 @@ async function createRecoveryServiceFacade({
   sessionManager,
   eventBus,
   options,
-  transactionJournal
+  transactionJournal,
+  orchPersistence = null,
+  resumeOrchestration = null
 }) {
   const recoveryService = createRecoveryService({
     projectId,
@@ -504,7 +521,9 @@ async function createRecoveryServiceFacade({
     },
     resumePaused: async (approvalId, decision) => runtime.approve(approvalId, decision),
     cancelPaused: async (approvalId) => runtime.cancelPaused(approvalId),
-    transactionJournal
+    transactionJournal,
+    orchPersistence,
+    resumeOrchestration
   });
 
   if (!options.recovery?.skipStartupRecovery) {
