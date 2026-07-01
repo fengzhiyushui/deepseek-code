@@ -3,11 +3,25 @@
   "version": "0.1.0",
   "description": "DeepSeek Code Desktop",
   "main": "main.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --dev"
+    "dev": "electron . --dev",
+    "dev:renderer": "vite -c vite.renderer.config.mjs",
+    "build:renderer": "vite build -c vite.renderer.config.mjs"
   },
   "dependencies": {
-    "electron": "^30.0.0"
+    "@douyinfe/semi-icons": "^2.100.0",
+    "@douyinfe/semi-ui": "^2.100.0",
+    "electron": "^30.0.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "vite": "^7.0.0"
   }
 }

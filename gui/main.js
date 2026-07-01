@@ -1,6 +1,7 @@
 // gui/main.js - Electron main process
 const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
+const fs = require("node:fs");
 const { createKernelHost, resolveProjectRoot } = require("./kernel-host.js");
 
 let host = null;
@@ -57,7 +58,17 @@ async function createWindow() {
   }
 
   registerIpcHandlers();
-  win.loadFile(path.join(__dirname, "renderer", "index.html"));
+  // Load order: dev server (DEEPSEEK_CODE_GUI_DEV_URL) → built React renderer
+  // (renderer-dist) → legacy vanilla renderer (dormant fallback until the React build exists).
+  const devUrl = process.env.DEEPSEEK_CODE_GUI_DEV_URL;
+  const builtIndex = path.join(__dirname, "renderer-dist", "index.html");
+  if (devUrl) {
+    win.loadURL(devUrl);
+  } else if (fs.existsSync(builtIndex)) {
+    win.loadFile(builtIndex);
+  } else {
+    win.loadFile(path.join(__dirname, "renderer", "index.html"));
+  }
   if (process.env.DEEPSEEK_CODE_GUI_SMOKE === "1") {
     win.webContents.once("did-finish-load", async () => {
       const ready = await win.webContents.executeJavaScript(`

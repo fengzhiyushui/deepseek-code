@@ -6,6 +6,8 @@ dist/
 build/
 coverage/
 .vite/
+gui/renderer-dist/
+gui/__screenshots__/
 
 *.log
 npm-debug.log*
