@@ -1,9 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
-
-const require = createRequire(import.meta.url);
-const state = require("../../../gui/renderer/workbench-state.js");
+import * as state from "../../../gui/src/state/workbench-state.js";
 
 test("createInitialState defines workbench defaults", () => {
   const initial = state.createInitialState();
@@ -173,4 +170,35 @@ test("inspector_closed returns to activity without clearing selected checkpoint"
   assert.equal(selected.inspectorMode, "rewind");
   assert.equal(closed.inspectorMode, "activity");
   assert.deepEqual(closed.selectedCheckpoint, cp);
+});
+
+// D1-M1: immutability guards (React useReducer relies on new references)
+test("state-changing actions return a NEW reference", () => {
+  const s0 = state.createInitialState();
+  const mutating = [
+    { type: "message_added", message: { role: "user", text: "hi" } },
+    { type: "event_received", event: { type: "agent:step" } },
+    { type: "theme_changed", theme: "day" },
+    { type: "branch_selected", branch_id: "br_x" },
+    { type: "rail_mode_changed", mode: "timeline" }
+  ];
+  let prev = s0;
+  for (const a of mutating) {
+    const next = state.applyWorkbenchAction(prev, a);
+    assert.notEqual(next, prev, a.type + " must return new ref");
+    prev = next;
+  }
+});
+
+test("does not mutate the previous state in place", () => {
+  const s0 = state.createInitialState();
+  const before = JSON.stringify(s0);
+  state.applyWorkbenchAction(s0, { type: "message_added", message: { text: "x" } });
+  assert.equal(JSON.stringify(s0), before);
+});
+
+test("unknown/no-op action returns the SAME reference", () => {
+  const s0 = state.createInitialState();
+  assert.equal(state.applyWorkbenchAction(s0, { type: "___nope___" }), s0);
+  assert.equal(state.applyWorkbenchAction(s0, {}), s0);
 });
