@@ -30,9 +30,10 @@ if (process.env.DEEPSEEK_CODE_GUI_SMOKE === "1") {
 }
 
 async function createWindow() {
+  const smoke = process.env.DEEPSEEK_CODE_GUI_SMOKE === "1";
   const win = new BrowserWindow({
-    width: 900,
-    height: 700,
+    width: smoke ? 1440 : 900,
+    height: smoke ? 900 : 700,
     minWidth: 400,
     minHeight: 400,
     webPreferences: {
@@ -69,16 +70,45 @@ async function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, "renderer", "index.html"));
   }
-  if (process.env.DEEPSEEK_CODE_GUI_SMOKE === "1") {
+  if (smoke) {
     win.webContents.once("did-finish-load", async () => {
-      const ready = await win.webContents.executeJavaScript(`
-        Boolean(document.querySelector("#command-bar") &&
-          document.querySelector("#activity-rail") &&
-          document.querySelector("#agent-session") &&
-          document.querySelector("#statusline") &&
-          document.querySelector("#theme-toggle"))
-      `);
-      console.log(ready ? "GUI_SMOKE_READY" : "GUI_SMOKE_FAILED");
+      try {
+        // React mounts asynchronously — poll for the shell + key a11y-labelled nodes.
+        const ready = await win.webContents.executeJavaScript(`
+          new Promise((resolve) => {
+            const ok = () => Boolean(
+              document.querySelector(".app-shell") &&
+              document.querySelector('header[role="banner"]') &&
+              document.querySelector('main[aria-label="code workspace"]') &&
+              document.querySelector('footer[role="contentinfo"]') &&
+              document.querySelector('nav[role="tablist"] button[role="tab"][aria-label]') &&
+              document.querySelector('section[aria-label="agent panel"]') &&
+              document.querySelector('textarea[aria-label="message composer"]') &&
+              document.querySelector('button[aria-label^="switch theme"]')
+            );
+            let n = 0;
+            const iv = setInterval(() => {
+              if (ok() || n++ > 40) { clearInterval(iv); resolve(ok()); }
+            }, 100);
+          })
+        `);
+        // Best-effort visual QA: desktop (1440) + narrow (800) screenshots (§11).
+        try {
+          const dir = path.join(__dirname, "__screenshots__");
+          await fs.promises.mkdir(dir, { recursive: true });
+          const desktop = await win.webContents.capturePage();
+          await fs.promises.writeFile(path.join(dir, "shell-desktop.png"), desktop.toPNG());
+          win.setSize(800, 720);
+          await new Promise((r) => setTimeout(r, 400));
+          const narrow = await win.webContents.capturePage();
+          await fs.promises.writeFile(path.join(dir, "shell-narrow.png"), narrow.toPNG());
+        } catch (shotErr) {
+          console.log("SMOKE_SCREENSHOT_SKIPPED:" + shotErr.message);
+        }
+        console.log(ready ? "GUI_SMOKE_READY" : "GUI_SMOKE_FAILED");
+      } catch (err) {
+        console.log("GUI_SMOKE_FAILED:" + err.message);
+      }
       app.quit();
     });
   }

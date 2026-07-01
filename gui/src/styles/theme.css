@@ -1,0 +1,133 @@
+/* Phase D-1 shell — layout contract (§6.1) + night/day theme (§7) + placeholder marks (§6.3). */
+
+:root {
+  --ide-rail: 48px;
+  --ide-sidebar: 260px;
+  --ide-chat: 380px;
+  --ide-topbar: 44px;
+  --ide-statusbar: 28px;
+}
+
+/* Night (default) */
+body[theme-mode="dark"], :root {
+  --ide-bg: #080a0f;
+  --ide-panel: #10141d;
+  --ide-panel-2: #0c0f16;
+  --ide-border: #1c2230;
+  --ide-text: #e6eaf2;
+  --ide-muted: #8a93a6;
+  --ide-blue: #4ea1ff;
+  --ide-green: #36c275;
+  --ide-amber: #f2b552;
+  --ide-red: #ff6b6b;
+}
+/* Day */
+body:not([theme-mode="dark"]) {
+  --ide-bg: #f6f8fc;
+  --ide-panel: #ffffff;
+  --ide-panel-2: #f0f3f9;
+  --ide-border: #e2e8f2;
+  --ide-text: #14202e;
+  --ide-muted: #5b6675;
+  --ide-blue: #2f7ff0;
+  --ide-green: #1f9e5a;
+  --ide-amber: #c98615;
+  --ide-red: #d64545;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  overflow: hidden;              /* root never scrolls; each panel owns its scroll */
+  background: var(--ide-bg);
+  color: var(--ide-text);
+  font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+  font-size: 13px;
+}
+
+.app-shell {
+  height: 100%;
+  display: grid;
+  grid-template-rows: var(--ide-topbar) 1fr var(--ide-statusbar);
+}
+
+.app-body {
+  min-height: 0;                 /* allow children to scroll */
+  display: grid;
+  grid-template-columns: var(--ide-rail) var(--ide-sidebar) 1fr var(--ide-chat);
+}
+.app-body.no-sidebar { grid-template-columns: var(--ide-rail) 1fr var(--ide-chat); }
+.app-body.no-chat.no-sidebar { grid-template-columns: var(--ide-rail) 1fr; }
+.app-body.no-chat { grid-template-columns: var(--ide-rail) var(--ide-sidebar) 1fr; }
+.app-body.no-rail { grid-template-columns: var(--ide-sidebar) 1fr var(--ide-chat); }
+
+.panel {
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;                /* independent scroll per panel */
+  background: var(--ide-panel);
+  border-right: 1px solid var(--ide-border);
+}
+.workspace { background: var(--ide-panel-2); min-width: 320px; }
+
+/* TopBar / StatusBar */
+.topbar, .statusbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 12px; background: var(--ide-panel);
+  border-bottom: 1px solid var(--ide-border);
+  overflow: hidden;
+}
+.statusbar { border-bottom: none; border-top: 1px solid var(--ide-border); font-size: 12px; color: var(--ide-muted); }
+.statusbar .seg { flex: 0 0 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+.topbar .brand { font-weight: 600; color: var(--ide-text); }
+.topbar .spacer { flex: 1 1 auto; }
+
+.traffic { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.traffic.ready { background: var(--ide-green); }
+.traffic.working { background: var(--ide-amber); }
+.traffic.error { background: var(--ide-red); }
+.traffic.offline { background: var(--ide-muted); }
+
+/* Rail */
+.rail { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; background: var(--ide-panel-2); }
+.rail button {
+  width: 34px; height: 34px; display: grid; place-items: center;
+  border: none; border-radius: 8px; background: transparent; color: var(--ide-muted); cursor: pointer;
+}
+.rail button:hover { color: var(--ide-text); background: var(--ide-panel); }
+.rail button[aria-selected="true"] { color: var(--ide-blue); background: var(--ide-panel); }
+.rail button:focus-visible, .app-shell :focus-visible { outline: 2px solid var(--ide-blue); outline-offset: 1px; }
+
+/* Ellipsis for names */
+.ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* Section headings */
+.section-title { padding: 10px 12px 4px; color: var(--ide-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.list-item { padding: 6px 12px; cursor: pointer; }
+.list-item:hover { background: var(--ide-panel-2); }
+.list-item[aria-selected="true"] { color: var(--ide-blue); }
+
+/* ChatPanel: scrollback + fixed composer */
+.chatpanel { display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
+.chat-thread { overflow: auto; padding: 12px; }
+.chat-composer { border-top: 1px solid var(--ide-border); padding: 10px; background: var(--ide-panel); }
+.bubble { border: 1px solid var(--ide-border); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
+.bubble.user { border-color: var(--ide-blue); }
+.bubble .role { color: var(--ide-muted); font-size: 11px; margin-bottom: 2px; }
+.bubble .text { white-space: pre-wrap; word-break: break-word; }
+
+/* Approval banner */
+.approval { margin: 8px 12px; border: 1px solid var(--ide-amber); border-radius: 10px; padding: 10px; background: color-mix(in srgb, var(--ide-amber) 12%, transparent); }
+.approval .row { display: flex; gap: 8px; margin-top: 8px; }
+
+/* Placeholder marking (§6.3) — never looks like live data */
+.placeholder { position: relative; opacity: .62; }
+.placeholder::after {
+  content: "示例 · Placeholder"; position: absolute; top: 6px; right: 8px;
+  font-size: 10px; color: var(--ide-muted);
+  border: 1px dashed var(--ide-muted); border-radius: 6px; padding: 1px 6px; background: var(--ide-panel);
+}
+.placeholder .ph-body { border: 1px dashed var(--ide-border); border-radius: 8px; padding: 10px; margin: 8px 12px; color: var(--ide-muted); }
+
+/* Editor static preview */
+.editor-pre { margin: 0; padding: 12px; font-family: ui-monospace, "JetBrains Mono", monospace; font-size: 12.5px; line-height: 1.6; color: var(--ide-text); white-space: pre; overflow: auto; }
