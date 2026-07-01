@@ -12,7 +12,7 @@
 ### 规划中 — V3 路线图
 - **支柱①语义级上下文**:从启发式文件分层升级为 AST/符号级检索 + 依赖图。
 - **支柱②多智能体调度**:三层 agent(主/次/子)+ 两级审核 + 双记忆 + 可开关的跨任务经验沉淀。
-- **支柱③前端三端重构**:GUI 迁 React + Vite + Semi UI(Agent-aware 编辑器 + DeepSeek FIM),CLI / TUI 打磨;先冻结三端共享契约。
+- **支柱③前端三端重构**:GUI 迁 React + Vite(**原创手写 VS Code 风格设计系统,不用 Semi UI 等成品组件库**;库只用 Monaco/xterm 等引擎)+ **双语 zh/en 默认中文**,CLI / TUI 打磨;先冻结三端共享契约。
 - **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。支柱① 语义级上下文 **Phase B 首版已落地**(见下)。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
