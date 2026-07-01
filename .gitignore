@@ -36,3 +36,7 @@ tmp/
 .idea/
 # Superpowers/SDD 执行期临时文件(任务简报、报告、进度账本)
 .superpowers/
+
+# GUI mockup renders + throwaway capture scripts (keep the .html baseline)
+gui/mockups/*.png
+gui/mockups/_capture*.js
