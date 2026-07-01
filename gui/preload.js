@@ -36,4 +36,13 @@ contextBridge.exposeInMainWorld("deepseek", {
     ipcRenderer.on("pty:data", handler);
     return () => ipcRenderer.removeListener("pty:data", handler);
   },
+  getSettings: () => ipcRenderer.invoke("settings:get"),
+  setConfig: (patch) => ipcRenderer.invoke("config:set", patch || {}),
+  listApiProfiles: () => ipcRenderer.invoke("api:list"),
+  saveApiProfile: (p) => ipcRenderer.invoke("api:save", p),
+  deleteApiProfile: (id) => ipcRenderer.invoke("api:delete", id),
+  activateApiProfile: (id) => ipcRenderer.invoke("api:activate", id),
+  listModels: (profileId) => ipcRenderer.invoke("models:list", profileId),
+  testConnection: (profileId) => ipcRenderer.invoke("conn:test", profileId),
+  activateBranch: (id) => ipcRenderer.invoke("session:branch-activate", id),
 });

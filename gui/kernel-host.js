@@ -2,6 +2,33 @@
 const fs = require("fs/promises");
 const path = require("path");
 const { pathToFileURL } = require("url");
+const { createApiProfiles } = require("./api-profiles.js");
+
+let configModPromise = null;
+function loadConfigMod() {
+  if (!configModPromise) configModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "config.js")).href);
+  return configModPromise;
+}
+let providerModPromise = null;
+function loadProviderMod() {
+  if (!providerModPromise) providerModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "provider.js")).href);
+  return providerModPromise;
+}
+
+function maskKeyStr(k) {
+  if (!k) return "";
+  const s = String(k);
+  return s.length <= 8 ? "…" : `${s.slice(0, 3)}…${s.slice(-4)}`;
+}
+function maskProfile(p) {
+  return { id: p.id, name: p.name, baseUrl: p.baseUrl, model: p.model || null, hasKey: Boolean(p.apiKey), keyMask: maskKeyStr(p.apiKey) };
+}
+function maskConfig(cfg) {
+  const c = { ...(cfg || {}) };
+  const hasApiKey = Boolean(c.apiKey);
+  delete c.apiKey;
+  return { ...c, hasApiKey };
+}
 
 const GUI_PREFERENCE_DEFAULTS = Object.freeze({
   schema: 1,
@@ -224,6 +251,59 @@ function createKernelHost({
     return { ...r, language: languageForExt(rel) };
   }
 
+  const apiProfiles = createApiProfiles({ dir: path.join(projectRoot, ".deepseek-code") });
+
+  async function getSettings() {
+    const prefs = await loadGuiPreferences(projectRoot);
+    let config = { hasApiKey: false };
+    try { const m = await loadConfigMod(); config = maskConfig(await m.loadConfig(projectRoot, { allowMissingKey: true })); } catch { /* keep default */ }
+    const profiles = (await apiProfiles.list()).map(maskProfile);
+    const active = await apiProfiles.getActive();
+    return { prefs, config, apiProfiles: profiles, activeProfileId: active ? active.id : null };
+  }
+  async function setConfig(patch = {}) {
+    const m = await loadConfigMod();
+    const { config } = await m.configureProject(projectRoot, patch);
+    return maskConfig(config);
+  }
+  async function listApiProfiles() { return (await apiProfiles.list()).map(maskProfile); }
+  async function saveApiProfile(p) { return maskProfile(await apiProfiles.save(p)); }
+  async function deleteApiProfile(id) { await apiProfiles.remove(id); return { ok: true }; }
+  async function activateApiProfile(id) {
+    const prof = await apiProfiles.activate(id);
+    const m = await loadConfigMod();
+    await m.configureProject(projectRoot, { apiKey: prof.apiKey, baseUrl: prof.baseUrl, ...(prof.model ? { model: prof.model } : {}) });
+    return maskProfile(prof);
+  }
+  async function listModels(profileId, opts = {}) {
+    let baseUrl = opts.baseUrl;
+    let apiKey = opts.apiKey;
+    if (!baseUrl || !apiKey) {
+      const prof = profileId ? (await apiProfiles.list()).find((p) => p.id === profileId) : await apiProfiles.getActive();
+      baseUrl = baseUrl || (prof && prof.baseUrl);
+      apiKey = apiKey || (prof && prof.apiKey);
+    }
+    if (!apiKey) throw new Error("no API key configured");
+    const url = `${String(baseUrl || "https://api.deepseek.com").replace(/\/+$/, "")}/models`;
+    const fetchImpl = opts.fetchImpl || globalThis.fetch;
+    const res = await fetchImpl(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+    if (!res.ok) {
+      const detail = res.text ? await res.text().catch(() => "") : "";
+      throw new Error(`models fetch failed: ${res.status} ${detail}`.trim());
+    }
+    const body = await res.json();
+    return (body.data || []).map((m) => m.id).filter(Boolean);
+  }
+  async function testConnection(profileId) {
+    const prof = profileId ? (await apiProfiles.list()).find((p) => p.id === profileId) : await apiProfiles.getActive();
+    const m = await loadProviderMod();
+    return m.testDeepSeekConnection({ apiKey: prof && prof.apiKey, baseUrl: prof && prof.baseUrl });
+  }
+  async function activateBranch(id) {
+    const k = requireKernel();
+    return (k.session.branches && k.session.branches.activate) ? k.session.branches.activate(id) : { error: "branches unavailable" };
+  }
+
   function dispose() {
     subscription?.unsubscribe?.();
     subscription = null;
@@ -231,7 +311,9 @@ function createKernelHost({
 
   return { init, ready, send, approve, interrupt, getTimeline, getSnapshot, getUsage, getConfig, getState,
            listBranches, listCheckpoints, rewindPreview, rewindApply, getActiveBranch,
-           getPreferences, setPreferences, listTree, readFile, dispose };
+           getPreferences, setPreferences, listTree, readFile,
+           getSettings, setConfig, listApiProfiles, saveApiProfile, deleteApiProfile, activateApiProfile,
+           listModels, testConnection, activateBranch, dispose };
 }
 
 module.exports = { createKernelHost, resolveProjectRoot, zeroUsage, buildKernelOptions,

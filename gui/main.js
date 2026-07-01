@@ -27,7 +27,9 @@ const IPC_CHANNELS = [
   "config:get", "orchestrator:state",
   "window:minimize", "window:maximize", "window:close",
   "fs:tree", "fs:read",
-  "pty:start", "pty:input", "pty:resize", "pty:kill"
+  "pty:start", "pty:input", "pty:resize", "pty:kill",
+  "settings:get", "config:set", "api:list", "api:save", "api:delete", "api:activate",
+  "models:list", "conn:test", "session:branch-activate"
 ];
 
 if (process.env.DEEPSEEK_CODE_GUI_SMOKE === "1") {
@@ -166,6 +168,18 @@ function registerIpcHandlers() {
   ipcMain.handle("pty:input", (_e, data) => { ptyHost?.write(data); });
   ipcMain.handle("pty:resize", (_e, cols, rows) => { ptyHost?.resize(cols, rows); });
   ipcMain.handle("pty:kill", () => { ptyHost?.kill(); });
+
+  // Settings / config / API profiles / models.
+  const wrap = (fn) => async (...args) => { try { return await fn(...args); } catch (error) { return { error: error.message }; } };
+  ipcMain.handle("settings:get", wrap(() => host.getSettings()));
+  ipcMain.handle("config:set", wrap((_e, patch) => host.setConfig(patch)));
+  ipcMain.handle("api:list", wrap(() => host.listApiProfiles()));
+  ipcMain.handle("api:save", wrap((_e, p) => host.saveApiProfile(p)));
+  ipcMain.handle("api:delete", wrap((_e, id) => host.deleteApiProfile(id)));
+  ipcMain.handle("api:activate", wrap((_e, id) => host.activateApiProfile(id)));
+  ipcMain.handle("models:list", wrap((_e, profileId) => host.listModels(profileId)));
+  ipcMain.handle("conn:test", wrap((_e, profileId) => host.testConnection(profileId)));
+  ipcMain.handle("session:branch-activate", wrap((_e, id) => host.activateBranch(id)));
 
   ipcMain.handle("agent:send", async (_event, message, opts) => {
     try { return await host.send(message, opts || {}); }
