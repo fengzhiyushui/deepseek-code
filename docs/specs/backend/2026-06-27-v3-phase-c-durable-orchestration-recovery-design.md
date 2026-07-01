@@ -2,7 +2,7 @@
 
 > 类型:后端设计 spec(backend)
 > 日期:2026-06-27
-> 状态:已评审(含 review 5 边界 + M0 契约层),待转实施计划(writing-plans)
+> 状态:已实施(见 [实施计划](../../plans/backend/2026-06-27-v3-phase-c-durable-orchestration-recovery.md),M0–M8 TDD;含 review 5 边界 + M0 契约层)
 > 关联:[C5 同进程续跑](2026-06-27-v3-phase-c5-replan-resume-design.md) · [V2-18 持久化恢复](2026-06-01-v2-18-durable-recovery-resume-hardening-design.md) · [C1+C2 编排](2026-06-27-v3-phase-c1-c2-orchestration-design.md)
 
 ---

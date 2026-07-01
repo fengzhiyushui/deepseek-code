@@ -16,6 +16,12 @@
 - **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。支柱① 语义级上下文 **Phase B 首版已落地**(见下)。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
+### 已落地 — Phase C-Durable 跨进程编排级 durable 恢复(默认关)
+- **跨进程编排续跑**:C5 同进程续跑之上,崩溃/重启后从暂停的编排回合续跑(Option B 完整 worker turn 重水化)。暂停双写(worker turn sidecar + 新 `orchestration-paused/<approvalId>.json`,同 approvalId 关联);重启 `recovery-service` 扫描交叉校验 → `orchestration_paused` inbox;`recovery.resume` 经校验门 → `worker-factory` 确定性重建 worker → 共享 `pausedTurnStore` 重水化 approve → 续跑,不重 plan。**opt-in `recovery.enabled`,默认关**:关闭时 C5 逐字节不变。
+- **`agent-runtime.js` 一行未改**:worker 持久化/重水化全靠既有注入依赖(`pausedTurnPersistence` + 可注入共享 `pausedTurnStore`)。
+- **5 边界钉死**:① 孤儿(编排 worker sidecar 缺其编排 sidecar / 版本 / 归属不符)一律 `blocked_recovery`,绝不降级单 agent;② 编排 sidecar 只存白名单、不存 raw options / 活对象(活对象由 kernel 重注入);③ 版本/指纹门(workerFactory/toolSubset/subtaskSchema),不符→blocked、不重建;④ approval 归属校验(approvalId/taskId/sessionId/subtask.id/owner 一致);⑤ 预算「配额−已花」续扣、绝不重置。
+- M0–M8 / TDD(全程主控内联,模型全 mock)。新模块 `orchestration-recovery-contract.js`(纯契约)+ `orchestration-persistence.js`(原子写+隔离);接线 orchestrator/dispatch-loop/recovery-service/cost-budget/index.js。测试 **782 全绿**(+43;含真跨实例 e2e:kernel A 暂停落盘→dispose→kernel B 重启扫描→resume 重水化 approve→编辑落主区→完成、plan 跨实例仅 1 次;off 零回归)、check OK、`agent-runtime.js` diff 为空。计划:[`plans/backend/2026-06-27-v3-phase-c-durable-orchestration-recovery.md`](plans/backend/2026-06-27-v3-phase-c-durable-orchestration-recovery.md);设计:[`specs/backend/2026-06-27-v3-phase-c-durable-orchestration-recovery-design.md`](specs/backend/2026-06-27-v3-phase-c-durable-orchestration-recovery-design.md)。
+
 ### 已落地 — Phase C4 跨任务经验记忆(完整,默认关)
 - **跨任务沉淀闭环**:次 agent 在任务边界**提炼教训** → 独立**经验库**(三级分化 + Jaccard 聚簇去重)→ 新任务 planner **检索**相关经验注入拆派 + **风险经验联动权限层**。开关 `config.orchestration.crossTaskLearning = "off"|"on"|"gated"`,**默认 `off`**:关闭时无检索/巩固/升级/事件/目录,与 C1–C5 **逐字节一致**(zero-regression)。
 - **两套记忆彻底分开**:经验库存 `<root>/.deepseek-code/v2/experience/`(富 schema + 写队列串行化 + 原子写),与主事实库(`memory` 工具)互不污染;可一键清空而不碰事实与事件时间线。

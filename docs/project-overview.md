@@ -157,6 +157,7 @@ ToolCall
 - **恢复收件箱**:`.deepseek-code/v2/recovery/inbox.json`,启动扫描登记待恢复项。
 - **事务日志**:`.deepseek-code/v2/journal/`,edit/rewind 写文件前 `open()`、成功 `commit()`、失败 `abort()`(恢复 preimage)。
 - **CLI `/recovery`** 与启动扫描:发现 open/aborting/committed/corrupt 日志并入收件箱。
+- **编排级 durable 恢复**(C-Durable,`recovery.enabled` 开启时):编排回合中串行主区 worker 命中审批暂停 → 除 worker turn sidecar 外另落 `orchestration-paused/<approvalId>.json`;重启后 `/recovery` 呈现 `orchestration_paused` 项,resume 精确重水化被暂停的 worker turn 并续编排回合。详见 [§14.5](#145-跨进程编排级-durable-恢复c-durable默认关)。
 
 详见设计文档 [`specs/backend/2026-06-01-v2-18-durable-recovery-resume-hardening-design.md`](specs/backend/2026-06-01-v2-18-durable-recovery-resume-hardening-design.md)。
 
@@ -397,3 +398,17 @@ route(message) → 启发式评分(router-scoring,纯)
 - **`gated` 模式**:risk-kind 高影响写入先入 `pending/` 待审区(发 `experience:pending_approval`,不影响检索/权限)→ `kernel.experience.{listPending,resolvePending}` 带外审批;`pendingTtlMs`(默认 24h)过期自动 deny;`dispose` 未决保留磁盘、绝不自动落库。
 - **事件**(eventBus 级,仅非 off):`experience:retrieved` / `:consolidated` / `:evicted` / `:reinforced` / `:weakened` / `:pending_approval` / `:pending_resolved`。
 - 组件:[`src/core/memory/`](../src/core/memory/) 的 `experience-schema` · `experience-store`(写队列 + 原子写 + pending)· `experience-scoring` · `experience-cluster` · `experience-upsert` · `experience-consolidator` · `experience-retrieval` · `risk-rules`;接线 `orchestrator` / `dispatch-loop` / `permission-engine` / `planner` / `config` / `index.js`(`kernel.experience` facade)。
+
+### 14.5 跨进程编排级 durable 恢复(C-Durable,默认关)
+
+> 设计见 [C-Durable spec](specs/backend/2026-06-27-v3-phase-c-durable-orchestration-recovery-design.md);实施见 [C-Durable plan](plans/backend/2026-06-27-v3-phase-c-durable-orchestration-recovery.md)。
+
+C5 的**同进程**编排续跑之上,增加**跨进程**恢复:崩溃/重启后从暂停的编排回合续跑(Option B「完整 worker turn 重水化」)。**gated on `recovery.enabled`(默认关)**——关闭时 C5 同进程续跑逐字节不变、不落编排 sidecar、不注入共享 store。
+
+- **暂停时双写**(同 `approvalId` 关联):worker turn sidecar(既有机制,worker 继承 `pausedTurnPersistence` 自动落 `paused/<id>.json`,含 `resume_state.pending_tool_call` + orchestrator 注入的 `__orchestration` 归属标记)+ 编排 sidecar(新 `orchestration-paused/<id>.json`,只存**白名单可序列化**编排状态:plan/round/allCollected/两套 seen/budget 配额+已花/pausedSubtask/remaining;**绝无** raw options / 活对象)。
+- **重启扫描**:`recovery-service` 新扫 `orchestration-paused/`,与 worker sidecar 交叉过**校验门**(schema + 指纹 + 归属)→ 登记 `orchestration_paused` inbox(resume/cancel)。**孤儿一律 blocked**:带 `__orchestration` 标记的 worker sidecar 缺其编排 sidecar(或版本/归属不符)→ `blocked_recovery`,绝不降级单 agent。
+- **续跑**:`recovery.resume(rec_orch_<id>)` → 校验门 → 反序列化状态(budget「配额−已花」续扣,绝不重置)→ `worker-factory` 确定性重建 worker → 经**共享 `pausedTurnStore`** 重水化其 turn 的 `approve`(审批落到待执行写工具)→ 结算 → `resumeDispatchLoop` 续本回合 → `driveFrom` 续后续回合,**不重 plan**。
+- **`agent-runtime.js` 一行未改**:worker 持久化/重水化全靠既有注入依赖(`pausedTurnPersistence` + 可注入共享 `pausedTurnStore`)。
+- 5 边界钉死:孤儿 blocked / 不存 raw options / 版本指纹门 / approval 归属校验 / 预算续扣。
+- 组件:[`src/core/orchestration/orchestration-recovery-contract.js`](../src/core/orchestration/orchestration-recovery-contract.js)(纯契约:serialize/deserialize/validate/fingerprint/ownership 门)· [`src/core/recovery/orchestration-persistence.js`](../src/core/recovery/orchestration-persistence.js)(原子写 + 隔离);接线 `orchestrator`(`resumeDurable`/`serializeState`)· `dispatch-loop`(`__orchestration` 标记)· `recovery-service`(扫描 + 孤儿 blocked)· `cost-budget`(续扣种子)· `index.js`(共享 store + 注入 + durable approve 路由)。
+
