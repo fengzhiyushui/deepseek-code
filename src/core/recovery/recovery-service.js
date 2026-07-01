@@ -1,3 +1,5 @@
+import { isOrchestrationWorkerSidecar, orchestrationResumeGate } from "../orchestration/orchestration-recovery-contract.js";
+
 export function createRecoveryService({
   projectId,
   lock,
@@ -7,7 +9,9 @@ export function createRecoveryService({
   appendMarker,
   resumePaused = null,
   cancelPaused = null,
-  transactionJournal = null
+  transactionJournal = null,
+  orchPersistence = null,
+  resumeOrchestration = null
 }) {
   let latestReport = null;
 
@@ -20,6 +24,13 @@ export function createRecoveryService({
     const done = [];
     const blocked = [];
     const next = [];
+
+    async function blockOrchestration(approvalId, reason) {
+      blocked.push({ type: "orchestration_paused", summary: `Blocked orchestration: ${approvalId}`, reason });
+      await inbox.upsert({ id: `rec_orch_${approvalId}`, type: "blocked_recovery", status: "blocked", source_id: approvalId,
+        summary: `Blocked orchestration recovery: ${approvalId}`, evidence: { reason }, allowed_actions: ["cancel"] });
+      await appendMarker("recovery:blocked", { item_id: `rec_orch_${approvalId}`, source_id: approvalId, reason });
+    }
 
     // Scan transaction journals
     if (transactionJournal) {
@@ -77,56 +88,63 @@ export function createRecoveryService({
       }
     }
 
-    // Scan paused sidecars
+    // Scan paused sidecars. Orchestration-owned worker sidecars are deferred to the
+    // orchestration join below (never treated as single-agent — CST-4).
     const scanned = await paused.scan();
+    const orchWorkers = new Map();   // approvalId -> valid orchestration worker sidecar
     for (const item of scanned) {
       if (item.status === "corrupt") {
         found.push({ type: "paused_turn", summary: `Corrupt paused sidecar: ${item.approval_id}` });
         blocked.push({ type: "paused_turn", summary: `Corrupt paused sidecar: ${item.approval_id}`, reason: item.reason });
-        await inbox.upsert({
-          id: `rec_pause_${item.approval_id}`,
-          type: "blocked_recovery",
-          status: "blocked",
-          source_id: item.approval_id,
-          summary: `Corrupt paused sidecar: ${item.approval_id}`,
-          evidence: { sidecar_path: item.path },
-          allowed_actions: ["cancel"]
-        });
-        await appendMarker("recovery:blocked", {
-          item_id: `rec_pause_${item.approval_id}`,
-          source_id: item.approval_id,
-          reason: item.reason || "corrupt sidecar"
-        });
-      } else if (item.status === "consumed") {
-        // Skip consumed sidecars silently
+        await inbox.upsert({ id: `rec_pause_${item.approval_id}`, type: "blocked_recovery", status: "blocked", source_id: item.approval_id,
+          summary: `Corrupt paused sidecar: ${item.approval_id}`, evidence: { sidecar_path: item.path }, allowed_actions: ["cancel"] });
+        await appendMarker("recovery:blocked", { item_id: `rec_pause_${item.approval_id}`, source_id: item.approval_id, reason: item.reason || "corrupt sidecar" });
         continue;
-      } else {
-        // Valid paused record
-        found.push({ type: "paused_turn", summary: `Paused approval: ${item.approval_id}` });
-        pausedTurnStore.restore(item);
-        await inbox.upsert({
-          id: `rec_pause_${item.approval_id}`,
-          type: "paused_turn",
-          status: "pending",
-          source_id: item.approval_id,
-          summary: `Paused ${item.surface || "turn"}: ${item.approval?.summary || "approval required"}`,
-          evidence: { sidecar_path: paused.baseDir },
-          allowed_actions: ["resume", "cancel"],
-          metadata: {
-            turn_id: item.turn_id,
-            autonomy: item.permission_context?.autonomy || item.turn?.autonomy,
-            surface: item.surface
-          }
-        });
-        await appendMarker("turn:rehydrated", {
-          approval_id: item.approval_id,
-          turn_id: item.turn_id,
-          original_session_id: item.session_id,
-          marker_status: "ok"
-        });
-        done.push({ type: "paused_turn", summary: `Rehydrated approval: ${item.approval_id}` });
-        next.push(`/recovery resume rec_pause_${item.approval_id}`);
       }
+      if (item.status === "consumed") continue;
+      if (isOrchestrationWorkerSidecar(item)) { orchWorkers.set(item.approval_id, item); continue; }  // defer to join
+      // Valid single-agent paused record (unchanged path)
+      found.push({ type: "paused_turn", summary: `Paused approval: ${item.approval_id}` });
+      pausedTurnStore.restore(item);
+      await inbox.upsert({ id: `rec_pause_${item.approval_id}`, type: "paused_turn", status: "pending", source_id: item.approval_id,
+        summary: `Paused ${item.surface || "turn"}: ${item.approval?.summary || "approval required"}`, evidence: { sidecar_path: paused.baseDir },
+        allowed_actions: ["resume", "cancel"], metadata: { turn_id: item.turn_id, autonomy: item.permission_context?.autonomy || item.turn?.autonomy, surface: item.surface } });
+      await appendMarker("turn:rehydrated", { approval_id: item.approval_id, turn_id: item.turn_id, original_session_id: item.session_id, marker_status: "ok" });
+      done.push({ type: "paused_turn", summary: `Rehydrated approval: ${item.approval_id}` });
+      next.push(`/recovery resume rec_pause_${item.approval_id}`);
+    }
+
+    // Orchestration join: match each orchestration sidecar to its worker sidecar under
+    // the authoritative gate (CST-6 + CST-7). Everything that fails -> blocked (CST-4).
+    const handledOrchWorkers = new Set();
+    const orchScanned = orchPersistence ? await orchPersistence.scan() : [];
+    for (const oc of orchScanned) {
+      if (oc.status === "consumed") continue;
+      const approvalId = oc.approvalId;
+      const workerRecord = orchWorkers.get(approvalId) || null;
+      if (workerRecord) handledOrchWorkers.add(approvalId);
+      if (oc.status === "corrupt") { await blockOrchestration(approvalId, oc.reason || "corrupt orchestration sidecar"); continue; }
+      const gate = orchestrationResumeGate({ sidecar: oc, workerRecord });
+      if (!gate.ok) { await blockOrchestration(approvalId, gate.reason); continue; }
+      // OK: restore the worker turn into the shared store so the rebuilt worker's approve sees it.
+      pausedTurnStore.restore(workerRecord);
+      const completed = (oc.allCollected || []).filter((c) => c.status === "complete").length;
+      found.push({ type: "orchestration_paused", summary: `Paused orchestration ${oc.taskId} round ${oc.round}` });
+      await inbox.upsert({ id: `rec_orch_${approvalId}`, type: "orchestration_paused", status: "pending", source_id: approvalId,
+        summary: `Paused orchestration task ${oc.taskId} (round ${oc.round})`, evidence: { taskId: oc.taskId, round: oc.round, completed },
+        allowed_actions: ["resume", "cancel"], metadata: { taskId: oc.taskId, round: oc.round, session_id: oc.sessionId } });
+      await appendMarker("turn:rehydrated", { approval_id: approvalId, turn_id: workerRecord.turn_id, original_session_id: oc.sessionId, marker_status: "ok" });
+      done.push({ type: "orchestration_paused", summary: `Rehydrated orchestration: ${approvalId}` });
+      next.push(`/recovery resume rec_orch_${approvalId}`);
+    }
+    // Orphan orchestration workers: marked but no matching (valid) orchestration sidecar -> blocked (CST-4).
+    for (const [approvalId] of orchWorkers) {
+      if (handledOrchWorkers.has(approvalId)) continue;
+      const reason = orchPersistence ? "orphaned orchestration worker sidecar (no matching orchestration sidecar)" : "orchestration recovery unavailable";
+      blocked.push({ type: "paused_turn", summary: `Blocked orphan orchestration worker: ${approvalId}`, reason });
+      await inbox.upsert({ id: `rec_pause_${approvalId}`, type: "blocked_recovery", status: "blocked", source_id: approvalId,
+        summary: `Blocked orphan orchestration worker: ${approvalId}`, evidence: { reason }, allowed_actions: ["cancel"] });
+      await appendMarker("recovery:blocked", { item_id: `rec_pause_${approvalId}`, source_id: approvalId, reason });
     }
 
     latestReport = { found, done, blocked, next };
@@ -175,6 +193,14 @@ export function createRecoveryService({
   }
 
   async function resume(id, { decision = "approve" } = {}) {
+    if (id.startsWith("rec_orch_")) {
+      const approvalId = id.replace(/^rec_orch_/, "");
+      if (!resumeOrchestration) throw new Error("orchestration recovery resume not wired");
+      const result = await resumeOrchestration(approvalId, decision);
+      const item = await inbox.get(id);
+      if (item) await inbox.mark(id, { status: "resumed" });
+      return { status: "resumed", item, result };
+    }
     if (!id.startsWith("rec_pause_")) {
       throw new Error(`invalid resume target: ${id}`);
     }
@@ -192,6 +218,14 @@ export function createRecoveryService({
   }
 
   async function cancel(id) {
+    if (id.startsWith("rec_orch_")) {
+      const approvalId = id.replace(/^rec_orch_/, "");
+      const item = await inbox.get(id);
+      const orchResult = orchPersistence ? await orchPersistence.quarantine(approvalId, "operator cancelled orchestration recovery").catch(() => null) : null;
+      await paused.quarantine(approvalId, "operator cancelled orchestration recovery").catch(() => {});   // best-effort worker sidecar
+      if (item) await inbox.mark(id, { status: "cancelled" });
+      return { status: "cancelled", item, result: orchResult };
+    }
     if (!id.startsWith("rec_pause_")) {
       throw new Error(`invalid cancel target: ${id}`);
     }
