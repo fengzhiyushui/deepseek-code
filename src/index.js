@@ -18,6 +18,7 @@ import { createApprovalCache } from "./tools/permissions/approval-cache.js";
 import { createPolicyContext } from "./tools/permissions/policy-loader.js";
 import { createContextEngine } from "./context/index.js";
 import { createPausedTurnPersistence } from "./core/recovery/paused-turn-persistence.js";
+import { createPausedTurnStore } from "./core/approval/paused-turn-store.js";
 import { createRecoveryInbox } from "./core/recovery/recovery-inbox.js";
 import { createRecoveryService } from "./core/recovery/recovery-service.js";
 import { acquireProjectLock } from "./core/recovery/project-lock.js";
@@ -70,6 +71,12 @@ export async function createKernel(root, options = {}) {
   const pausedTurnPersistence = recoveryEnabled
     ? createPausedTurnPersistence({ root, projectId, faults: options.recovery?.faults || options.recoveryFaults })
     : null;
+  // Durable orchestration recovery: main runtime + all workers + rebuilt workers
+  // share ONE paused-turn store so a recovery-restored record is visible to the
+  // rebuilt worker's approve(). Off => undefined => each runtime keeps its own
+  // default store (byte-for-byte today's behavior). Never null (null bypasses the
+  // createAgentRuntime default param and would crash on .size()).
+  const sharedPausedTurnStore = recoveryEnabled ? createPausedTurnStore() : null;
   let kernelDisposed = false;
 
   const recoveryInbox = recoveryEnabled
@@ -139,6 +146,7 @@ export async function createKernel(root, options = {}) {
     memoryRoot: options.memoryRoot || null,
     recoverySurface: options.recovery?.surface || "cli",
     pausedTurnPersistence,
+    pausedTurnStore: sharedPausedTurnStore || undefined,
     flushEvents: () => sessionManager.flush(),
     modelGateway,
     toolSchemas: () => toolRegistry.toDeepSeekTools(),
