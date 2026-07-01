@@ -13,10 +13,7 @@
     "build:renderer": "vite build -c vite.renderer.config.mjs"
   },
   "dependencies": {
-    "@douyinfe/semi-icons": "^2.100.0",
-    "@douyinfe/semi-ui": "^2.100.0",
     "electron": "^30.0.0",
-    "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

@@ -4,6 +4,7 @@
 var RAIL_MODES = ["chat", "context", "branches", "timeline", "settings"];
 var INSPECTOR_MODES = ["activity", "approval", "rewind", "details", "checkpoints", "branch"];
 var THEMES = ["night", "day"];
+var LANGUAGES = ["zh", "en"];
 
 export function createInitialState() {
   return {
@@ -22,6 +23,7 @@ export function createInitialState() {
     contextCollapsed: false,
     inspectorMode: "activity",
     theme: "night",
+    language: "zh",
     emptyStateVisible: true,
     degraded: false,
     errors: [],
@@ -110,6 +112,7 @@ export function applyWorkbenchAction(state, action) {
     var prefs = action.preferences || {};
     return copy(current, {
       theme: normalize(prefs.theme, THEMES, current.theme),
+      language: normalize(prefs.language, LANGUAGES, current.language),
       railMode: normalize(prefs.railMode, RAIL_MODES, current.railMode),
       contextCollapsed: typeof prefs.contextCollapsed === "boolean" ? prefs.contextCollapsed : current.contextCollapsed
     });
@@ -122,6 +125,9 @@ export function applyWorkbenchAction(state, action) {
   }
   if (action.type === "theme_changed") {
     return copy(current, { theme: normalize(action.theme, THEMES, "night") });
+  }
+  if (action.type === "language_changed") {
+    return copy(current, { language: normalize(action.language, LANGUAGES, "zh") });
   }
   if (action.type === "loading_changed") {
     return copy(current, {

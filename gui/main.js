@@ -77,14 +77,14 @@ async function createWindow() {
         const ready = await win.webContents.executeJavaScript(`
           new Promise((resolve) => {
             const ok = () => Boolean(
-              document.querySelector(".app-shell") &&
+              document.querySelector(".ide") &&
               document.querySelector('header[role="banner"]') &&
-              document.querySelector('main[aria-label="code workspace"]') &&
+              document.querySelector(".editor") &&
               document.querySelector('footer[role="contentinfo"]') &&
-              document.querySelector('nav[role="tablist"] button[role="tab"][aria-label]') &&
-              document.querySelector('section[aria-label="agent panel"]') &&
-              document.querySelector('textarea[aria-label="message composer"]') &&
-              document.querySelector('button[aria-label^="switch theme"]')
+              document.querySelector('.activity[role="tablist"] button[role="tab"][aria-label]') &&
+              document.querySelector('.agent [role="log"]') &&
+              document.querySelector('.acomposer textarea[aria-label]') &&
+              document.querySelector('.titlebar .actions .lang')
             );
             let n = 0;
             const iv = setInterval(() => {

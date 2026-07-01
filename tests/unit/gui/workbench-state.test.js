@@ -202,3 +202,14 @@ test("unknown/no-op action returns the SAME reference", () => {
   assert.equal(state.applyWorkbenchAction(s0, { type: "___nope___" }), s0);
   assert.equal(state.applyWorkbenchAction(s0, {}), s0);
 });
+
+// D-1 rebuild: bilingual language state (default zh, switchable, from preferences)
+test("language defaults to zh and switches via action + preferences", () => {
+  assert.equal(state.createInitialState().language, "zh");
+  const en = state.applyWorkbenchAction(state.createInitialState(), { type: "language_changed", language: "en" });
+  assert.equal(en.language, "en");
+  const bad = state.applyWorkbenchAction(en, { type: "language_changed", language: "fr" });
+  assert.equal(bad.language, "zh"); // invalid falls back to default
+  const fromPrefs = state.applyWorkbenchAction(state.createInitialState(), { type: "preferences_loaded", preferences: { language: "en" } });
+  assert.equal(fromPrefs.language, "en");
+});
