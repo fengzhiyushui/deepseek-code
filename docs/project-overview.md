@@ -247,7 +247,7 @@ src/
   apps/           kernel-options · cli/(render-events · kernel-runner)
   shared/         id · time · event-bus
   (顶层)         cli.js · config.js · context.js · git.js · patch.js · changes.js · provider.js · search.js · theme.js · tui.js
-gui/              Electron:main.js · preload.js · kernel-host.js · renderer/*
+gui/              Electron:main.js · preload.js · kernel-host.js · src/(React+Vite+Semi 渲染层:App/components/hooks/state)· renderer/*(旧原生,休眠回退)· vite.renderer.config.mjs
 docs/             specs/ · plans/ · CHANGELOG.md · README.md(文档中心)
 tests/ + test/    单元 / 集成 / e2e
 preview-deepseek-code/ · DeepSeekCodeIDE.jsx   前端原型(V3 Phase D,未接入运行时)

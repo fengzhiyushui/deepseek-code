@@ -116,13 +116,17 @@ node ./bin/deepseek-code.js tui
 
 ## 🖥️ 桌面 GUI
 
-GUI 是基于 Electron 的工作台(分支 / rewind 可视化、审批流、用量统计):
+GUI 是基于 Electron 的工作台,渲染层为 **React + Vite + Semi UI** 四栏 IDE 外壳(分支 / rewind 可视化、审批流、用量统计;后端 kernel-host / IPC 不变):
 
 ```bash
 cd gui
 npm install
-npm start        # 开发模式:npm run dev
+npm run build:renderer   # 构建 React 渲染层到 renderer-dist/
+npm start                # 启动 Electron(加载构建产物)
+# 前端开发热更:npm run dev:renderer(Vite devserver)+ DEEPSEEK_CODE_GUI_DEV_URL=http://127.0.0.1:5173 npm start
 ```
+
+> 渲染层已从原生 DOM 迁到 React(状态复用纯 reducer,经 `useReducer` 驱动;`window.deepseek` IPC 契约不变)。旧原生 renderer 暂留作回退。
 
 ---
 

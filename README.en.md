@@ -116,13 +116,17 @@ node ./bin/deepseek-code.js tui
 
 ## 🖥️ Desktop GUI
 
-The GUI is an Electron workbench (branch / rewind visualization, approval flow, usage stats):
+The GUI is an Electron workbench with a **React + Vite + Semi UI** four-column IDE shell (branch / rewind visualization, approval flow, usage stats; the kernel-host / IPC backend is unchanged):
 
 ```bash
 cd gui
 npm install
-npm start        # dev mode: npm run dev
+npm run build:renderer   # build the React renderer into renderer-dist/
+npm start                # launch Electron (loads the built renderer)
+# front-end hot reload: npm run dev:renderer (Vite dev server) + DEEPSEEK_CODE_GUI_DEV_URL=http://127.0.0.1:5173 npm start
 ```
+
+> The renderer moved from vanilla DOM to React (state reuses the pure reducer via `useReducer`; the `window.deepseek` IPC contract is unchanged). The legacy vanilla renderer is kept as a fallback.
 
 ---
 
