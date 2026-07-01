@@ -3,6 +3,8 @@ const STRINGS = {
   zh: {
     "menu.file": "文件", "menu.edit": "编辑", "menu.selection": "选择", "menu.view": "查看",
     "menu.go": "转到", "menu.run": "运行", "menu.agent": "智能体", "menu.help": "帮助",
+    "menu.newFile": "新建文件", "menu.open": "打开", "menu.save": "保存", "menu.saveAll": "全部保存",
+    "menu.undo": "撤销", "menu.redo": "重做", "menu.find": "查找", "menu.about": "关于",
     "explorer": "资源管理器", "branches": "分支", "checkpoints": "检查点", "files": "文件",
     "noBranches": "暂无分支", "noCheckpoints": "暂无检查点",
     "panel.problems": "问题", "panel.output": "输出", "panel.debug": "调试控制台", "panel.terminal": "终端",
@@ -22,6 +24,8 @@ const STRINGS = {
   en: {
     "menu.file": "File", "menu.edit": "Edit", "menu.selection": "Selection", "menu.view": "View",
     "menu.go": "Go", "menu.run": "Run", "menu.agent": "Agent", "menu.help": "Help",
+    "menu.newFile": "New File", "menu.open": "Open", "menu.save": "Save", "menu.saveAll": "Save All",
+    "menu.undo": "Undo", "menu.redo": "Redo", "menu.find": "Find", "menu.about": "About",
     "explorer": "Explorer", "branches": "Branches", "checkpoints": "Checkpoints", "files": "Files",
     "noBranches": "No branches", "noCheckpoints": "No checkpoints",
     "panel.problems": "Problems", "panel.output": "Output", "panel.debug": "Debug Console", "panel.terminal": "Terminal",
