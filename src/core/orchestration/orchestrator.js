@@ -2,11 +2,14 @@ import { runDispatchLoop, resumeDispatchLoop } from "./dispatch-loop.js";
 import { fingerprint } from "./subtask-schema.js";
 import { classifyOutcome } from "./synthesizer.js";
 import { riskRules } from "../memory/risk-rules.js";
+import { serializeOrchestrationState, deserializeOrchestrationState } from "./orchestration-recovery-contract.js";
 
 export function createOrchestrator({
   planner, makeWorkerFactory, makeReviewerFor, synthesizer, makeBudget, maxSubtasks, maxWorkerAttempts,
   eventBus, makeContext, maxParallelWorkers = 1, toBatches, runIsolatedWorker, mergeSubtask, removeIso, maxRounds = 1,
-  crossTaskLearning = "off", experienceRetrieval = null, experienceConsolidator = null, now = () => Date.now()
+  crossTaskLearning = "off", experienceRetrieval = null, experienceConsolidator = null, now = () => Date.now(),
+  orchPersistence = null, makeResumedBudget = null, env = { root: null, orchestrationConfig: null },
+  pausedTurnStore = null, pausedTurnPersistence = null
 }) {
   const orchPaused = new Map();   // approvalId -> { state, dispatchResume }  (C5 same-process resume)
   const pendingConsolidations = new Set();   // C4: background experience consolidation promises
@@ -34,7 +37,8 @@ export function createOrchestrator({
       seenFp: new Set(plan.subtasks.map(fingerprint)),
       budget: makeBudget(), stoppedByCap: false, done_when: plan.done_when,
       adoptedExperienceIds, riskCues,
-      taskId: "task_" + Math.trunc(now()).toString(36), sessionId: options.sessionId || "session"
+      taskId: "task_" + Math.trunc(now()).toString(36), sessionId: options.sessionId || "session",
+      env
     };
     return driveFrom(state, { afterPausedRound: false });
   }
@@ -140,7 +144,18 @@ export function createOrchestrator({
     return driveFrom(state, { afterPausedRound: true });    // round done -> gate + further rounds
   }
 
-  return { run, resume, hasPaused: (id) => orchPaused.has(id), flushExperience };
+  // Durable recovery (opt-in): serialize the wrapper state to a sidecar JSON, and
+  // rebuild it after restart with a live budget that continues from prior spend.
+  function serializeState(state, pauseInfo) {
+    return serializeOrchestrationState(state, pauseInfo);
+  }
+  function deserializeState(json) {
+    const s = deserializeOrchestrationState(json);
+    const budget = makeResumedBudget ? makeResumedBudget(s.budgetSnapshot) : makeBudget();
+    return { ...s, budget, stoppedByCap: false };
+  }
+
+  return { run, resume, hasPaused: (id) => orchPaused.has(id), flushExperience, serializeState, deserializeState };
 }
 
 function intersect(a, b) {
