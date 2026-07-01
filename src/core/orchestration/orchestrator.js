@@ -67,6 +67,7 @@ export function createOrchestrator({
         state.allCollected.push(...result.collected);
         if (result.status === "awaiting_approval") {
           orchPaused.set(result.approval.id, { state, dispatchResume: result.resume });
+          await persistDurablePause(state, result);      // M5: durable double-write (no-op when off)
           return { status: "awaiting_approval", approval: result.approval, collected: state.allCollected };
         }
         lastRoundCollected = result.collected;
@@ -134,12 +135,15 @@ export function createOrchestrator({
   async function resume(id, decision = "approve") {
     const saved = orchPaused.get(id);
     if (!saved) { const e = new Error(`no paused orchestration: ${id}`); e.code = "ORCH_NOT_PAUSED"; throw e; }
-    orchPaused.delete(id);                                  // consume
+    orchPaused.delete(id);                                  // consume in-memory
     const { state, dispatchResume } = saved;
     const res = await resumeDispatchLoop(dispatchResume, decision);
     state.allCollected.push(...res.collected);
+    if (decision === "deny") await consumeWorkerSidecar(dispatchResume.pausedApprovalId);   // M5: deny cleans worker sidecar
+    if (orchPersistence) await orchPersistence.consume(id).catch(() => {});                  // M5: consume old durable sidecar
     if (res.status === "awaiting_approval") {
       orchPaused.set(res.approval.id, { state, dispatchResume: res.resume });   // re-pause: new id
+      await persistDurablePause(state, res);                                    // M5: new durable sidecar
       return { status: "awaiting_approval", approval: res.approval, collected: state.allCollected };
     }
     return driveFrom(state, { afterPausedRound: true });    // round done -> gate + further rounds
