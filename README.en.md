@@ -116,7 +116,7 @@ node ./bin/deepseek-code.js tui
 
 ## 🖥️ Desktop GUI
 
-The GUI is an Electron workbench with a **hand-built VS Code-style** React + Vite four-column IDE shell (original CSS design system + inline SVG, **no third-party UI kit**; **bilingual zh/en**, Chinese by default, switchable from the title bar; the kernel-host / IPC backend is unchanged):
+The GUI is an Electron workbench with a **hand-built VS Code-style** React + Vite four-column IDE shell (original CSS design system + inline SVG, **no third-party UI kit**; **bilingual zh/en**, Chinese by default, switchable from the title bar; the kernel-host / IPC backend is unchanged). **Now wired to real data**: real file tree + **Monaco** read-only editor (real syntax highlighting) + **node-pty** interactive terminal + live agent cards (editing/save later):
 
 ```bash
 cd gui

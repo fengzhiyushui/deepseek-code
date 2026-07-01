@@ -88,6 +88,7 @@ docs/
 - [v2-16 gui-interaction-hardening](specs/frontend/2026-05-31-v2-16-gui-interaction-hardening-design.md)
 - [v2-frontend-workbench-redesign](specs/frontend/2026-05-31-v2-frontend-workbench-redesign-design.md)
 - [v3-phase-d1 gui-react-shell](specs/frontend/2026-06-27-v3-phase-d1-gui-react-shell-design.md) — **D-1 GUI React 外壳**:渲染层迁 React+Vite+Semi UI(后端 IPC 不改)+ reducer 复用/不可变防线 + 布局契约 + a11y 基线 + 占位强标记 + 依赖门控测试
+- [v3-phase-d2 gui-functional](specs/frontend/2026-07-01-v3-phase-d2-gui-functional-design.md) — **D-2 GUI 做真**:真文件树(path-safety 边界)+ Monaco 只读(本地 worker)+ 实时 Agent 卡片派生 + node-pty 交互终端(注入可测/降级)+ language 持久化;kernel 零改动
 
 ### plans/roadmap — 宏观阶段
 - [phase-0 kernel-foundation](plans/roadmap/2026-05-29-phase-0-kernel-foundation.md)
@@ -119,6 +120,7 @@ docs/
 - [future-gui-deepseek-code-ide-redesign](plans/frontend/2026-06-01-future-gui-deepseek-code-ide-redesign.md)
 - [gui-frontend-optimization-plan](plans/frontend/gui-frontend-optimization-plan.md)
 - [v3-phase-d1 gui-react-shell](plans/frontend/2026-06-27-v3-phase-d1-gui-react-shell.md) — **D-1 实施计划**:M1–M8(reducer ESM/不可变 → 纯函数 layout/loads/panels → vite 构建接线 → 四栏组件+布局+a11y → 数据接线 → 主题+占位 → smoke+截图 → 回归+文档)
+- [v3-phase-d2 gui-functional](plans/frontend/2026-07-01-v3-phase-d2-gui-functional.md) — **D-2 实施计划**:M1–M7(文件桥+language → 树+reducer → Monaco 只读 → 卡片派生 → pty-host → xterm+node-pty → build/smoke/文档)
 
 ---
 

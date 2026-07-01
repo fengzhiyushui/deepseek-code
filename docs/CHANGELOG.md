@@ -16,6 +16,14 @@
 - **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。支柱① 语义级上下文 **Phase B 首版已落地**(见下)。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
+### 已落地 — Phase D-2 GUI 做「真」(文件树 / Monaco / 实时 Agent 卡片 / node-pty 终端)
+- **真文件树**:`kernel-host` 加 `listTree`/`readFile`(复用 `src/workspace/path-safety.js` realpath 边界,拒目录/超大/二进制/symlink 逃逸;`src` 零改动);点文件 → 载入编辑器。`buildTree` 纯函数组装折叠树。
+- **Monaco 只读编辑器**:VS Code 同款内核,真语法高亮 + 主题联动;**本地 worker**(`?worker` Vite 打包,Electron `file://` 离线,不走 CDN);多标签页反映已打开文件。**可编辑/保存留 D-3**。
+- **实时 Agent 卡片**:`deriveAgentCards(activity)` 纯派生(plan/工具/diff/测试卡),替换示例预览。
+- **交互终端**:`node-pty`(N-API 预编译在 Electron 30 **免重编译**直接加载)+ xterm;项目根开真 shell;`pty-host` 注入 spawn 可单测;不可用时优雅降级。
+- **修** D-1 遗留:`language` 偏好未持久化(`normalizeGuiPreferences` 补字段,默认 zh)。
+- **kernel(`src/`)零改动**;新纯逻辑(`buildTree`/`deriveAgentCards`/`pty-host`/文件桥/language)全 node:test;Monaco/xterm/node-pty 走 build + 门控 smoke。测试 **813 全绿**、check OK;截图验收:真终端(cmd shell)+ 真文件树 + Monaco。计划:[`plans/frontend/2026-07-01-v3-phase-d2-gui-functional.md`](plans/frontend/2026-07-01-v3-phase-d2-gui-functional.md);设计:[`specs/frontend/2026-07-01-v3-phase-d2-gui-functional-design.md`](specs/frontend/2026-07-01-v3-phase-d2-gui-functional-design.md)。
+
 ### 已落地 — Phase D-1 GUI React 外壳(手写 VS Code 风格 + 双语)
 - **渲染层迁 React + Vite,手写 VS Code 风格外壳(不用第三方 UI 组件库)**:Electron GUI 从原生 DOM 迁到 React 四栏 IDE 外壳(TitleBar / ActivityBar / Explorer / EditorGroup / AgentPanel / StatusBar),**原创 CSS 设计系统 + 内联 SVG 图标,零第三方 UI 套件**(曾试 Semi UI,因观感不够原创、像「二次开发」被移除,构建 4601→43 模块)。设计基准 = 已批准的 `gui/mockups/deepseek-code-ide-mockup.html`。**后端 kernel-host / preload / IPC / `window.deepseek` 契约一字不改**,`main.js` 仅改加载目标。
 - **双语 i18n**:zh / en 用户可自行切换(标题栏切换钮),**默认中文**,经 preferences 持久化;`language` 入纯 reducer(可测)、`i18n/strings.js` 字典。
