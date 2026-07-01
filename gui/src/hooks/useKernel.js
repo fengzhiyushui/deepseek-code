@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { getApi } from "../lib/api.js";
 import { buildInitialLoads, branchesAction, eventToAction, errorToAction } from "./kernel-loads.js";
+import { targetFromCheckpoint } from "../state/workbench-state.js";
 
 // Subscribes to window.deepseek events → dispatch, runs first-paint loads, and exposes
 // action wrappers. Pure mapping lives in kernel-loads.js (node:test-covered).
@@ -46,23 +47,95 @@ export function useKernel(dispatch) {
     };
   }, [api, dispatch]);
 
-  return useMemo(() => ({
-    available: Boolean(api),
-    send: (message, opts) => api?.send?.(message, opts),
-    approve: (id, decision) => api?.approve?.(id, decision),
-    interrupt: () => api?.interrupt?.(),
-    setPreferences: (patch) => api?.setPreferences?.(patch),
-    rewindPreview: (o) => api?.rewindPreview?.(o),
-    rewindApply: (o) => api?.rewindApply?.(o),
-    openFile: async (path) => {
-      if (!api?.readFile) return;
+  return useMemo(() => {
+    async function refreshBranches() {
+      if (!api?.listBranches) return;
       try {
-        const r = await api.readFile(path);
-        if (r && r.error) dispatch(errorToAction("readFile", new Error(r.error)));
-        else dispatch({ type: "file_opened", file: r });
+        const [list, active] = await Promise.all([
+          api.listBranches(),
+          api.getActiveBranch ? api.getActiveBranch() : null
+        ]);
+        const activeId = active && (active.branch_id || active.id || active);
+        dispatch(branchesAction(list, typeof activeId === "string" ? activeId : null));
       } catch (err) {
-        dispatch(errorToAction("readFile", err));
+        dispatch(errorToAction("branches", err));
       }
     }
-  }), [api, dispatch]);
+
+    return {
+      available: Boolean(api),
+      send: (message, opts) => api?.send?.(message, opts),
+      approve: (id, decision) => api?.approve?.(id, decision),
+      interrupt: () => api?.interrupt?.(),
+      setPreferences: (patch) => api?.setPreferences?.(patch),
+
+      // Settings bridge (pass-through; components own their local form state).
+      getSettings: () => api?.getSettings?.(),
+      setConfig: (patch) => api?.setConfig?.(patch),
+      listApiProfiles: () => api?.listApiProfiles?.(),
+      saveApiProfile: (p) => api?.saveApiProfile?.(p),
+      deleteApiProfile: (id) => api?.deleteApiProfile?.(id),
+      activateApiProfile: (id) => api?.activateApiProfile?.(id),
+      listModels: (profileId) => api?.listModels?.(profileId),
+      testConnection: (profileId) => api?.testConnection?.(profileId),
+
+      openFile: async (path) => {
+        if (!api?.readFile) return;
+        try {
+          const r = await api.readFile(path);
+          if (r && r.error) dispatch(errorToAction("readFile", new Error(r.error)));
+          else dispatch({ type: "file_opened", file: r });
+        } catch (err) {
+          dispatch(errorToAction("readFile", err));
+        }
+      },
+
+      saveFile: async (path, state) => {
+        if (!api?.writeFile) { dispatch(errorToAction("writeFile", new Error("save unavailable (no bridge)"))); return; }
+        const file = (state?.openFiles || []).find((f) => f.path === path);
+        if (!file) return;
+        try {
+          const r = await api.writeFile(path, file.content);
+          if (r && r.error) dispatch(errorToAction("writeFile", new Error(r.error)));
+          else dispatch({ type: "file_saved", path, content: file.content });
+        } catch (err) {
+          dispatch(errorToAction("writeFile", err));
+        }
+      },
+
+      activateBranch: async (id) => {
+        if (!api?.activateBranch) return;
+        try {
+          const r = await api.activateBranch(id);
+          if (r && r.error) dispatch(errorToAction("branches", new Error(r.error)));
+          await refreshBranches();
+        } catch (err) {
+          dispatch(errorToAction("branches", err));
+        }
+      },
+
+      previewRewind: async (checkpoint) => {
+        if (!api?.rewindPreview) return;
+        try {
+          const preview = await api.rewindPreview(targetFromCheckpoint(checkpoint));
+          dispatch({ type: "rewind_preview_loaded", preview });
+        } catch (err) {
+          dispatch(errorToAction("rewind", err));
+        }
+      },
+
+      applyRewind: async (target, force) => {
+        if (!api?.rewindApply) return;
+        try {
+          const result = await api.rewindApply({ ...(target || {}), force: Boolean(force) });
+          dispatch({ type: "rewind_result_loaded", result });
+          await refreshBranches();
+        } catch (err) {
+          dispatch(errorToAction("rewind", err));
+        }
+      },
+
+      dismissRewind: () => dispatch({ type: "rewind_dismissed" })
+    };
+  }, [api, dispatch]);
 }

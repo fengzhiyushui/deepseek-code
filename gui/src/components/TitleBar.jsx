@@ -1,15 +1,55 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Icon from "./Icons.jsx";
+import { menuModel } from "../state/menu-model.js";
 
-const MENU = ["menu.file", "menu.edit", "menu.selection", "menu.view", "menu.go", "menu.run", "menu.agent", "menu.help"];
-
-export default function TitleBar({ t, language, theme, title, onToggleTheme, onToggleLang }) {
+export default function TitleBar({ t, language, theme, title, railView, onToggleTheme, onToggleLang, menuActions = {} }) {
   const dark = theme !== "day";
+  const model = menuModel(t);
+  const [open, setOpen] = useState(null); // index of open top-level menu
+  const barRef = useRef(null);
+
+  useEffect(() => {
+    if (open === null) return undefined;
+    const onDoc = (e) => { if (barRef.current && !barRef.current.contains(e.target)) setOpen(null); };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(null); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  const runAction = (id) => {
+    setOpen(null);
+    const fn = menuActions[id];
+    if (typeof fn === "function") fn();
+  };
+
   return (
     <header className="titlebar" role="banner">
       <div className="logo" style={{ color: "var(--accent)" }}><Icon name="logo" size={16} /></div>
-      <nav className="menu" aria-label="menu">
-        {MENU.map((k) => <button key={k} type="button">{t(k)}</button>)}
+      <nav className="menu" aria-label="menu" ref={barRef}>
+        {model.map((group, gi) => (
+          <div key={group.label} className="menu-group">
+            <button type="button" className={open === gi ? "open" : ""}
+              aria-haspopup="menu" aria-expanded={open === gi}
+              onClick={() => setOpen(open === gi ? null : gi)}
+              onMouseEnter={() => { if (open !== null) setOpen(gi); }}>
+              {group.label}
+            </button>
+            {open === gi && (
+              <div className="menu-dropdown" role="menu" aria-label={group.label}>
+                {group.items.map((it, ii) => (
+                  it.id === "sep"
+                    ? <div key={`sep${ii}`} className="menu-sep" role="separator" />
+                    : <button key={it.id} type="button" role="menuitem" disabled={it.enabled === false}
+                        className="menu-item" onClick={() => runAction(it.id)}>
+                        <span className="mi-label">{it.label}</span>
+                        {(railView && it.id === `view.${railView}`) ? <span className="mi-check">✓</span> : null}
+                      </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
       </nav>
       <div className="title">{title}</div>
       <div className="actions">

@@ -28,7 +28,14 @@ export default function ActivityBar({ t, active, onSelect }) {
         </button>
       ))}
       <div className="spacer" />
-      <button type="button" className="item" role="tab" aria-selected={false} aria-label={t("rail.settings")}>
+      <button
+        type="button"
+        className={`item ${active === "settings" ? "active" : ""}`}
+        role="tab"
+        aria-selected={active === "settings"}
+        aria-label={t("rail.settings")}
+        onClick={() => onSelect("settings")}
+      >
         <Icon name="settings" size={22} />
       </button>
     </nav>
