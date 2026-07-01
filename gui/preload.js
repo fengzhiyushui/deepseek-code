@@ -22,4 +22,7 @@ contextBridge.exposeInMainWorld("deepseek", {
   listCheckpoints: (options) => ipcRenderer.invoke("session:checkpoints", options || {}),
   rewindPreview: (options) => ipcRenderer.invoke("session:rewind-preview", options || {}),
   rewindApply: (options) => ipcRenderer.invoke("session:rewind-apply", options || {}),
+  minimize: () => ipcRenderer.invoke("window:minimize"),
+  maximizeToggle: () => ipcRenderer.invoke("window:maximize"),
+  closeWindow: () => ipcRenderer.invoke("window:close"),
 });

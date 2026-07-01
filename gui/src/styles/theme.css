@@ -36,7 +36,8 @@ body{
 :focus-visible{outline:1px solid var(--accent); outline-offset:-1px;}
 
 /* Title bar */
-.titlebar{display:flex; align-items:center; background:var(--bg-title); font-size:12px; color:var(--text);}
+.titlebar{display:flex; align-items:center; background:var(--bg-title); font-size:12px; color:var(--text); -webkit-app-region:drag;}
+.titlebar button{-webkit-app-region:no-drag;}
 .titlebar .logo{width:34px; display:grid; place-items:center;}
 .titlebar .menu{display:flex;}
 .titlebar .menu button{background:none; border:none; color:var(--text); padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer;}
@@ -47,8 +48,8 @@ body{
 .titlebar .actions .ib:hover{background:#8884;}
 .titlebar .actions .lang{width:auto; padding:0 8px; font-weight:600; font-size:11px;}
 .titlebar .winctl{display:flex;}
-.titlebar .winctl div{width:46px; height:30px; display:grid; place-items:center;}
-.titlebar .winctl div:hover{background:#8884;}
+.titlebar .winctl button{width:46px; height:30px; display:grid; place-items:center; background:none; border:none; color:var(--text); cursor:pointer; font-size:12px;}
+.titlebar .winctl button:hover{background:#8884;}
 .titlebar .winctl .close:hover{background:#e81123; color:#fff;}
 
 .body{display:grid; min-height:0;}

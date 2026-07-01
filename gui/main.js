@@ -1,8 +1,12 @@
 // gui/main.js - Electron main process
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu } = require("electron");
 const path = require("path");
 const fs = require("node:fs");
 const { createKernelHost, resolveProjectRoot } = require("./kernel-host.js");
+
+// Remove Electron's default native menu bar (File/Edit/View/Window/Help) — the app
+// has its own custom title bar; the native one would be a redundant second row.
+Menu.setApplicationMenu(null);
 
 let host = null;
 let ipcRegistered = false;
@@ -13,7 +17,8 @@ const IPC_CHANNELS = [
   "session:rewind-preview", "session:rewind-apply",
   "context:snapshot", "model:usage",
   "gui:preferences-get", "gui:preferences-set",
-  "config:get", "orchestrator:state"
+  "config:get", "orchestrator:state",
+  "window:minimize", "window:maximize", "window:close"
 ];
 
 if (process.env.DEEPSEEK_CODE_GUI_SMOKE === "1") {
@@ -36,6 +41,9 @@ async function createWindow() {
     height: smoke ? 900 : 700,
     minWidth: 400,
     minHeight: 400,
+    autoHideMenuBar: true,
+    titleBarStyle: "hidden",
+    backgroundColor: "#1e1e1e",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
@@ -118,6 +126,14 @@ async function createWindow() {
 function registerIpcHandlers() {
   if (ipcRegistered) return;
   ipcRegistered = true;
+
+  // Custom title-bar window controls (native frame is hidden via titleBarStyle).
+  ipcMain.handle("window:minimize", (e) => { BrowserWindow.fromWebContents(e.sender)?.minimize(); });
+  ipcMain.handle("window:maximize", (e) => {
+    const w = BrowserWindow.fromWebContents(e.sender);
+    if (w) { w.isMaximized() ? w.unmaximize() : w.maximize(); }
+  });
+  ipcMain.handle("window:close", (e) => { BrowserWindow.fromWebContents(e.sender)?.close(); });
 
   ipcMain.handle("agent:send", async (_event, message, opts) => {
     try { return await host.send(message, opts || {}); }

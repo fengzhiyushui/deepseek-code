@@ -20,8 +20,10 @@ export default function TitleBar({ t, language, theme, title, onToggleTheme, onT
           <Icon name={dark ? "moon" : "sun"} size={15} />
         </button>
       </div>
-      <div className="winctl" aria-hidden="true">
-        <div>&#9472;</div><div>&#9723;</div><div className="close">&#10005;</div>
+      <div className="winctl">
+        <button type="button" aria-label="minimize" onClick={() => window.deepseek?.minimize?.()}>&#9472;</button>
+        <button type="button" aria-label="maximize" onClick={() => window.deepseek?.maximizeToggle?.()}>&#9723;</button>
+        <button type="button" className="close" aria-label="close" onClick={() => window.deepseek?.closeWindow?.()}>&#10005;</button>
       </div>
     </header>
   );
