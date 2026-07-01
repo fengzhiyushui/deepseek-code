@@ -3,13 +3,20 @@ const { app, BrowserWindow, ipcMain, Menu } = require("electron");
 const path = require("path");
 const fs = require("node:fs");
 const { createKernelHost, resolveProjectRoot } = require("./kernel-host.js");
+const { createPtyHost } = require("./pty-host.js");
 
 // Remove Electron's default native menu bar (File/Edit/View/Window/Help) — the app
 // has its own custom title bar; the native one would be a redundant second row.
 Menu.setApplicationMenu(null);
 
 let host = null;
+let ptyHost = null;
 let ipcRegistered = false;
+
+function loadPtySpawn() {
+  try { return require("node-pty").spawn; }
+  catch { return null; }
+}
 
 const IPC_CHANNELS = [
   "agent:send", "agent:approve", "agent:interrupt",
@@ -19,7 +26,8 @@ const IPC_CHANNELS = [
   "gui:preferences-get", "gui:preferences-set",
   "config:get", "orchestrator:state",
   "window:minimize", "window:maximize", "window:close",
-  "fs:tree", "fs:read"
+  "fs:tree", "fs:read",
+  "pty:start", "pty:input", "pty:resize", "pty:kill"
 ];
 
 if (process.env.DEEPSEEK_CODE_GUI_SMOKE === "1") {
@@ -60,6 +68,13 @@ async function createWindow() {
       if (win && !win.isDestroyed()) win.webContents.send("kernel:event", event);
     }
   });
+
+  ptyHost = createPtyHost({
+    spawn: loadPtySpawn(),
+    cwd: resolveProjectRoot(process.argv, path.resolve(__dirname, "..")),
+    onData: (d) => { if (win && !win.isDestroyed()) win.webContents.send("pty:data", d); }
+  });
+  win.on("closed", () => { try { ptyHost?.kill(); } catch { /* ignore */ } });
 
   try {
     await host.init();
@@ -145,6 +160,12 @@ function registerIpcHandlers() {
     try { return await host.readFile(rel); }
     catch (error) { return { error: error.message }; }
   });
+
+  // Interactive terminal (node-pty) bridge.
+  ipcMain.handle("pty:start", (_e, cols, rows) => { ptyHost?.start(cols, rows); return { available: Boolean(ptyHost?.available) }; });
+  ipcMain.handle("pty:input", (_e, data) => { ptyHost?.write(data); });
+  ipcMain.handle("pty:resize", (_e, cols, rows) => { ptyHost?.resize(cols, rows); });
+  ipcMain.handle("pty:kill", () => { ptyHost?.kill(); });
 
   ipcMain.handle("agent:send", async (_event, message, opts) => {
     try { return await host.send(message, opts || {}); }

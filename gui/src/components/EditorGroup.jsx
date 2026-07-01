@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import Editor from "@monaco-editor/react";
+import Terminal from "./Terminal.jsx";
 
 function tabIco(path) {
   const ext = (path || "").split(".").pop().toLowerCase();
@@ -77,12 +78,14 @@ export default function EditorGroup({ t, state, onActivate, onClose }) {
           <button key={p.k} type="button" role="tab" aria-selected={ptab === p.k} className={`pt ${ptab === p.k ? "active" : ""}`} onClick={() => setPtab(p.k)}>{p.label}</button>
         ))}
         <span className="grow" />
-        <span style={{ color: "var(--text-mut)", fontSize: 10 }}>{t("placeholder.badge")}</span>
       </div>
-      <div className="panel" aria-label={t("placeholder.terminal")}>
-        <div><span className="prompt">➜</span> <span className="path">deepseek-code</span> npm test</div>
-        <div><span className="ok">✔</span> 804 {t("status.passing")} <span className="dim">(4.1s)</span></div>
-        <div><span className="prompt">➜</span> <span className="path">deepseek-code</span> <span style={{ color: "var(--text-bright)" }}>▍</span></div>
+      <div className="panel" style={{ padding: 0 }} aria-label={t("panel.terminal")}>
+        <div style={{ height: "100%", display: ptab === "terminal" ? "block" : "none" }}>
+          <Terminal theme={state.theme} />
+        </div>
+        {ptab !== "terminal" && (
+          <div style={{ padding: "8px 16px", color: "var(--text-mut)" }}>{t("placeholder.badge")}</div>
+        )}
       </div>
     </div>
   );
