@@ -29,7 +29,7 @@ const IPC_CHANNELS = [
   "fs:tree", "fs:read", "fs:write",
   "pty:start", "pty:input", "pty:resize", "pty:kill",
   "settings:get", "config:set", "api:list", "api:save", "api:delete", "api:activate",
-  "models:list", "conn:test", "session:branch-activate"
+  "models:list", "conn:test", "session:branch-activate", "changes:list", "changes:describe"
 ];
 
 if (process.env.DEEPSEEK_CODE_GUI_SMOKE === "1") {

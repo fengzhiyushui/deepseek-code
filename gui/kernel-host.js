@@ -27,6 +27,17 @@ function loadSaveDiffMod() {
   return saveDiffModPromise;
 }
 
+let changeStoreModPromise = null;
+function loadChangeStoreMod() {
+  if (!changeStoreModPromise) changeStoreModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "edits", "change-store.js")).href);
+  return changeStoreModPromise;
+}
+let patchModPromise = null;
+function loadPatchMod() {
+  if (!patchModPromise) patchModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "patch.js")).href);
+  return patchModPromise;
+}
+
 function maskKeyStr(k) {
   if (!k) return "";
   const s = String(k);
@@ -295,6 +306,107 @@ function createKernelHost({
     return { ok: true, result };
   }
 
+  // D-4 read-only change-tracking bridge. Reads .deepseek-code/changes/ via the
+  // kernel's own change-store (never writes); full before/after texts only leave
+  // the main process one file at a time (describeChange slice).
+  let changeStore = null;
+  async function getChangeStore() {
+    if (!changeStore) {
+      const { createChangeStore } = await loadChangeStoreMod();
+      changeStore = createChangeStore({ projectRoot });
+    }
+    return changeStore;
+  }
+
+  async function readRolledBackIds() {
+    try {
+      const raw = await fs.readFile(path.join(projectRoot, ".deepseek-code", "rollbacks.jsonl"), "utf8");
+      const ids = new Set();
+      for (const line of raw.split(/\r?\n/)) {
+        const s = line.trim();
+        if (!s) continue;
+        try { const j = JSON.parse(s); if (j && j.id) ids.add(j.id); } catch { /* skip bad line */ }
+      }
+      return ids;
+    } catch { return new Set(); }
+  }
+
+  function diffFileStats(parseUnifiedDiff, diff) {
+    const map = new Map();
+    try {
+      for (const patch of parseUnifiedDiff(String(diff || ""))) {
+        const p = patch.newPath === "/dev/null" ? patch.oldPath : patch.newPath;
+        let added = 0, removed = 0;
+        const hunkStarts = [];
+        for (const h of patch.hunks || []) {
+          hunkStarts.push(h.newStart);
+          for (const l of h.lines || []) {
+            if (l.type === "+") added += 1;
+            else if (l.type === "-") removed += 1;
+          }
+        }
+        map.set(p, { added, removed, hunkStarts });
+      }
+    } catch { return new Map(); }
+    return map;
+  }
+
+  function slimFile(f, stats) {
+    const s = stats.get(f.path) || null;
+    return {
+      path: f.path,
+      status: f.status,
+      added: s ? s.added : null,
+      removed: s ? s.removed : null,
+      hunkStarts: s ? s.hunkStarts : null
+    };
+  }
+
+  async function listChanges(opts = {}) {
+    const limit = Number.isInteger(opts.limit) && opts.limit > 0 ? opts.limit : 50;
+    const store = await getChangeStore();
+    const { parseUnifiedDiff } = await loadPatchMod();
+    const [records, rolledBack] = await Promise.all([store.list({ limit }), readRolledBackIds()]);
+    return records.map((r) => {
+      const stats = diffFileStats(parseUnifiedDiff, r.diff);
+      return {
+        id: r.id,
+        time: r.time,
+        prompt: r.prompt || "",
+        rolledBack: rolledBack.has(r.id),
+        files: (r.files || []).map((f) => slimFile(f, stats))
+      };
+    });
+  }
+
+  async function describeChange(changeId, relPath) {
+    const store = await getChangeStore();
+    const { parseUnifiedDiff } = await loadPatchMod();
+    const record = await store.describe({ change_id: changeId || "latest" });
+    const files = record.files || [];
+    const file = relPath ? files.find((f) => f.path === relPath) : files[0];
+    if (!file) throw new Error(`change ${record.id}: file not found: ${relPath || "(first)"}`);
+    const stats = diffFileStats(parseUnifiedDiff, record.diff);
+    const s = stats.get(file.path) || null;
+    const rolledBack = (await readRolledBackIds()).has(record.id);
+    return {
+      id: record.id,
+      time: record.time,
+      prompt: record.prompt || "",
+      rolledBack,
+      file: {
+        path: file.path,
+        status: file.status,
+        before: typeof file.before === "string" ? file.before : null,
+        after: typeof file.after === "string" ? file.after : null,
+        language: languageForExt(file.path),
+        added: s ? s.added : null,
+        removed: s ? s.removed : null,
+        hunkStarts: s ? s.hunkStarts : null
+      }
+    };
+  }
+
   const apiProfiles = createApiProfiles({ dir: path.join(projectRoot, ".deepseek-code") });
 
   async function getSettings() {
@@ -355,7 +467,7 @@ function createKernelHost({
 
   return { init, ready, send, approve, interrupt, getTimeline, getSnapshot, getUsage, getConfig, getState,
            listBranches, listCheckpoints, rewindPreview, rewindApply, getActiveBranch,
-           getPreferences, setPreferences, listTree, readFile, writeFile,
+           getPreferences, setPreferences, listTree, readFile, writeFile, listChanges, describeChange,
            getSettings, setConfig, listApiProfiles, saveApiProfile, deleteApiProfile, activateApiProfile,
            listModels, testConnection, activateBranch, dispose };
 }

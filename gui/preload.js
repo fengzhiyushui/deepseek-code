@@ -46,4 +46,6 @@ contextBridge.exposeInMainWorld("deepseek", {
   listModels: (profileId) => ipcRenderer.invoke("models:list", profileId),
   testConnection: (profileId) => ipcRenderer.invoke("conn:test", profileId),
   activateBranch: (id) => ipcRenderer.invoke("session:branch-activate", id),
+  listChanges: (limit) => ipcRenderer.invoke("changes:list", limit),
+  describeChange: (id, relPath) => ipcRenderer.invoke("changes:describe", id, relPath),
 });
