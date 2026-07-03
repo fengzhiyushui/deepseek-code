@@ -80,6 +80,9 @@ body{
 .row .flag{margin-left:auto; margin-right:10px;} .flag.m{color:var(--amber);} .flag.u{color:var(--green);}
 .indent-1{padding-left:24px;} .indent-2{padding-left:40px;}
 .section-head{padding:10px 12px 2px; color:var(--text-mut); font-size:11px; text-transform:uppercase; letter-spacing:.05em;}
+.side .src-tag{flex:none; margin-right:10px; font-size:10px; padding:0 5px; border-radius:8px; background:var(--bg-3,#333); color:var(--text-mut);}
+.side .chg-file .st{flex:none; width:14px; font-weight:600; font-size:10px;}
+.side .st-create{color:var(--green);} .side .st-delete{color:var(--red);} .side .st-modify{color:var(--accent);}
 
 /* Editor group */
 .editor{background:var(--bg-editor); display:grid; grid-template-rows:35px 22px 1fr 34px minmax(120px,190px); min-width:0; min-height:0;}

@@ -23,7 +23,8 @@ test("zh and en dictionaries have identical key sets (no missing translations)",
     "settings.context", "settings.experience", "settings.about",
     "settings.f.maxRounds", "settings.f.semanticEnabled", "settings.model.fetch",
     "settings.model.fetchFailed", "rewind.title", "rewind.force", "diff.title",
-    "panel.noProblems", "search.placeholder", "run.empty"
+    "panel.noProblems", "search.placeholder", "run.empty",
+    "changes.section", "changes.jump", "changes.rolledBack"
   ];
   for (const lang of LANGUAGES) {
     for (const k of keys) {

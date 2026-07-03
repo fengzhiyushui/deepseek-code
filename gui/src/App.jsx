@@ -39,6 +39,7 @@ export default function App() {
   useEffect(() => {
     document.documentElement.lang = state.language;
   }, [state.language]);
+  useEffect(() => { kernel.refreshChanges(); }, [state.changesTick, kernel]);
 
   const toggleTheme = useCallback(() => {
     const next = state.theme === "day" ? "night" : "day";
@@ -94,7 +95,8 @@ export default function App() {
         {showSidebar && (
           <Explorer t={t} state={state} view={sidebarView}
             onSelectBranch={(id) => { selectBranch(id); activateBranch(id); }}
-            onOpenFile={kernel.openFile} onSelectCheckpoint={selectCheckpoint} />
+            onOpenFile={kernel.openFile} onSelectCheckpoint={selectCheckpoint}
+            onOpenChange={kernel.openChangeDiff} offline={!kernel.available} />
         )}
         {showSettings
           ? <Settings t={t} state={state} kernel={kernel} dispatch={dispatch} />

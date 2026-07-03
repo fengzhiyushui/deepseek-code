@@ -62,6 +62,17 @@ export function useKernel(dispatch) {
       }
     }
 
+    async function openFileImpl(path) {
+      if (!api?.readFile) return;
+      try {
+        const r = await api.readFile(path);
+        if (r && r.error) dispatch(errorToAction("readFile", new Error(r.error)));
+        else dispatch({ type: "file_opened", file: r });
+      } catch (err) {
+        dispatch(errorToAction("readFile", err));
+      }
+    }
+
     return {
       available: Boolean(api),
       send: (message, opts) => api?.send?.(message, opts),
@@ -79,15 +90,42 @@ export function useKernel(dispatch) {
       listModels: (profileId) => api?.listModels?.(profileId),
       testConnection: (profileId) => api?.testConnection?.(profileId),
 
-      openFile: async (path) => {
-        if (!api?.readFile) return;
+      openFile: openFileImpl,
+
+      refreshChanges: async (limit) => {
+        if (!api?.listChanges) return;
         try {
-          const r = await api.readFile(path);
-          if (r && r.error) dispatch(errorToAction("readFile", new Error(r.error)));
-          else dispatch({ type: "file_opened", file: r });
+          const r = await api.listChanges(limit);
+          if (r && r.error) dispatch(errorToAction("changes", new Error(r.error)));
+          else dispatch({ type: "changes_loaded", changes: Array.isArray(r) ? r : [] });
         } catch (err) {
-          dispatch(errorToAction("readFile", err));
+          dispatch(errorToAction("changes", err));
         }
+      },
+
+      openChangeDiff: async (changeId, path) => {
+        if (!api?.describeChange) {
+          dispatch({ type: "change_diff_loaded", diff: { error: "changes unavailable (no bridge)" } });
+          return;
+        }
+        try {
+          const r = await api.describeChange(changeId, path);
+          if (r && r.error) dispatch({ type: "change_diff_loaded", diff: { error: r.error } });
+          else dispatch({
+            type: "change_diff_loaded",
+            diff: { meta: { id: r.id, time: r.time, prompt: r.prompt, rolledBack: r.rolledBack }, file: r.file, error: null }
+          });
+        } catch (err) {
+          dispatch({ type: "change_diff_loaded", diff: { error: err && err.message ? err.message : String(err) } });
+        }
+      },
+
+      dismissChangeDiff: () => dispatch({ type: "change_diff_dismissed" }),
+
+      revealInEditor: (path, line) => {
+        dispatch({ type: "change_diff_dismissed" });
+        dispatch({ type: "reveal_requested", path, line });
+        return openFileImpl(path);
       },
 
       saveFile: async (path, state) => {

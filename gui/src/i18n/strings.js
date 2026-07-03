@@ -49,7 +49,10 @@ const STRINGS = {
     "settings.model.baseUrl": "接口地址", "settings.model.apiKey": "API 密钥", "settings.model.keyKeep": "留空表示保持不变",
     "rewind.title": "回退到检查点", "rewind.summary": "将在新分支上把工作区回退到该检查点。",
     "rewind.rollbackCount": "回滚变更数", "rewind.target": "目标", "rewind.blocked": "被阻止",
-    "rewind.force": "强制回退(忽略未提交改动)", "rewind.apply": "回退", "rewind.done": "完成"
+    "rewind.force": "强制回退(忽略未提交改动)", "rewind.apply": "回退", "rewind.done": "完成",
+    "changes.section": "AGENT 改动", "changes.empty": "暂无改动记录",
+    "changes.noBridge": "无内核桥接,改动不可用", "changes.manual": "手动", "changes.agent": "agent",
+    "changes.rolledBack": "已回滚", "changes.jump": "跳到编辑器", "changes.error": "改动读取失败"
   },
   en: {
     "menu.file": "File", "menu.edit": "Edit", "menu.selection": "Selection", "menu.view": "View",
@@ -100,7 +103,10 @@ const STRINGS = {
     "settings.model.baseUrl": "Base URL", "settings.model.apiKey": "API key", "settings.model.keyKeep": "Leave blank to keep current",
     "rewind.title": "Rewind to checkpoint", "rewind.summary": "This rewinds the workspace to the checkpoint on a new branch.",
     "rewind.rollbackCount": "Rollback changes", "rewind.target": "Target", "rewind.blocked": "Blocked",
-    "rewind.force": "Force rewind (discard uncommitted changes)", "rewind.apply": "Rewind", "rewind.done": "Done"
+    "rewind.force": "Force rewind (discard uncommitted changes)", "rewind.apply": "Rewind", "rewind.done": "Done",
+    "changes.section": "Agent Changes", "changes.empty": "No change records",
+    "changes.noBridge": "No kernel bridge; changes unavailable", "changes.manual": "manual", "changes.agent": "agent",
+    "changes.rolledBack": "rolled back", "changes.jump": "Open in editor", "changes.error": "Failed to load change"
   }
 };
 

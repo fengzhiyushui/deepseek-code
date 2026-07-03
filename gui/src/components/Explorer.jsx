@@ -3,6 +3,7 @@ import Placeholder from "./Placeholder.jsx";
 import Icon from "./Icons.jsx";
 import { buildTree } from "../state/file-tree.js";
 import { filterTree } from "../state/file-filter.js";
+import { deriveChangeEntries, statusLetter } from "../state/changes-derive.js";
 import { shortId } from "../state/workbench-state.js";
 
 function FileIcon({ name }) {
@@ -56,7 +57,7 @@ function FileTreeView({ tree, expanded, toggle, onOpen, activeFile, dirty, empty
   ));
 }
 
-export default function Explorer({ t, state, view = "explorer", onSelectBranch, onOpenFile, onSelectCheckpoint }) {
+export default function Explorer({ t, state, view = "explorer", onSelectBranch, onOpenFile, onSelectCheckpoint, onOpenChange, offline }) {
   const tree = useMemo(() => buildTree(state.fileTree), [state.fileTree]);
   const [expanded, setExpanded] = useState(() => new Set(tree.filter((n) => n.type === "dir").map((n) => n.path)));
   const [query, setQuery] = useState("");
@@ -68,6 +69,17 @@ export default function Explorer({ t, state, view = "explorer", onSelectBranch, 
 
   const filtered = useMemo(() => filterTree(tree, query), [tree, query]);
   const searchExpanded = useMemo(() => (query.trim() ? allDirPaths(filtered) : expanded), [query, filtered, expanded]);
+
+  const changeEntries = useMemo(() => deriveChangeEntries(state.changes), [state.changes]);
+  const [chgToggled, setChgToggled] = useState(() => new Set());
+  const toggleChange = (id) => setChgToggled((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  // Latest entry is expanded by default; toggling XOR-flips against that default.
+  const isChangeOpen = (id, idx) => (idx === 0) !== chgToggled.has(id);
+
   const emptyPh = (
     <Placeholder badge={t("placeholder.badge")} label={t("placeholder.files")}>
       <div>src/</div><div>&nbsp;&nbsp;index.js</div>
@@ -127,6 +139,38 @@ export default function Explorer({ t, state, view = "explorer", onSelectBranch, 
               onClick={() => onSelectCheckpoint && onSelectCheckpoint(c)}>
               <span className="chev" /><span className="name">{"◷"} {c.summary || `seq ${c.seq ?? "?"}`}</span>
             </button>
+          ))}
+
+          <div className="section-head">{t("changes.section")}</div>
+          {offline && (
+            <div className="row" style={{ color: "var(--text-mut)" }}><span className="chev" />{t("changes.noBridge")}</div>
+          )}
+          {!offline && changeEntries.length === 0 && (
+            <div className="row" style={{ color: "var(--text-mut)" }}><span className="chev" />{t("changes.empty")}</div>
+          )}
+          {changeEntries.map((c, idx) => (
+            <React.Fragment key={c.id}>
+              <button type="button" className="row chg-head" title={`${c.time} · ${c.prompt}`}
+                aria-expanded={isChangeOpen(c.id, idx)} onClick={() => toggleChange(c.id)}>
+                <span className="chev">{isChangeOpen(c.id, idx) ? "▾" : "▸"}</span>
+                <span className="name">{c.timeShort} {c.promptShort}</span>
+                {c.rolledBack && <span className="flag" title={t("changes.rolledBack")}>{"↺"}</span>}
+                <span className={`src-tag ${c.source}`}>{c.source === "manual" ? t("changes.manual") : t("changes.agent")}</span>
+              </button>
+              {isChangeOpen(c.id, idx) && c.files.map((f) => (
+                <button key={f.path} type="button" className="row chg-file" style={{ paddingLeft: 22 }} title={f.path}
+                  onClick={() => onOpenChange && onOpenChange(c.id, f.path)}>
+                  <span className={`st st-${f.status}`}>{statusLetter(f.status)}</span>
+                  <span className="name">{f.path}</span>
+                  {f.added != null && (
+                    <span className="flag">
+                      <span style={{ color: "var(--green)" }}>+{f.added}</span>{" "}
+                      <span style={{ color: "var(--red)" }}>−{f.removed}</span>
+                    </span>
+                  )}
+                </button>
+              ))}
+            </React.Fragment>
           ))}
         </div>
       )}
