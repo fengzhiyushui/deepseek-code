@@ -192,6 +192,13 @@ svg{display:block;}
 .diffview{height:100%; display:grid; grid-template-rows:28px 1fr;}
 .diffview-head{display:flex; align-items:center; justify-content:space-between; padding:0 12px; background:var(--bg-tabbar); border-bottom:1px solid var(--sash); font-size:11px; color:var(--text-mut); text-transform:uppercase; letter-spacing:.05em;}
 .diffview-head .ghost{background:none; border:none; color:var(--text-mut); cursor:pointer;}
+.diffview-head .name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.diffview-head .chg-actions{display:flex; gap:4px; align-items:center; margin-left:auto; text-transform:none;}
+.diffview-head .bc-btn{background:none; border:1px solid var(--border-2); color:var(--text); border-radius:4px; padding:1px 8px; font-size:11px; cursor:pointer;}
+.diffview-head .bc-btn.accent{background:var(--accent); color:#04283f; border-color:var(--accent); font-weight:600;}
+.card .ch.clickable{cursor:pointer;}
+.changediff-error{display:flex; gap:8px; align-items:center; padding:12px 16px; color:var(--red); font-size:12px;}
+.changediff-error .ghost{background:none; border:none; color:var(--text-mut); cursor:pointer;}
 .diffview-body{min-height:0;}
 
 /* Buttons + fields shared by Settings + modal (D3-M2/M8) */

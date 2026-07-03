@@ -21,7 +21,7 @@ function ToolStatus({ status }) {
   return <span className="r"><span className="spin" /></span>;
 }
 
-function LiveCards({ t, cards }) {
+function LiveCards({ t, cards, onOpenChange }) {
   return cards.map((c, i) => {
     if (c.kind === "plan") {
       return (
@@ -38,10 +38,19 @@ function LiveCards({ t, cards }) {
       );
     }
     if (c.kind === "diff") {
+      const clickable = Boolean(c.changeId && onOpenChange);
       return (
         <div key={i} className="card">
-          <div className="ch"><Icon name="edit" size={14} style={{ color: "var(--fn)" }} /> <span className="name" style={{ color: "var(--text-mut)" }}>{c.path}</span>
-            <span className="r"><span style={{ color: "var(--green)" }}>+{c.added}</span> <span style={{ color: "var(--red)" }}>-{c.removed}</span></span></div>
+          <div className={`ch ${clickable ? "clickable" : ""}`}
+            role={clickable ? "button" : undefined} tabIndex={clickable ? 0 : undefined}
+            onClick={clickable ? () => onOpenChange(c.changeId, c.path) : undefined}
+            onKeyDown={clickable ? (e) => { if (e.key === "Enter") onOpenChange(c.changeId, c.path); } : undefined}>
+            <Icon name="edit" size={14} style={{ color: "var(--fn)" }} />
+            <span className="name" style={{ color: "var(--text-mut)" }}>
+              {c.path}{c.fileCount > 1 ? ` (+${c.fileCount - 1})` : ""}
+            </span>
+            {!c.applied && <span className="r" style={{ color: "var(--text-mut)" }}>preview</span>}
+          </div>
         </div>
       );
     }
@@ -93,7 +102,7 @@ export default function AgentPanel({ t, state, actions }) {
             <div>{m.text || m.content || ""}</div>
           </div>
         ))}
-        {cards.length > 0 && <LiveCards t={t} cards={cards} />}
+        {cards.length > 0 && <LiveCards t={t} cards={cards} onOpenChange={actions.openChange} />}
         {idle && (<><div className="empty" style={{ marginBottom: 8 }}>{t("agent.ask")}</div><SamplePreview t={t} /></>)}
       </div>
       <div className="acomposer">

@@ -2,11 +2,14 @@ import React from "react";
 import { DiffEditor } from "@monaco-editor/react";
 
 // Side-by-side original ↔ modified view for a GUI edit (before/after save).
-export default function DiffView({ theme, language, original, modified, onClose, t }) {
+export default function DiffView({ theme, language, original, modified, onClose, t, title, actions }) {
   return (
     <div className="diffview" role="document" aria-label="diff">
       <div className="diffview-head">
-        <span>{t ? t("diff.title") : "Diff"}</span>
+        <span className="name" title={typeof title === "string" ? title : undefined}>
+          {title || (t ? t("diff.title") : "Diff")}
+        </span>
+        {actions || null}
         <button type="button" className="ghost" onClick={onClose} aria-label={t ? t("diff.close") : "Close diff"}>✕</button>
       </div>
       <div className="diffview-body">

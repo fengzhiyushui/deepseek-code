@@ -1,8 +1,10 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Editor from "@monaco-editor/react";
 import Terminal from "./Terminal.jsx";
 import DiffView from "./DiffView.jsx";
+import ChangeDiffView from "./ChangeDiffView.jsx";
 import { derivePanels } from "../state/panels-derive.js";
+import { clampLine } from "../state/changes-derive.js";
 
 function tabIco(path) {
   const ext = (path || "").split(".").pop().toLowerCase();
@@ -13,9 +15,10 @@ function tabIco(path) {
 
 function baseName(p) { return (p || "").split("/").pop(); }
 
-export default function EditorGroup({ t, state, onActivate, onClose, onEdit, onSave, onCursor }) {
+export default function EditorGroup({ t, state, onActivate, onClose, onEdit, onSave, onCursor, onDismissChangeDiff, onReveal, onRevealConsumed }) {
   const [ptab, setPtab] = useState("terminal");
   const [showDiff, setShowDiff] = useState(false);
+  const [monacoTick, setMonacoTick] = useState(0);
   const editorRef = useRef(null);
   const open = state.openFiles || [];
   const active = open.find((f) => f.path === state.activeFile) || null;
@@ -35,7 +38,23 @@ export default function EditorGroup({ t, state, onActivate, onClose, onEdit, onS
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       if (state.activeFile && onSave) onSave(state.activeFile);
     });
+    setMonacoTick((m) => m + 1);
   };
+
+  // Honor a pending jump-to-line from the change-tracking view once the target
+  // file is active, its editor is mounted, and no change diff is covering it.
+  useEffect(() => {
+    const pr = state.pendingReveal;
+    const ed = editorRef.current;
+    if (!pr || !ed || state.changeDiff || state.activeFile !== pr.path) return;
+    const model = typeof ed.getModel === "function" ? ed.getModel() : null;
+    if (!model) return;
+    const line = clampLine(pr.line, model.getLineCount());
+    ed.revealLineInCenter(line);
+    ed.setPosition({ lineNumber: line, column: 1 });
+    if (typeof ed.focus === "function") ed.focus();
+    if (onRevealConsumed) onRevealConsumed();
+  }, [state.pendingReveal, state.activeFile, state.changeDiff, monacoTick, onRevealConsumed]);
 
   return (
     <div className="editor" aria-label="editor">
@@ -54,7 +73,17 @@ export default function EditorGroup({ t, state, onActivate, onClose, onEdit, onS
         ))}
       </div>
 
-      {active
+      {state.changeDiff
+        ? (
+          <>
+            <div className="breadcrumb" aria-label="breadcrumb"> </div>
+            <div className="code" role="document" aria-label="change diff">
+              <ChangeDiffView t={t} theme={state.theme} changeDiff={state.changeDiff}
+                onClose={onDismissChangeDiff} onReveal={onReveal} />
+            </div>
+          </>
+        )
+        : active
         ? (
           <>
             <div className="breadcrumb" aria-label="breadcrumb">

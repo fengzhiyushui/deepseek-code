@@ -61,7 +61,8 @@ export default function App() {
   const actions = {
     send: (text) => { dispatch({ type: "message_added", message: { role: "user", text } }); kernel.send(text); },
     approve: (id, d) => kernel.approve(id, d),
-    interrupt: () => kernel.interrupt()
+    interrupt: () => kernel.interrupt(),
+    openChange: (id, p) => kernel.openChangeDiff(id, p)
   };
 
   const menuActions = {
@@ -105,7 +106,10 @@ export default function App() {
               onClose={(p) => dispatch({ type: "file_closed", path: p })}
               onEdit={(p, content) => dispatch({ type: "file_edited", path: p, content })}
               onSave={(p) => kernel.saveFile(p, state)}
-              onCursor={(pos) => dispatch({ type: "cursor_moved", position: pos })} />}
+              onCursor={(pos) => dispatch({ type: "cursor_moved", position: pos })}
+              onDismissChangeDiff={kernel.dismissChangeDiff}
+              onReveal={(p, line) => kernel.revealInEditor(p, line)}
+              onRevealConsumed={() => dispatch({ type: "reveal_consumed" })} />}
         {layout.chat && !showSettings && <AgentPanel t={t} state={state} actions={actions} />}
       </div>
       <StatusBar t={t} state={state} offline={!kernel.available} />
