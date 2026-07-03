@@ -19,7 +19,16 @@ export function deriveAgentCards(activity) {
       const card = toolIndex.get(e.id);
       if (card) card.status = e.status === "error" ? "error" : "ok";
     } else if (type === "file:diff_applied" || type === "file:diff_preview") {
-      cards.push({ kind: "diff", path: e.path || "", added: e.added || 0, removed: e.removed || 0, applied: type === "file:diff_applied" });
+      const paths = Array.isArray(e.files) && e.files.length
+        ? e.files.filter((p) => typeof p === "string")
+        : (Array.isArray(e.summary) ? e.summary.map((s) => s && s.path).filter(Boolean) : []);
+      cards.push({
+        kind: "diff",
+        changeId: e.change_id || null,
+        path: paths[0] || "",
+        fileCount: paths.length,
+        applied: type === "file:diff_applied"
+      });
     } else if (type === "verification:result") {
       cards.push({ kind: "test", pass: Boolean(e.pass) });
     }

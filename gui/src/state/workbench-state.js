@@ -11,6 +11,10 @@ export function createInitialState() {
   return {
     messages: [],
     activity: [],
+    changes: [],
+    changesTick: 0,
+    changeDiff: null,
+    pendingReveal: null,
     branches: [],
     checkpoints: [],
     activeBranchId: "br_main",
@@ -68,6 +72,9 @@ export function applyWorkbenchAction(state, action) {
     if (event.type === "agent:error" || event.type === "session:rewind_conflict" || event.type === "session:rewind_failed" || event.type === "session:rewind_recovery_failed") {
       patch.inspectorMode = "details";
     }
+    if (event.type === "file:diff_applied" || event.type === "file:rollback_applied") {
+      patch.changesTick = (current.changesTick || 0) + 1;
+    }
     return copy(current, patch);
   }
   if (action.type === "branches_loaded") {
@@ -109,6 +116,23 @@ export function applyWorkbenchAction(state, action) {
   }
   if (action.type === "rewind_dismissed") {
     return copy(current, { rewindPreview: null, rewindResult: null, selectedCheckpoint: null, selectedTarget: null });
+  }
+  if (action.type === "changes_loaded") {
+    return copy(current, { changes: Array.isArray(action.changes) ? action.changes.slice() : [] });
+  }
+  if (action.type === "change_diff_loaded") {
+    return copy(current, { changeDiff: action.diff || null });
+  }
+  if (action.type === "change_diff_dismissed") {
+    return copy(current, { changeDiff: null });
+  }
+  if (action.type === "reveal_requested") {
+    return copy(current, {
+      pendingReveal: { path: action.path || "", line: Math.max(1, Math.floor(Number(action.line) || 1)) }
+    });
+  }
+  if (action.type === "reveal_consumed") {
+    return copy(current, { pendingReveal: null });
   }
   if (action.type === "force_rewind_changed") {
     return copy(current, { forceRewind: Boolean(action.force) });

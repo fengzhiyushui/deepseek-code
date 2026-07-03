@@ -17,3 +17,12 @@ test("problems from verification-fail/agent-error/errors; output from stream", (
 test("empty activity/errors → empty panels", () => {
   assert.deepEqual(derivePanels([], []), { problems: [], output: [] });
 });
+
+test("diff_applied output line uses files/summary (real payload)", () => {
+  const { output } = derivePanels([
+    { type: "file:diff_applied", change_id: "c1", files: ["src/a.js", "src/b.js"] }
+  ], []);
+  assert.equal(output.length, 1);
+  assert.ok(output[0].text.includes("src/a.js"));
+  assert.ok(output[0].text.includes("+1"));
+});

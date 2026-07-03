@@ -273,3 +273,30 @@ test("cursor_moved clamps to >=1; settings_loaded stores model/hasApiKey", () =>
   s = state.applyWorkbenchAction(s, { type: "settings_loaded", config: { model: "deepseek-chat", hasApiKey: true } });
   assert.deepEqual(s.config, { model: "deepseek-chat", hasApiKey: true });
 });
+
+test("D4: changesTick increments only on diff/rollback events", () => {
+  let s = state.createInitialState();
+  assert.equal(s.changesTick, 0);
+  s = state.applyWorkbenchAction(s, { type: "event_received", event: { type: "file:diff_applied", change_id: "c1" } });
+  assert.equal(s.changesTick, 1);
+  s = state.applyWorkbenchAction(s, { type: "event_received", event: { type: "tool:call", id: "t" } });
+  assert.equal(s.changesTick, 1);
+  s = state.applyWorkbenchAction(s, { type: "event_received", event: { type: "file:rollback_applied", change_id: "c1" } });
+  assert.equal(s.changesTick, 2);
+});
+
+test("D4: changes/changeDiff/pendingReveal actions", () => {
+  let s = state.createInitialState();
+  s = state.applyWorkbenchAction(s, { type: "changes_loaded", changes: [{ id: "c1" }] });
+  assert.equal(s.changes.length, 1);
+  s = state.applyWorkbenchAction(s, { type: "change_diff_loaded", diff: { meta: { id: "c1" }, file: { path: "a" }, error: null } });
+  assert.equal(s.changeDiff.meta.id, "c1");
+  s = state.applyWorkbenchAction(s, { type: "reveal_requested", path: "a", line: 7 });
+  assert.deepEqual(s.pendingReveal, { path: "a", line: 7 });
+  s = state.applyWorkbenchAction(s, { type: "reveal_requested", path: "a", line: 0 });
+  assert.equal(s.pendingReveal.line, 1);
+  s = state.applyWorkbenchAction(s, { type: "reveal_consumed" });
+  assert.equal(s.pendingReveal, null);
+  s = state.applyWorkbenchAction(s, { type: "change_diff_dismissed" });
+  assert.equal(s.changeDiff, null);
+});

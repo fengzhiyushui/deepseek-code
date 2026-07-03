@@ -20,7 +20,12 @@ export function derivePanels(activity, errors) {
 function formatEvent(e) {
   if (e.type === "tool:call") return `→ ${e.tool || e.name || "tool"}`;
   if (e.type === "tool:result") return `  ${e.status || "done"}`;
-  if (e.type === "file:diff_applied") return `edit ${e.path || ""} (+${e.added || 0} -${e.removed || 0})`;
+  if (e.type === "file:diff_applied") {
+    const paths = Array.isArray(e.files) && e.files.length
+      ? e.files
+      : (Array.isArray(e.summary) ? e.summary.map((s) => s && s.path).filter(Boolean) : []);
+    return `edit ${paths[0] || ""}${paths.length > 1 ? ` (+${paths.length - 1})` : ""}`;
+  }
   if (e.type === "verification:result") return e.pass ? "verify ✓" : "verify ✗";
   if (e.type === "agent:final") return `done: ${e.status || "ok"}`;
   return e.type;
