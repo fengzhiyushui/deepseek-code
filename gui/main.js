@@ -47,6 +47,25 @@ if (process.env.DEEPSEEK_CODE_GUI_SMOKE === "1") {
 
 async function createWindow() {
   const smoke = process.env.DEEPSEEK_CODE_GUI_SMOKE === "1";
+  const seededChangePath = path.join(
+    resolveProjectRoot(process.argv, path.resolve(__dirname, "..")),
+    ".deepseek-code", "changes", "20990101000000-smoke0.json"
+  );
+  if (smoke) {
+    // Deterministic first entry for the SCM changes capture (2099 sorts first, removed on quit).
+    try {
+      fs.mkdirSync(path.dirname(seededChangePath), { recursive: true });
+      fs.writeFileSync(seededChangePath, JSON.stringify({
+        id: "20990101000000-smoke0",
+        time: "2099-01-01T00:00:00.000Z",
+        prompt: "smoke: sample agent change",
+        diff: "--- a/src/smoke-sample.js\n+++ b/src/smoke-sample.js\n@@ -1,2 +1,3 @@\n line1\n-old\n+new\n+added\n",
+        summary: [{ path: "src/smoke-sample.js", status: "modify" }],
+        files: [{ path: "src/smoke-sample.js", oldPath: "src/smoke-sample.js", newPath: "src/smoke-sample.js",
+          status: "modify", before: "line1\nold\n", after: "line1\nnew\nadded\n" }]
+      }, null, 2), "utf8");
+    } catch (seedErr) { console.log("SMOKE_SEED_SKIPPED:" + seedErr.message); }
+  }
   const win = new BrowserWindow({
     width: smoke ? 1440 : 900,
     height: smoke ? 900 : 700,
@@ -156,6 +175,44 @@ async function createWindow() {
           } catch (setErr) {
             console.log("SMOKE_SETTINGS_SKIPPED:" + setErr.message);
           }
+          // D-4: SCM Agent-Changes section + change diff (uses the seeded record).
+          try {
+            const scmReady = await win.webContents.executeJavaScript(`
+              new Promise((resolve) => {
+                const btns = document.querySelectorAll('.activity button[role="tab"]');
+                if (btns[2]) btns[2].click();
+                let n = 0;
+                const iv = setInterval(() => {
+                  if (document.querySelector('.side .chg-file') || n++ > 30) { clearInterval(iv); resolve(Boolean(document.querySelector('.side .chg-file'))); }
+                }, 100);
+              })
+            `);
+            if (scmReady) {
+              const scm = await win.webContents.capturePage();
+              await fs.promises.writeFile(path.join(dir, "scm-changes.png"), scm.toPNG());
+              const diffReady = await win.webContents.executeJavaScript(`
+                new Promise((resolve) => {
+                  const row = document.querySelector('.side .chg-file');
+                  if (row) row.click();
+                  let n = 0;
+                  const iv = setInterval(() => {
+                    if (document.querySelector('.diffview') || n++ > 50) { clearInterval(iv); resolve(Boolean(document.querySelector('.diffview'))); }
+                  }, 100);
+                })
+              `);
+              if (diffReady) {
+                await new Promise((r) => setTimeout(r, 400)); // let the DiffEditor paint
+                const cd = await win.webContents.capturePage();
+                await fs.promises.writeFile(path.join(dir, "change-diff.png"), cd.toPNG());
+              }
+              await win.webContents.executeJavaScript(`(document.querySelector('.diffview-head .ghost')||{}).click?.()`);
+              await win.webContents.executeJavaScript(`document.querySelector('.activity button[role="tab"]').click()`);
+            } else {
+              console.log("SMOKE_CHANGES_SKIPPED:no-entries");
+            }
+          } catch (chgErr) {
+            console.log("SMOKE_CHANGES_SKIPPED:" + chgErr.message);
+          }
           win.setSize(800, 720);
           await new Promise((r) => setTimeout(r, 400));
           const narrow = await win.webContents.capturePage();
@@ -167,6 +224,7 @@ async function createWindow() {
       } catch (err) {
         console.log("GUI_SMOKE_FAILED:" + err.message);
       }
+      try { fs.rmSync(seededChangePath, { force: true }); } catch { /* best-effort */ }
       app.quit();
     });
   }
@@ -216,6 +274,8 @@ function registerIpcHandlers() {
   ipcMain.handle("models:list", wrap((_e, profileId) => host.listModels(profileId)));
   ipcMain.handle("conn:test", wrap((_e, profileId) => host.testConnection(profileId)));
   ipcMain.handle("session:branch-activate", wrap((_e, id) => host.activateBranch(id)));
+  ipcMain.handle("changes:list", wrap((_e, limit) => host.listChanges({ limit })));
+  ipcMain.handle("changes:describe", wrap((_e, id, relPath) => host.describeChange(id, relPath)));
 
   ipcMain.handle("agent:send", async (_event, message, opts) => {
     try { return await host.send(message, opts || {}); }
