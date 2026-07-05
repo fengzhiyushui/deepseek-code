@@ -90,6 +90,7 @@ docs/
 - [v3-phase-d1 gui-react-shell](specs/frontend/2026-06-27-v3-phase-d1-gui-react-shell-design.md) — **D-1 GUI React 外壳**:渲染层迁 React+Vite+Semi UI(后端 IPC 不改)+ reducer 复用/不可变防线 + 布局契约 + a11y 基线 + 占位强标记 + 依赖门控测试
 - [v3-phase-d2 gui-functional](specs/frontend/2026-07-01-v3-phase-d2-gui-functional-design.md) — **D-2 GUI 做真**:真文件树(path-safety 边界)+ Monaco 只读(本地 worker)+ 实时 Agent 卡片派生 + node-pty 交互终端(注入可测/降级)+ language 持久化;kernel 零改动
 - [v3-phase-d3 gui-full-functional](specs/frontend/2026-07-02-v3-phase-d3-gui-full-functional-design.md) — **D-3 GUI 全功能 + 设置页**:切视图/搜索 + 标题栏菜单 + 真状态栏 + 面板派生 + 分支切换/rewind + 可编辑保存(整文件 diff → editService)+ 设置页(7 组 + API 列表管理 + 模型获取无默认/失败报错);API Key 掩码不回明文,kernel 零改动
+- [v3-phase-d4 gui-change-tracking](specs/frontend/2026-07-02-v3-phase-d4-change-tracking-design.md) — **D-4 GUI agent 改动跟踪**:SCM「AGENT 改动」分区(来源标签 agent/手动 + 已回滚标)→ 主区「修改前 vs 修改后」对比(方案 C:记录内 before/after 直喂 DiffEditor,零 diff 反推)+ hunk chips 跳编辑器(行号 clamp);只读桥 `changes:list` 列表瘦身 / `changes:describe` 单文件切片;kernel 零改动
 
 ### plans/roadmap — 宏观阶段
 - [phase-0 kernel-foundation](plans/roadmap/2026-05-29-phase-0-kernel-foundation.md)
@@ -123,9 +124,10 @@ docs/
 - [v3-phase-d1 gui-react-shell](plans/frontend/2026-06-27-v3-phase-d1-gui-react-shell.md) — **D-1 实施计划**:M1–M8(reducer ESM/不可变 → 纯函数 layout/loads/panels → vite 构建接线 → 四栏组件+布局+a11y → 数据接线 → 主题+占位 → smoke+截图 → 回归+文档)
 - [v3-phase-d2 gui-functional](plans/frontend/2026-07-01-v3-phase-d2-gui-functional.md) — **D-2 实施计划**:M1–M7(文件桥+language → 树+reducer → Monaco 只读 → 卡片派生 → pty-host → xterm+node-pty → build/smoke/文档)
 - [v3-phase-d3 gui-full-functional](plans/frontend/2026-07-02-v3-phase-d3-gui-full-functional.md) — **D-3 实施计划**:M1–M11(配置桥+API 列表+listModels → 切视图/搜索 → 标题栏菜单 → 面板派生 → 保存 diff → 设置视图 → 标题/状态栏 → 分支切换 → rewind → 可编辑+diff → build/smoke/截图/文档)
+- [v3-phase-d4 gui-change-tracking](plans/frontend/2026-07-02-v3-phase-d4-change-tracking.md) — **D-4 实施计划**:M1–M5(只读改动桥 list/describe+IPC → changes-derive+reducer+卡片字段修复 → useKernel 桥+SCM 分区+i18n → ChangeDiffView+hunk 跳转+卡片可点 → 门控 smoke+全量回归+文档)
 
 ---
 
 ## 版本与里程碑
 
-完整的版本演进见 [`CHANGELOG.md`](CHANGELOG.md)。当前主线 **V2** 已实现内核统一、工具平面、编辑/回滚、验证修复、上下文引擎、分支/rewind、持久化恢复(V2-18);**V3** 路线图(语义级上下文、多智能体调度、前端三端重构)规划中。
+完整的版本演进见 [`CHANGELOG.md`](CHANGELOG.md)。当前主线 **V2** 已实现内核统一、工具平面、编辑/回滚、验证修复、上下文引擎、分支/rewind、持久化恢复(V2-18);**V3** 路线图(语义级上下文、多智能体调度、前端三端重构)推进中——语义上下文 Phase B 系列、多智能体与跨进程恢复 Phase C 系列、GUI Phase D-1–D-4 已落地,详见 CHANGELOG。

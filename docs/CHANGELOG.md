@@ -16,6 +16,13 @@
 - **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。支柱① 语义级上下文 **Phase B 首版已落地**(见下)。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
+### 已落地 — Phase D-4 GUI agent 改动跟踪(SCM 改动分区 / 前后对比 / hunk 跳转)
+- **看 agent 改了哪些代码 → 跳转 → 前后对比**:源代码管理视图内新「AGENT 改动」分区,时间倒序列出每次 change(可折叠,默认展开最新一条),每条 per-file 行显 `M/A/D 路径 +a −b`;点文件行在主编辑区开「修改前 vs 修改后」双栏对比;对比头部 hunk chips(`@@ 12`)+「跳到编辑器」→ 打开该文件并 `revealLineInCenter` 到对应行(行号 clamp,越界不崩)。
+- **只读改动桥(kernel `src/` 零改动)**:主进程注册 IPC `changes:list` / `changes:describe`,`kernel-host` 加 `listChanges`/`describeChange`,动态 import 复用 `src/edits/change-store.js`(`list`/`describe`)+ `src/patch.js`(`parseUnifiedDiff` 算每文件 `added/removed/hunkStarts`)。列表**主进程瘦身**(剥 `before/after` 与 diff 全文,只回轻量元数据),`describe` 单文件切片才回 `before/after` 全文——**方案 C**:change 记录 `captureChangePlan`/`finalizeChange` 时已持久化前后全文,直喂 `DiffView`(Monaco `DiffEditor`),零 diff 反推、时点精确。来源标签(prompt 前缀 `"GUI edit "` → 手动,否则 agent)、已回滚标(读 `.deepseek-code/rollbacks.jsonl`)。
+- **实时 + 历史合并**:reducer 收 `file:diff_applied`/`file:rollback_applied` 自增 `changesTick` 触发重拉(历史为底、`change_id` 对齐);Agent 面板 diff 卡片带 `change_id` 可点开同一对比。
+- **顺手修真 bug**:`file:diff_applied` 事件真实字段是 `{change_id, summary, files}`,旧 `agent-cards`/`panels-derive` 读不存在的 `e.path/e.added/e.removed`,diff 卡片一直显示空路径 +0 −0;已改为按真实字段派生。
+- **kernel(`src/`)零改动**;新纯逻辑(`changes-derive` 来源/归一/clamp/`shortTime` + reducer `changes`/`changesTick`/`changeDiff`/`pendingReveal` + `kernel-host` `listChanges`/`describeChange` + 卡片/面板修复)全 node:test;SCM 分区 / `ChangeDiffView` 走 build + 门控 smoke(截图:改动分区 + 前后对比;revealLine 跳转为 build + clamp 单测覆盖,smoke 不点击)。测试 **847 全绿**、check OK。**门控 smoke 逮出** `changes:list` IPC 漏注册(单测只覆盖桥逻辑、不覆盖主进程接线)。计划:[`plans/frontend/2026-07-02-v3-phase-d4-change-tracking.md`](plans/frontend/2026-07-02-v3-phase-d4-change-tracking.md);设计:[`specs/frontend/2026-07-02-v3-phase-d4-change-tracking-design.md`](specs/frontend/2026-07-02-v3-phase-d4-change-tracking-design.md)。
+
 ### 已落地 — Phase D-3 GUI 全功能可用 + 设置页(API 列表 / 模型获取 / 编辑保存 / 分支 rewind)
 - **设置页(左活动栏齿轮 → 主区)**:七组二级菜单(通用 / 模型接入 / 运行护栏 / 多智能体 / 语义上下文 / 经验与恢复 / 关于);`settings-schema.js` 纯定义 7 组字段 + 不可变 path get/set + 归一(posInt/nullableInt/bool/enum,对齐 `config.js`);config 表单整段回写 `configureProject`(浅合并→归一)。
 - **模型接入 = API 列表管理**:每个 API 一条(增/删/改/激活),`api-profiles.js` 原子存 `.deepseek-code/`(随仓忽略);激活写 `config.json` 供内核读。**模型获取**:`listModels` 拉 `GET {baseUrl}/models`(Bearer)填下拉,**不设默认、失败红字报错**;连接测试复用 `provider.testDeepSeekConnection`。**API Key 密码框输入、只以掩码回渲染层,绝不回明文**。

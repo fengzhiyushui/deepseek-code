@@ -55,6 +55,7 @@ D-3 后 GUI 全功能可用。D-4 目标:**用户能看到 agent 具体改了哪
 - **新纯函数 `gui/src/state/changes-derive.js`**:
   - `deriveChangeEntries(list)`:归一 + 来源识别(`source:"manual"|"agent"`,prompt 前缀 `"GUI edit "`)+ 展示字段(时间短格式、prompt 截断)。
   - `changesVersion(activity)`:数 `file:diff_applied`+`file:rollback_applied` 事件数 → App 层 useEffect 依赖它触发 `refreshChanges()`(挂载首拉一次;事件驱动重拉,历史为底、`change_id` 天然对齐)。
+  - **as-built 注(2026-07-05)**:上条未按原样落地——实现为 reducer 直接收这两个事件自增 **`changesTick`** 触发重拉(activity 50 条滑窗下事件计数不单调,不能当版本号);偏差已记 plan M2 与 CHANGELOG D-4 条目。
 - **顺手修复(真 bug)**:
   - `agent-cards.js`:diff 卡片改为 `{kind:"diff", changeId:e.change_id||null, path:首路径(files[0]||summary[0].path), fileCount, applied}`;卡片显示 `首文件 (+N)`,**携带 changeId 使卡片可点**。计数不造假:事件不带 diff,卡片不显 +/−(完整计数在改动分区)。
   - `panels-derive.js`:`file:diff_applied` 输出行改 `edit 首路径 (+N files)` 形式。
