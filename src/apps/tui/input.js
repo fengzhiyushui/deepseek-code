@@ -92,5 +92,22 @@ export function createKeyDecoder() {
     return events;
   }
 
-  return { feed };
+  // 悬挂的不完整序列(如孤立 ESC):真实终端把序列一次性送达,悬挂通常意味着
+  // 用户真的按了 Esc。调用方在短暂静默后调用 flush() 强制消歧。
+  function hasPending() { return !pasting && pending.length > 0; }
+
+  function flush() {
+    if (pasting || !pending) return [];
+    const data = pending;
+    pending = "";
+    if (data[0] === "\x1b") {
+      const events = [{ type: "esc" }];
+      const rest = data.slice(1);
+      if (rest) events.push(...feed(rest));
+      return events;
+    }
+    return feed(data);
+  }
+
+  return { feed, hasPending, flush };
 }

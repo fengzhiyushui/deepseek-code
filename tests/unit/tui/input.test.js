@@ -65,3 +65,19 @@ test("bracketed paste accumulates across chunks", () => {
     { type: "char", text: "z" }
   ]);
 });
+
+test("flush disambiguates pending lone ESC", () => {
+  const d = createKeyDecoder();
+  assert.deepEqual(d.feed("\x1b"), []);
+  assert.equal(d.hasPending(), true);
+  assert.deepEqual(d.flush(), [{ type: "esc" }]);
+  assert.equal(d.hasPending(), false);
+  assert.deepEqual(d.flush(), []);
+});
+
+test("pending split CSI still completes when continuation arrives", () => {
+  const d = createKeyDecoder();
+  assert.deepEqual(d.feed("\x1b"), []);
+  assert.deepEqual(d.feed("[A"), [{ type: "up" }]);
+  assert.equal(d.hasPending(), false);
+});
