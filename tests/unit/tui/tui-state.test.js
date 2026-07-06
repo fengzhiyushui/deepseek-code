@@ -1,0 +1,114 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { initialTuiState, reduce, statusLine, formatTokens, SPINNER } from "../../../src/apps/tui/tui-state.js";
+import { makeT } from "../../../src/apps/tui/tui-i18n.js";
+
+const S = () => initialTuiState({});
+
+test("input editing: insert at cursor, move, backspace", () => {
+  let s = reduce(S(), { type: "input_insert", text: "ab" });
+  s = reduce(s, { type: "input_left" });
+  s = reduce(s, { type: "input_insert", text: "中" });
+  assert.equal(s.input.text, "a中b");
+  assert.equal(s.input.cursor, 2);
+  s = reduce(s, { type: "input_backspace" });
+  assert.equal(s.input.text, "ab");
+  assert.equal(s.input.cursor, 1);
+  s = reduce(s, { type: "input_end" });
+  assert.equal(s.input.cursor, 2);
+  s = reduce(s, { type: "input_home" });
+  assert.equal(s.input.cursor, 0);
+});
+
+test("submit_local queues echo line, records history, clears input", () => {
+  let s = reduce(S(), { type: "input_insert", text: "hi" });
+  s = reduce(s, { type: "submit_local", line: " ❯ hi" });
+  assert.deepEqual(s.pending, [" ❯ hi", ""]);
+  assert.equal(s.input.text, "");
+  assert.deepEqual(s.input.history, ["hi"]);
+  assert.equal(s.input.hi, -1);
+});
+
+test("input history navigation preserves draft", () => {
+  let s = S();
+  for (const text of ["one", "two"]) {
+    s = reduce(s, { type: "input_insert", text });
+    s = reduce(s, { type: "submit_local", line: "x" });
+  }
+  s = reduce(s, { type: "input_insert", text: "draf" });
+  s = reduce(s, { type: "input_hist_prev" });
+  assert.equal(s.input.text, "two");
+  s = reduce(s, { type: "input_hist_prev" });
+  assert.equal(s.input.text, "one");
+  s = reduce(s, { type: "input_hist_prev" }); // 顶端夹住
+  assert.equal(s.input.text, "one");
+  s = reduce(s, { type: "input_hist_next" });
+  assert.equal(s.input.text, "two");
+  s = reduce(s, { type: "input_hist_next" });
+  assert.equal(s.input.text, "draf"); // 回到草稿
+  assert.equal(s.input.hi, -1);
+});
+
+test("stream/push/flush lifecycle", () => {
+  let s = reduce(S(), { type: "stream_delta", text: "he" });
+  s = reduce(s, { type: "stream_delta", text: "llo" });
+  assert.equal(s.stream, "hello");
+  s = reduce(s, { type: "push", lines: ["a", "b"] });
+  assert.deepEqual(s.pending, ["a", "b"]);
+  s = reduce(s, { type: "flush", count: 1 });
+  assert.deepEqual(s.pending, ["b"]);
+  s = reduce(s, { type: "stream_clear" });
+  assert.equal(s.stream, "");
+});
+
+test("approval/menu/overlay/mode/lang/hint/status/spin/exit", () => {
+  let s = reduce(S(), { type: "approval", approval: { id: "ap_1", summary: "write file" } });
+  assert.equal(s.approval.id, "ap_1");
+  s = reduce(s, { type: "approval", approval: null });
+  assert.equal(s.approval, null);
+  s = reduce(s, { type: "menu", menu: { items: [{ name: "help", desc: "d" }], index: 0 } });
+  s = reduce(s, { type: "menu_move", delta: 1 }); // 单项:回绕仍 0
+  assert.equal(s.menu.index, 0);
+  s = reduce(s, { type: "overlay", overlay: { lines: ["x"], cursorRow: null, cursorCol: null } });
+  assert.deepEqual(s.overlay.lines, ["x"]);
+  s = reduce(s, { type: "mode", mode: "auto" });
+  s = reduce(s, { type: "lang", lang: "en" });
+  s = reduce(s, { type: "hint", text: "h" });
+  s = reduce(s, { type: "status", patch: { model: "deepseek-chat", tokens: 12400, cacheRate: 0.71 } });
+  s = reduce(s, { type: "spin" });
+  assert.equal(s.spin, 1);
+  s = reduce(s, { type: "ctrlc_mark", now: 1000 });
+  assert.equal(s.ctrlcAt, 1000);
+  s = reduce(s, { type: "exit" });
+  assert.equal(s.exit, true);
+  assert.equal(s.mode, "auto");
+  assert.equal(s.lang, "en");
+});
+
+test("statusLine composes mode/model/state/tokens/cache/lang", () => {
+  let s = reduce(S(), { type: "status", patch: { state: "idle", model: "deepseek-chat", tokens: 12400, cacheRate: 0.714 } });
+  const line = statusLine(s, makeT("zh"));
+  assert.ok(line.includes("gated"));
+  assert.ok(line.includes("deepseek-chat"));
+  assert.ok(line.includes("tokens 12.4k"));
+  assert.ok(line.includes("cache 71%"));
+  assert.ok(line.includes("中文"));
+  s = reduce(s, { type: "busy", busy: true });
+  assert.ok(statusLine(s, makeT("zh")).includes(SPINNER[0]));
+});
+
+test("formatTokens", () => {
+  assert.equal(formatTokens(0), "0");
+  assert.equal(formatTokens(999), "999");
+  assert.equal(formatTokens(12400), "12.4k");
+  assert.equal(formatTokens(3200000), "3.2m");
+});
+
+test("reducer is immutable and ignores unknown actions", () => {
+  const s = S();
+  const out = reduce(s, { type: "__nope__" });
+  assert.equal(out, s);
+  const after = reduce(s, { type: "input_insert", text: "x" });
+  assert.notEqual(after, s);
+  assert.equal(s.input.text, "");
+});
