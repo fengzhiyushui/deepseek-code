@@ -54,7 +54,6 @@ export function createKeyDecoder() {
           let j = i + 2;
           while (j < data.length && !(data[j] >= "@" && data[j] <= "~")) j += 1;
           if (j >= data.length) {
-            if (data.startsWith(PASTE_START.slice(0, data.length - i), i)) { pending = data.slice(i); return events; }
             pending = data.slice(i); return events;
           }
           const params = data.slice(i + 2, j);
@@ -65,8 +64,15 @@ export function createKeyDecoder() {
           i = j + 1;
           continue;
         }
-        if (next === "O" && CSI_FINAL[data[i + 2]]) { // SS3 变体
-          events.push({ type: CSI_FINAL[data[i + 2]] });
+        if (next === "O") { // SS3 变体:\x1b O 终止字节
+          const third = data[i + 2];
+          if (third === undefined) {
+            // 序列被截断在 chunk 边界:缓冲整段等下一次 feed
+            pending = data.slice(i);
+            return events;
+          }
+          if (CSI_FINAL[third]) events.push({ type: CSI_FINAL[third] });
+          // 未识别的 SS3 与未知 CSI 一致:静默丢弃
           i += 3;
           continue;
         }

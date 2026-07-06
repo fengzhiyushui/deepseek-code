@@ -39,6 +39,23 @@ test("lone ESC followed by printable yields esc + char", () => {
   assert.deepEqual(d.feed("\x1bx"), [{ type: "esc" }, { type: "char", text: "x" }]);
 });
 
+test("SS3 sequence split across chunks buffers", () => {
+  const d = createKeyDecoder();
+  assert.deepEqual(d.feed("\x1bO"), []);
+  assert.deepEqual(d.feed("A"), [{ type: "up" }]);
+});
+
+test("unknown complete SS3 dropped silently", () => {
+  const d = createKeyDecoder();
+  assert.deepEqual(d.feed("\x1bOPx"), [{ type: "char", text: "x" }]);
+});
+
+test("paste terminator split mid-sequence reassembles", () => {
+  const d = createKeyDecoder();
+  assert.deepEqual(d.feed("\x1b[200~ab\x1b[20"), []);
+  assert.deepEqual(d.feed("1~c"), [{ type: "paste", text: "ab" }, { type: "char", text: "c" }]);
+});
+
 test("bracketed paste accumulates across chunks", () => {
   const d = createKeyDecoder();
   assert.deepEqual(d.feed("\x1b[200~he"), []);
