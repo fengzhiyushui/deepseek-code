@@ -423,3 +423,13 @@ Electron 桌面端(`gui/`),React + Vite 渲染层,**原创手写 VS Code 风格 
 - **安全不变量**:**API Key 绝不回渲染层明文**——只回 `hasKey` / 掩码(`sk-…abcd`);明文仅落盘 `.deepseek-code/`(随仓忽略)。保存经 `editService`(非裸 fs 写)且过 workspace 边界。改动跟踪对 `changes/` 与 `rollbacks.jsonl` 只读且列表不回大文本。GUI 进程 `nodeIntegration:false` + `contextIsolation:true` + `sandbox:true` + IPC 白名单(见 §8)。
 - **测试策略**:纯逻辑(reducer / `settings-schema` / `file-filter` / `menu-model` / `panels-derive` / `save-diff` / `api-profiles` / `changes-derive` / `kernel-host` 桥与 `writeFile`/`listChanges`/`describeChange`)全 node:test;React 组件 / Monaco / 真切换走 `vite build` + **门控 Electron smoke**(装 gui deps 才跑,硬断言外壳渲染;设置页 + **SCM 改动分区与前后对比**为截图留档、未渲染记 `SKIPPED` 日志不判红),无 gui deps 时优雅 skip,核心 `npm test` 不受影响。**注**:IPC 频道注册属主进程接线,单测不覆盖,靠门控 smoke 把关——核截图与 `SKIPPED` 日志(D-4 即由 smoke 逮出 `changes:list` 漏注册)。
 
+## 16. 终端 TUI(V3 Phase D-5 · 行内滚动流 agent 会话)
+
+`src/tui.js` 薄入口 + `src/apps/tui/` 十模块(**零新增依赖**,手写 ANSI/VT;需支持 VT 序列的终端)。**形态 = claude code 式行内滚动流**:历史(用户行 `❯`/流式回复/工具对/diff 卡/审批卡/编排与验证进度行)println 进终端**原生滚动区**(滚轮/复制/搜索原生可用),仅底部(流式预览 ≤3 行 + 分隔线 + slash 补全菜单 + 输入行 + 状态栏)为固定重绘区(painter 爬升→清除→重画,光标停靠输入列;reducer 判定无变化不重绘)。
+
+- **纯逻辑 + 薄 IO**:`tui-state.js` 纯 reducer(光标编辑/输入历史/流缓冲/审批/菜单/overlay)· `event-cards.js` 事件→卡片行(QUIET 静默集;`user:message`/`agent:final`/`agent:error` 走 send 结果路径防重复)· `input.js` 按键解码(CSI/SS3/括号粘贴,跨 chunk 缓冲 + 孤立 ESC 延时 flush)· `ansi.js` 序列构造 + CJK 显示宽度(2 列)· `paint.js` computeBottom + painter(`write` 可注入)· `tui-i18n.js` zh/en 字典(key 集对齐测试)· `slash.js`/`config-flow.js` 纯注册表与状态机 · `tui-app.js` 组合根(io/kernel/git/changes/profiles/fetch 全可注入)。
+- **kernel(`src/` 核心)零改动**:流式走既有 `kernel.agent.send(text, { autonomy, history, stream, onDelta })` 的 options 透传;会话 history 由 TUI 持有(同 chat REPL 的 10 轮裁剪);`awaiting_approval` 循环 `agent.approve`(y/n/Esc 行内答复);编排通道无顶层流式时降级为 spinner + 事件进度行。autonomy 默认 `gated`,`/mode` 切 `read-only|gated|auto`;`/lang` 双语切换持久化 `.deepseek-code/tui-prefs.json`。
+- **/config 与 GUI 共享一套 API 列表**:`src/apps/api-profiles.js`(原 `gui/api-profiles.js` ESM 化迁入,存储文件名 `gui-api-profiles.json` 保留兼容)+ `src/apps/model-catalog.js`(`GET {baseUrl}/models`,fetch 可注入),GUI kernel-host 改动态 import 复用、行为不变。TUI 内增/删/改/激活/拉模型(**不设默认、失败红字**)/连接测试;**激活 = activate → `configureProject` 写 config.json → dispose 旧自建 kernel → 重建 → 重订阅,对话上下文保留**,状态栏模型名即时刷新。
+- **安全不变量**:密钥明文只落 `.deepseek-code/`(随仓忽略);TUI 渲染路径(滚动区/状态栏/卡片/编辑回显)只出现掩码(`maskKey` 列表掩码、编辑框 `•` 逐字符),密钥不进对话 history;任何退出路径(含异常)恢复终端态(cooked mode/光标/颜色/括号粘贴关闭)。
+- **测试策略**:纯层全 node:test;`tui-app` 以注入 PassThrough 流 + mock kernel 做全链路测试(流式回合/审批 y·Esc/slash 补全/config 增改激活重建/双语/Ctrl+C 退出与终端恢复),**不依赖真 pty**;**门控真 pty smoke**(检测 `gui/node_modules/node-pty`,未装优雅 skip):启动 offline → `/help` 渲染 → `/quit`,以 pasteOff 序列断言终端态恢复。
+

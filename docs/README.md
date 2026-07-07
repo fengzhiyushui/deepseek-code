@@ -91,6 +91,7 @@ docs/
 - [v3-phase-d2 gui-functional](specs/frontend/2026-07-01-v3-phase-d2-gui-functional-design.md) — **D-2 GUI 做真**:真文件树(path-safety 边界)+ Monaco 只读(本地 worker)+ 实时 Agent 卡片派生 + node-pty 交互终端(注入可测/降级)+ language 持久化;kernel 零改动
 - [v3-phase-d3 gui-full-functional](specs/frontend/2026-07-02-v3-phase-d3-gui-full-functional-design.md) — **D-3 GUI 全功能 + 设置页**:切视图/搜索 + 标题栏菜单 + 真状态栏 + 面板派生 + 分支切换/rewind + 可编辑保存(整文件 diff → editService)+ 设置页(7 组 + API 列表管理 + 模型获取无默认/失败报错);API Key 掩码不回明文,kernel 零改动
 - [v3-phase-d4 gui-change-tracking](specs/frontend/2026-07-02-v3-phase-d4-change-tracking-design.md) — **D-4 GUI agent 改动跟踪**:SCM「AGENT 改动」分区(来源标签 agent/手动 + 已回滚标)→ 主区「修改前 vs 修改后」对比(方案 C:记录内 before/after 直喂 DiffEditor,零 diff 反推)+ hunk chips 跳编辑器(行号 clamp);只读桥 `changes:list` 列表瘦身 / `changes:describe` 单文件切片;kernel 零改动
+- [v3-phase-d5 tui-redesign](specs/frontend/2026-07-06-v3-phase-d5-tui-redesign-design.md) — **D-5 TUI 重设计**:行内滚动流 agent 会话(原生滚动区 + 底部固定输入/状态栏)+ 流式 onDelta 透传 + 工具/diff/审批卡片 + slash 补全 + /config 共享 api-profiles(激活重建 kernel 保上下文);零依赖手写 ANSI,zh/en 双语,kernel 核心零改动
 
 ### plans/roadmap — 宏观阶段
 - [phase-0 kernel-foundation](plans/roadmap/2026-05-29-phase-0-kernel-foundation.md)
@@ -125,6 +126,7 @@ docs/
 - [v3-phase-d2 gui-functional](plans/frontend/2026-07-01-v3-phase-d2-gui-functional.md) — **D-2 实施计划**:M1–M7(文件桥+language → 树+reducer → Monaco 只读 → 卡片派生 → pty-host → xterm+node-pty → build/smoke/文档)
 - [v3-phase-d3 gui-full-functional](plans/frontend/2026-07-02-v3-phase-d3-gui-full-functional.md) — **D-3 实施计划**:M1–M11(配置桥+API 列表+listModels → 切视图/搜索 → 标题栏菜单 → 面板派生 → 保存 diff → 设置视图 → 标题/状态栏 → 分支切换 → rewind → 可编辑+diff → build/smoke/截图/文档)
 - [v3-phase-d4 gui-change-tracking](plans/frontend/2026-07-02-v3-phase-d4-change-tracking.md) — **D-4 实施计划**:M1–M5(只读改动桥 list/describe+IPC → changes-derive+reducer+卡片字段修复 → useKernel 桥+SCM 分区+i18n → ChangeDiffView+hunk 跳转+卡片可点 → 门控 smoke+全量回归+文档)
+- [v3-phase-d5 tui-redesign](plans/frontend/2026-07-06-v3-phase-d5-tui-redesign.md) — **D-5 实施计划**:T1–T15(ansi/input/i18n/reducer → 事件卡片 → painter → 组合根+薄入口替换 → slash 补全 → api-profiles 迁移+model-catalog+config-flow+/config 接线 → 门控 pty smoke+回归+文档)
 
 ---
 

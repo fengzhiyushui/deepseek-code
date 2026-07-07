@@ -69,7 +69,7 @@ node ./bin/deepseek-code.js tui
 | `chat [问题]` | 连续对话;默认只读,会话内 `/mode` 可切 `gated` / `auto` |
 | `edit "<需求>"` | 生成补丁并经编辑服务应用;`--dry-run` 仅预览、`--yes` 跳过确认、`--file <路径>` 指定相关文件(可重复) |
 | `test [命令...]` | 运行**项目自身**的测试并透传真实退出码 |
-| `tui` | 打开交互式终端界面 |
+| `tui` | 打开 agent 会话式终端界面(行内滚动流,见下「终端 TUI」) |
 | `scan` | 扫描并打印项目上下文索引 |
 | `search "<关键词>"` | 搜索项目代码(`--max` 控制条数,默认 80) |
 | `diff` | 查看 Git 差异 |
@@ -111,6 +111,12 @@ node ./bin/deepseek-code.js tui
 | `maxToolCallRepairs` | `null`(关) | 模型吐出畸形 tool-call 时的有界重试次数 |
 
 > **配置哲学:在适配 DeepSeek 的前提下,参数尽量交给用户。** 默认值只给"安全合理的起点",不锁死;`null` 或 `≤0` 表示关闭对应护栏。完整说明见 [`docs/project-overview.md`](docs/project-overview.md#7-运行护栏与配置)。
+
+---
+
+## ⌨️ 终端 TUI
+
+`deepseek-code tui` 是 claude code 式的**行内滚动流 agent 会话终端**(D-5 整体重写,**零依赖手写 ANSI**):对话、流式回复、工具/diff/审批卡片直接打进终端**原生滚动区**(滚轮/复制/搜索都是终端自带),底部固定输入行 + 状态栏(mode · 模型 · tokens · cache);审批 y/n/Esc 行内完成;`/` 呼出命令补全(`/help /config /diff /changes /mode /lang /clear /recovery /quit`);**中英双语默认中文**(`/lang` 切换并持久化)。**`/config` 与 GUI 共用同一份 API 列表**——增/删/改/激活/在线拉模型(不设默认、失败报错)/连接测试;激活即写 config.json 并重建内核,**对话上下文保留**;密钥全程掩码、绝不上屏明文。
 
 ---
 

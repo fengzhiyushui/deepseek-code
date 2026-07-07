@@ -69,7 +69,7 @@ node ./bin/deepseek-code.js tui
 | `chat [question]` | Continuous conversation; read-only by default, switch with in-session `/mode` → `gated` / `auto` |
 | `edit "<request>"` | Generate a patch and apply it through the edit service; `--dry-run` previews, `--yes` skips confirmation, `--file <path>` hints relevant files (repeatable) |
 | `test [args...]` | Run **your project's** tests and propagate the real exit code |
-| `tui` | Open the interactive terminal UI |
+| `tui` | Open the agent-session terminal UI (inline scroll; see "Terminal TUI" below) |
 | `scan` | Scan and print the project context index |
 | `search "<pattern>"` | Search project code (`--max` caps results, default 80) |
 | `diff` | Show the Git diff |
@@ -111,6 +111,12 @@ node ./bin/deepseek-code.js tui
 | `maxToolCallRepairs` | `null` (off) | bounded retries when the model emits a malformed tool-call |
 
 > **Config philosophy: leave the knobs to the user, within DeepSeek's constraints.** Defaults are a safe starting point, not a lock-in; `null` or `≤0` disables the corresponding guardrail. Full details in [`docs/project-overview.md`](docs/project-overview.md#7-运行护栏与配置).
+
+---
+
+## ⌨️ Terminal TUI
+
+`deepseek-code tui` is a claude-code-style **inline-scroll agent-session terminal** (fully rewritten in D-5, **zero-dependency hand-rolled ANSI**): conversation, streaming replies, and tool/diff/approval cards print straight into the terminal's **native scrollback** (wheel/copy/search all come from your terminal), with a fixed bottom input line + status bar (mode · model · tokens · cache); approvals resolve inline with y/n/Esc; `/` opens command completion (`/help /config /diff /changes /mode /lang /clear /recovery /quit`); **bilingual zh/en, Chinese by default** (`/lang` switches and persists). **`/config` shares the same API profile list with the GUI** — add/edit/delete/activate/fetch models online (no default, errors on failure)/test connection; activating writes config.json and rebuilds the kernel with the **conversation context kept**; keys are masked end to end and never echoed in plaintext.
 
 ---
 

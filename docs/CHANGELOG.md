@@ -12,9 +12,16 @@
 ### 规划中 — V3 路线图
 - **支柱①语义级上下文**:从启发式文件分层升级为 AST/符号级检索 + 依赖图。
 - **支柱②多智能体调度**:三层 agent(主/次/子)+ 两级审核 + 双记忆 + 可开关的跨任务经验沉淀。
-- **支柱③前端三端重构**:GUI 迁 React + Vite(**原创手写 VS Code 风格设计系统,不用 Semi UI 等成品组件库**;库只用 Monaco/xterm 等引擎)+ **双语 zh/en 默认中文**,CLI / TUI 打磨;先冻结三端共享契约。
+- **支柱③前端三端重构**:GUI 迁 React + Vite(**原创手写 VS Code 风格设计系统,不用 Semi UI 等成品组件库**;库只用 Monaco/xterm 等引擎)+ **双语 zh/en 默认中文**;GUI(D-1–D-4)与 TUI 重设计(D-5)已落地(见下),余 CLI 打磨。
 - **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。支柱① 语义级上下文 **Phase B 首版已落地**(见下)。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
+
+### 已落地 — Phase D-5 TUI 重设计(行内滚动流 agent 会话 / slash 命令 / 共享 API 配置)
+- **菜单循环 → claude code 式行内滚动流**:`src/tui.js` 568 行菜单版整体重写为薄入口 + `src/apps/tui/` 十模块(**零新增依赖**,手写 ANSI/VT)。历史消息 println 进终端**原生滚动区**(滚轮/复制/搜索原生可用),仅底部(流式预览/分隔线/补全菜单/输入行/状态栏)固定重绘;输入行支持光标编辑/输入历史/括号粘贴,CJK 宽度按 2 列对齐;reducer 判定无变化不重绘(无空转刷屏)。
+- **流式 + 卡片 + 审批**:流式走既有 `kernel.agent.send` 的 `options.onDelta` 透传(**kernel `src/` 核心零改动**)驱动打字机预览;kernel 事件经 `event-cards` 派生工具对/diff 卡/审批卡/编排与验证进度行(噪音事件静默);审批 y/n/Esc 行内完成;Ctrl+C 双击退出,任何退出路径恢复终端态。
+- **slash 命令**:`/help /config /diff /changes /mode /lang /clear /recovery /quit` + 前缀过滤补全菜单(↑↓/Tab/Enter/Esc);`/mode` 切 autonomy(默认 gated);`/lang` zh/en 双语切换并持久化 `tui-prefs.json`(字典 key 集对齐测试)。
+- **/config = 与 GUI 同一套 API 列表管理**:`gui/api-profiles.js` 提升为共享 ESM `src/apps/api-profiles.js`(存储文件名保留,GUI 经动态 import 复用、行为不变),`listModels` 的 fetch 抽 `src/apps/model-catalog.js` 两端共用;TUI 内列表/新增/编辑/删除/激活/拉模型(不设默认、失败红字)/连接测试;**激活写 config.json 并重建 kernel、对话上下文保留**;密钥掩码输入、渲染路径永不出现明文。
+- **测试**:纯层(reducer/事件卡片/按键解码/宽度/slash/config-flow/i18n)全 node:test;`tui-app` 组合根注入 PassThrough 流 + mock kernel 全链路测试(不需真 pty);**门控真 pty smoke**(复用 gui 已装 node-pty,未装优雅 skip):启动→/help→/quit 断言终端态恢复。测试 **912 全绿**、check OK。计划:[`plans/frontend/2026-07-06-v3-phase-d5-tui-redesign.md`](plans/frontend/2026-07-06-v3-phase-d5-tui-redesign.md);设计:[`specs/frontend/2026-07-06-v3-phase-d5-tui-redesign-design.md`](specs/frontend/2026-07-06-v3-phase-d5-tui-redesign-design.md)。
 
 ### 已落地 — Phase D-4 GUI agent 改动跟踪(SCM 改动分区 / 前后对比 / hunk 跳转)
 - **看 agent 改了哪些代码 → 跳转 → 前后对比**:源代码管理视图内新「AGENT 改动」分区,时间倒序列出每次 change(可折叠,默认展开最新一条),每条 per-file 行显 `M/A/D 路径 +a −b`;点文件行在主编辑区开「修改前 vs 修改后」双栏对比;对比头部 hunk chips(`@@ 12`)+「跳到编辑器」→ 打开该文件并 `revealLineInCenter` 到对应行(行号 clamp,越界不崩)。
