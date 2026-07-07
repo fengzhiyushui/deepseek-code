@@ -432,7 +432,7 @@ Electron 桌面端(`gui/`),React + Vite 渲染层,**原创手写 VS Code 风格 
 
 ## 16. 终端 TUI(V3 Phase D-5 · 行内滚动流 agent 会话)
 
-`src/tui.js` 薄入口 + `src/apps/tui/` 十模块(**零新增依赖**,手写 ANSI/VT;需支持 VT 序列的终端)。**形态 = claude code 式行内滚动流**:历史(用户行 `❯`/流式回复/工具对/diff 卡/审批卡/编排与验证进度行)println 进终端**原生滚动区**(滚轮/复制/搜索原生可用),仅底部(流式预览 ≤3 行 + 分隔线 + slash 补全菜单 + 输入行 + 状态栏)为固定重绘区(painter 爬升→清除→重画,光标停靠输入列;reducer 判定无变化不重绘)。
+`src/tui.js` 薄入口 + `src/apps/tui/` 十模块(手写 ANSI/VT;需支持 VT 序列的终端)。**形态 = claude code 式行内滚动流**:历史(用户行 `❯`/流式回复/工具对/diff 卡/审批卡/编排与验证进度行)println 进终端**原生滚动区**(滚轮/复制/搜索原生可用),仅底部(流式预览 ≤3 行 + 分隔线 + slash 补全菜单 + 输入行 + 状态栏)为固定重绘区(painter 爬升→清除→重画,光标停靠输入列;reducer 判定无变化不重绘)。
 
 - **纯逻辑 + 薄 IO**:`tui-state.js` 纯 reducer(光标编辑/输入历史/流缓冲/审批/菜单/overlay)· `event-cards.js` 事件→卡片行(QUIET 静默集;`user:message`/`agent:final`/`agent:error` 走 send 结果路径防重复)· `input.js` 按键解码(CSI/SS3/括号粘贴,跨 chunk 缓冲 + 孤立 ESC 延时 flush)· `ansi.js` 序列构造 + CJK 显示宽度(2 列)· `paint.js` computeBottom + painter(`write` 可注入)· `tui-i18n.js` zh/en 字典(key 集对齐测试)· `slash.js`/`config-flow.js` 纯注册表与状态机 · `prefs.js` tui-prefs.json 偏好读写(/lang 持久化)· `tui-app.js` 组合根(io/kernel/git/changes/profiles/fetch 全可注入)。
 - **kernel(`src/` 核心)零改动**:流式走既有 `kernel.agent.send(text, { autonomy, history, stream, onDelta })` 的 options 透传;会话 history 由 TUI 持有(同 chat REPL 的 10 轮裁剪);`awaiting_approval` 循环 `agent.approve`(y/n/Esc 行内答复);编排通道无顶层流式时降级为 spinner + 事件进度行。autonomy 默认 `gated`,`/mode` 切 `read-only|gated|auto`;`/lang` 双语切换持久化 `.deepseek-code/tui-prefs.json`。

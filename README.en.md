@@ -8,7 +8,7 @@
 
 > A local AI coding agent for DeepSeek — **CLI · TUI · desktop GUI**, all built on one V2 kernel.
 
-DeepSeek Code runs inside your project directory: it reads code, edits code, runs tests, and records every model call, tool execution, file change, and approval as a replayable session timeline. It talks to DeepSeek models directly, the core CLI has **no required runtime dependencies** (pure Node standard library), and all you need is Node ≥ 20 and an API key.
+DeepSeek Code runs inside your project directory: it reads code, edits code, runs tests, and records every model call, tool execution, file change, and approval as a replayable session timeline. It talks to DeepSeek models directly, and all you need is Node ≥ 20 and an API key.
 
 > ⚠️ **Disclaimer:** This is an **unofficial**, third-party open-source project. "DeepSeek" is a trademark of its respective owner; the name is used here only to describe model compatibility.
 
@@ -57,7 +57,7 @@ node ./bin/deepseek-code.js tui
 
 > After a global install you get the short `deepseek-code` / `dsc` commands (from `package.json` `bin`): `npm link` or `npm i -g .`.
 
-> **Dependency stance:** the core CLI has no required runtime dependencies; optional semantic context (`context.semantic`) lazily loads web-tree-sitter and vendored WASM grammars, introducing no native build dependency.
+> **Dependency stance:** optional semantic context (`context.semantic`) lazily loads web-tree-sitter and vendored WASM grammars, introducing no native build dependency.
 
 ---
 
@@ -118,7 +118,7 @@ node ./bin/deepseek-code.js tui
 
 ## ⌨️ Terminal TUI
 
-`deepseek-code tui` is a claude-code-style **inline-scroll agent-session terminal** (fully rewritten in D-5, **zero-dependency hand-rolled ANSI**): conversation, streaming replies, and tool/diff/approval cards print straight into the terminal's **native scrollback** (wheel/copy/search all come from your terminal), with a fixed bottom input line + status bar (mode · model · tokens · cache); approvals resolve inline with y/n/Esc; `/` opens command completion (`/help /config /diff /changes /mode /lang /clear /recovery /quit`); **bilingual zh/en, Chinese by default** (`/lang` switches and persists). **`/config` shares the same API profile list with the GUI** — add/edit/delete/activate/fetch models online (no default, errors on failure)/test connection; activating writes config.json and rebuilds the kernel with the **conversation context kept**; keys are masked end to end and never echoed in plaintext.
+`deepseek-code tui` is a claude-code-style **inline-scroll agent-session terminal** (fully rewritten in D-5, hand-rolled ANSI rendering): conversation, streaming replies, and tool/diff/approval cards print straight into the terminal's **native scrollback** (wheel/copy/search all come from your terminal), with a fixed bottom input line + status bar (mode · model · tokens · cache); approvals resolve inline with y/n/Esc; `/` opens command completion (`/help /config /diff /changes /mode /lang /clear /recovery /quit`); **bilingual zh/en, Chinese by default** (`/lang` switches and persists). **`/config` shares the same API profile list with the GUI** — add/edit/delete/activate/fetch models online (no default, errors on failure)/test connection; activating writes config.json and rebuilds the kernel with the **conversation context kept**; keys are masked end to end and never echoed in plaintext.
 
 ---
 

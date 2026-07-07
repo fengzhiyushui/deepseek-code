@@ -17,7 +17,7 @@
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
 ### 已落地 — Phase D-5 TUI 重设计(行内滚动流 agent 会话 / slash 命令 / 共享 API 配置)
-- **菜单循环 → claude code 式行内滚动流**:`src/tui.js` 568 行菜单版整体重写为薄入口 + `src/apps/tui/` 十模块(**零新增依赖**,手写 ANSI/VT)。历史消息 println 进终端**原生滚动区**(滚轮/复制/搜索原生可用),仅底部(流式预览/分隔线/补全菜单/输入行/状态栏)固定重绘;输入行支持光标编辑/输入历史/括号粘贴,CJK 宽度按 2 列对齐;reducer 判定无变化不重绘(无空转刷屏)。
+- **菜单循环 → claude code 式行内滚动流**:`src/tui.js` 568 行菜单版整体重写为薄入口 + `src/apps/tui/` 十模块(手写 ANSI/VT)。历史消息 println 进终端**原生滚动区**(滚轮/复制/搜索原生可用),仅底部(流式预览/分隔线/补全菜单/输入行/状态栏)固定重绘;输入行支持光标编辑/输入历史/括号粘贴,CJK 宽度按 2 列对齐;reducer 判定无变化不重绘(无空转刷屏)。
 - **流式 + 卡片 + 审批**:流式走既有 `kernel.agent.send` 的 `options.onDelta` 透传(**kernel `src/` 核心零改动**)驱动打字机预览;kernel 事件经 `event-cards` 派生工具对/diff 卡/审批卡/编排与验证进度行(噪音事件静默);审批 y/n/Esc 行内完成;Ctrl+C 双击退出,任何退出路径恢复终端态。
 - **slash 命令**:`/help /config /diff /changes /mode /lang /clear /recovery /quit` + 前缀过滤补全菜单(↑↓/Tab/Enter/Esc);`/mode` 切 autonomy(默认 gated);`/lang` zh/en 双语切换并持久化 `tui-prefs.json`(字典 key 集对齐测试)。
 - **/config = 与 GUI 同一套 API 列表管理**:`gui/api-profiles.js` 提升为共享 ESM `src/apps/api-profiles.js`(存储文件名保留,GUI 经动态 import 复用、行为不变),`listModels` 的 fetch 抽 `src/apps/model-catalog.js` 两端共用;TUI 内列表/新增/编辑/删除/激活/拉模型(不设默认、失败红字)/连接测试;**激活写 config.json 并重建 kernel、对话上下文保留**;密钥掩码输入、渲染路径永不出现明文。

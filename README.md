@@ -8,7 +8,7 @@
 
 > 面向 DeepSeek 的本地 AI 编程 Agent —— **CLI · TUI · 桌面 GUI**,统一构建在同一个 V2 内核之上。
 
-DeepSeek Code 在你的项目目录里运行,读代码、改代码、跑测试,并把每一步模型调用、工具执行、文件改动和审批都记录成可回放的会话时间线。它直连 DeepSeek 模型,核心 CLI **无必需运行时依赖**(纯 Node 标准库),只需 Node ≥ 20 和一个 API Key 即可使用。
+DeepSeek Code 在你的项目目录里运行,读代码、改代码、跑测试,并把每一步模型调用、工具执行、文件改动和审批都记录成可回放的会话时间线。它直连 DeepSeek 模型,只需 Node ≥ 20 和一个 API Key 即可使用。
 
 > ⚠️ **声明**:本项目为**非官方**第三方开源项目。"DeepSeek" 为其所有者的商标,本项目仅在描述"适配该模型"的意义上使用该名称。
 
@@ -57,7 +57,7 @@ node ./bin/deepseek-code.js tui
 
 > 全局安装后可用 `deepseek-code` / `dsc` 短命令(`package.json` 的 `bin`):`npm link` 或 `npm i -g .`。
 
-> **依赖口径**:核心 CLI 无必需运行时依赖;可选的语义上下文(`context.semantic`)按需懒加载 web-tree-sitter 与随仓 WASM grammar,不引入任何原生构建依赖。
+> **依赖口径**:可选的语义上下文(`context.semantic`)按需懒加载 web-tree-sitter 与随仓 WASM grammar,不引入任何原生构建依赖。
 
 ---
 
@@ -118,7 +118,7 @@ node ./bin/deepseek-code.js tui
 
 ## ⌨️ 终端 TUI
 
-`deepseek-code tui` 是 claude code 式的**行内滚动流 agent 会话终端**(D-5 整体重写,**零依赖手写 ANSI**):对话、流式回复、工具/diff/审批卡片直接打进终端**原生滚动区**(滚轮/复制/搜索都是终端自带),底部固定输入行 + 状态栏(mode · 模型 · tokens · cache);审批 y/n/Esc 行内完成;`/` 呼出命令补全(`/help /config /diff /changes /mode /lang /clear /recovery /quit`);**中英双语默认中文**(`/lang` 切换并持久化)。**`/config` 与 GUI 共用同一份 API 列表**——增/删/改/激活/在线拉模型(不设默认、失败报错)/连接测试;激活即写 config.json 并重建内核,**对话上下文保留**;密钥全程掩码、绝不上屏明文。
+`deepseek-code tui` 是 claude code 式的**行内滚动流 agent 会话终端**(D-5 整体重写,手写 ANSI 渲染):对话、流式回复、工具/diff/审批卡片直接打进终端**原生滚动区**(滚轮/复制/搜索都是终端自带),底部固定输入行 + 状态栏(mode · 模型 · tokens · cache);审批 y/n/Esc 行内完成;`/` 呼出命令补全(`/help /config /diff /changes /mode /lang /clear /recovery /quit`);**中英双语默认中文**(`/lang` 切换并持久化)。**`/config` 与 GUI 共用同一份 API 列表**——增/删/改/激活/在线拉模型(不设默认、失败报错)/连接测试;激活即写 config.json 并重建内核,**对话上下文保留**;密钥全程掩码、绝不上屏明文。
 
 ---
 
