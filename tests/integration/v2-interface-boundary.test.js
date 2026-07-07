@@ -21,23 +21,23 @@ test("TUI and GUI host do not import the old V1 kernel api", async () => {
   const guiMain = await source("gui/main.js");
   const guiHost = await source("gui/kernel-host.js");
 
-  assert.match(tui, /from "\.\/index\.js"/);
+  assert.match(tui, /from "\.\/apps\/tui\/tui-app\.js"/);
   assert.doesNotMatch(tui, /from "\.\/agent\.js"/);
   assert.doesNotMatch(tui, /kernel-api/);
   assert.doesNotMatch(guiMain, /src[\\/]+kernel[\\/]+kernel-api|kernel-api/);
   assert.doesNotMatch(guiHost, /src[\\/]+kernel[\\/]+kernel-api|kernel-api/);
 });
 
-test("CLI and TUI chat route through V2 kernel runner; legacy chat/agent removed", async () => {
+test("CLI chat routes through V2 kernel runner; TUI app talks to the unified kernel entry", async () => {
   const cli = await source("src/cli.js");
-  const tui = await source("src/tui.js");
+  const app = await source("src/apps/tui/tui-app.js");
 
   assert.match(cli, /runKernelChatCommand/);
-  assert.match(tui, /runKernelChatCommand/);
+  assert.match(app, /from "\.\.\/\.\.\/index\.js"/);
   assert.doesNotMatch(cli, /from "\.\/chat\.js"/);
-  assert.doesNotMatch(tui, /from "\.\/chat\.js"/);
+  assert.doesNotMatch(app, /chat\.js/);
   assert.doesNotMatch(cli, /askDeepSeek/);
-  assert.doesNotMatch(tui, /askDeepSeek/);
+  assert.doesNotMatch(app, /askDeepSeek/);
 
   // V1 legacy entrypoints were deleted in V2-19.
   await assert.rejects(() => source("src/chat.js"));
