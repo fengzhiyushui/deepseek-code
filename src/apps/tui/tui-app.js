@@ -10,7 +10,10 @@ import { makeT } from "./tui-i18n.js";
 import { initialTuiState, reduce } from "./tui-state.js";
 import { QUIET, eventToLines } from "./event-cards.js";
 import { computeBottom, createPainter } from "./paint.js";
-import { loadTuiPrefs } from "./prefs.js";
+import { loadTuiPrefs, saveTuiPrefs } from "./prefs.js";
+import { SLASH_COMMANDS, filterCommands, parseSlash } from "./slash.js";
+import { showDiff } from "../../git.js";
+import { listChanges, formatChange } from "../../changes.js";
 
 const CTRLC_WINDOW_MS = 3000;
 const HISTORY_CAP = 20; // 与 kernel-runner appendHistory 同语义:10 轮
@@ -23,6 +26,9 @@ export function createTuiApp({
   createKernelImpl = createKernel,
   buildKernelOptionsImpl = buildKernelOptions,
   loadConfigImpl = loadConfig,
+  showDiffImpl = showDiff,
+  listChangesImpl = listChanges,
+  formatChangeImpl = formatChange,
   now = Date.now,
   spinnerMs = 120
 } = {}) {
@@ -132,11 +138,95 @@ export function createTuiApp({
     }
   }
 
-  // T9 会用命令注册表替换本实现;M4 阶段所有 /xxx 一律未知命令。
+  const diffLine = (l) =>
+    l.startsWith("+") ? ` ${color.green(l)}` : l.startsWith("-") ? ` ${color.red(l)}` : ` ${color.dim(l)}`;
+
+  const SLASH_HANDLERS = {
+    help: async () => {
+      pushLines([...activeCommands().map((c) => `  /${c.name.padEnd(9)} ${color.dim(T(c.descKey))}`), ""]);
+    },
+    lang: async (arg) => {
+      const next = arg === "en" || arg === "zh" ? arg : (state.lang === "zh" ? "en" : "zh");
+      t = makeT(next);
+      dispatch({ type: "lang", lang: next });
+      try {
+        const prefs = await loadTuiPrefs(root);
+        await saveTuiPrefs(root, { ...prefs, lang: next });
+      } catch { /* 持久化失败不阻塞切换 */ }
+      pushLines([` ${T("msg.langSet")}`, ""]);
+    },
+    mode: async (arg) => {
+      const order = ["read-only", "gated", "auto"];
+      const next = arg || order[(order.indexOf(state.mode) + 1) % order.length];
+      if (!order.includes(next)) { pushLines([` ${color.red(T("msg.modeInvalid"))}`, ""]); return; }
+      dispatch({ type: "mode", mode: next });
+      pushLines([` ${T("msg.modeSet", { mode: next })}`, ""]);
+    },
+    clear: async () => { history = []; pushLines([` ${T("msg.cleared")}`, ""]); },
+    diff: async () => {
+      try {
+        const diff = await showDiffImpl(root);
+        pushLines(diff ? [...diff.split("\n").map(diffLine), ""] : [` ${color.dim(T("msg.noDiff"))}`, ""]);
+      } catch (e) { pushLines([` ${color.red(T("ev.error"))}: ${e?.message || e}`, ""]); }
+    },
+    changes: async () => {
+      try {
+        const records = await listChangesImpl(root, 5);
+        pushLines(records.length
+          ? [...records.map((r) => formatChangeImpl(r)).join("\n\n---\n\n").split("\n").map((l) => ` ${l}`), ""]
+          : [` ${color.dim(T("msg.noChanges"))}`, ""]);
+      } catch (e) { pushLines([` ${color.red(T("ev.error"))}: ${e?.message || e}`, ""]); }
+    },
+    recovery: async (arg) => {
+      if (!kernel?.recovery) { pushLines([` ${color.yellow(T("banner.offline"))}`, ""]); return; }
+      const [action, id] = (arg || "").split(/\s+/).filter(Boolean);
+      try {
+        if (!action) {
+          const report = (await kernel.recovery.report?.()) || { found: [], done: [], blocked: [] };
+          const items = (await kernel.recovery.list?.()) || [];
+          const lines = [` ${T("ev.recovery")}: found ${report.found.length} done ${report.done.length} blocked ${report.blocked.length}`];
+          for (const item of items) lines.push(`   - ${item.id} (${item.type}, ${item.status}) ${color.dim(item.summary || "")}`);
+          pushLines([...lines, ""]);
+        } else if (action === "resume" && id) {
+          const res = await kernel.recovery.resume(id, {});
+          pushLines([` ${T("ev.recovery")} resume ${id}: ${res.status}`, ""]);
+        } else if (action === "cancel" && id) {
+          const res = await kernel.recovery.cancel(id);
+          pushLines([` ${T("ev.recovery")} cancel ${id}: ${res?.status || "ok"}`, ""]);
+        } else {
+          pushLines([` ${color.dim("/recovery [resume|cancel] <id>")}`, ""]);
+        }
+      } catch (e) { pushLines([` ${color.red(T("ev.error"))}: ${e?.message || e}`, ""]); }
+    },
+    quit: async () => { dispatch({ type: "exit" }); }
+  };
+
+  // T13 会往 SLASH_HANDLERS 加 config;菜单项统一从这里取,保证注册表与处理器一致。
+  function activeCommands() {
+    return SLASH_COMMANDS.filter((c) => SLASH_HANDLERS[c.name]);
+  }
+
   async function handleSlash(text) {
     dispatch({ type: "submit_local", line: ` ${color.cyan("❯")} ${text}` });
-    const name = text.slice(1).split(/\s+/)[0] || "";
-    pushLines([` ${color.yellow(T("msg.unknownSlash", { name }))}`, ""]);
+    const parsed = parseSlash(text);
+    const handler = parsed && SLASH_HANDLERS[parsed.name];
+    if (!handler) {
+      pushLines([` ${color.yellow(T("msg.unknownSlash", { name: parsed?.name || "" }))}`, ""]);
+      return;
+    }
+    await handler(parsed.arg);
+  }
+
+  function syncSlashMenu() {
+    const text = state.input.text;
+    if (text.startsWith("/") && !text.includes(" ")) {
+      const items = filterCommands(text.slice(1))
+        .filter((c) => SLASH_HANDLERS[c.name])
+        .map((c) => ({ name: c.name, desc: T(c.descKey) }));
+      dispatch({ type: "menu", menu: items.length ? { items, index: 0 } : null });
+    } else if (state.menu) {
+      dispatch({ type: "menu", menu: null });
+    }
   }
 
   function submit() {
@@ -159,11 +249,29 @@ export function createTuiApp({
       else if ((ev.type === "char" && /^n$/i.test(ev.text)) || ev.type === "esc") approvalResolve?.("deny");
       return;
     }
+    if (state.menu) {
+      if (ev.type === "up") { dispatch({ type: "menu_move", delta: -1 }); return; }
+      if (ev.type === "down") { dispatch({ type: "menu_move", delta: 1 }); return; }
+      if (ev.type === "tab") {
+        const item = state.menu.items[state.menu.index];
+        dispatch({ type: "input_set", text: `/${item.name}` });
+        dispatch({ type: "menu", menu: null });
+        return;
+      }
+      if (ev.type === "enter") {
+        const item = state.menu.items[state.menu.index];
+        dispatch({ type: "input_set", text: `/${item.name}` });
+        dispatch({ type: "menu", menu: null });
+        submit();
+        return;
+      }
+      if (ev.type === "esc") { dispatch({ type: "menu", menu: null }); return; }
+    }
     switch (ev.type) {
-      case "char": dispatch({ type: "input_insert", text: ev.text }); return;
-      case "paste": dispatch({ type: "input_insert", text: ev.text }); return;
+      case "char": dispatch({ type: "input_insert", text: ev.text }); syncSlashMenu(); return;
+      case "paste": dispatch({ type: "input_insert", text: ev.text }); syncSlashMenu(); return;
       case "enter": submit(); return;
-      case "backspace": dispatch({ type: "input_backspace" }); return;
+      case "backspace": dispatch({ type: "input_backspace" }); syncSlashMenu(); return;
       case "left": dispatch({ type: "input_left" }); return;
       case "right": dispatch({ type: "input_right" }); return;
       case "home": dispatch({ type: "input_home" }); return;
