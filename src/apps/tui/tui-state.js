@@ -83,7 +83,15 @@ export function reduce(state, action = {}) {
     case "mode": return { ...state, mode: action.mode };
     case "lang": return { ...state, lang: action.lang };
     case "hint": return { ...state, hint: String(action.text || "") };
-    case "status": return { ...state, status: { ...state.status, ...action.patch } };
+    case "status": {
+      const patch = action.patch || {};
+      let same = true;
+      for (const [key, value] of Object.entries(patch)) {
+        if (state.status[key] !== value) { same = false; break; }
+      }
+      if (same) return state; // 空转刷新不触发重绘
+      return { ...state, status: { ...state.status, ...patch } };
+    }
     case "ctrlc_mark": return { ...state, ctrlcAt: action.now };
     case "exit": return { ...state, exit: true };
     default: return state;

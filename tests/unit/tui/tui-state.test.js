@@ -112,3 +112,11 @@ test("reducer is immutable and ignores unknown actions", () => {
   assert.notEqual(after, s);
   assert.equal(s.input.text, "");
 });
+
+test("status action with identical values is a no-op (same reference)", () => {
+  const s = reduce(S(), { type: "status", patch: { state: "idle", tokens: 5 } });
+  const again = reduce(s, { type: "status", patch: { state: "idle", tokens: 5 } });
+  assert.equal(again, s);
+  const changed = reduce(s, { type: "status", patch: { tokens: 6 } });
+  assert.notEqual(changed, s);
+});

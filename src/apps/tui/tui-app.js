@@ -59,7 +59,9 @@ export function createTuiApp({
   function apply(action) { state = reduce(state, action); }
 
   function dispatch(action) {
+    const prev = state;
     apply(action);
+    if (state === prev) return; // reducer 判定无变化(如空转 status)则不重绘
     if (state.exit && finishResolve) { const r = finishResolve; finishResolve = null; r(); return; }
     schedulePaint();
   }
