@@ -2,7 +2,12 @@
 const fs = require("fs/promises");
 const path = require("path");
 const { pathToFileURL } = require("url");
-const { createApiProfiles } = require("./api-profiles.js");
+
+let apiProfilesModPromise = null;
+function loadApiProfilesMod() {
+  if (!apiProfilesModPromise) apiProfilesModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "apps", "api-profiles.js")).href);
+  return apiProfilesModPromise;
+}
 
 let configModPromise = null;
 function loadConfigMod() {
@@ -407,7 +412,20 @@ function createKernelHost({
     };
   }
 
-  const apiProfiles = createApiProfiles({ dir: path.join(projectRoot, ".deepseek-code") });
+  const apiProfiles = (() => {
+    let promise = null;
+    const load = () => {
+      if (!promise) promise = loadApiProfilesMod().then((m) => m.createApiProfiles({ dir: path.join(projectRoot, ".deepseek-code") }));
+      return promise;
+    };
+    return {
+      list: async () => (await load()).list(),
+      save: async (p) => (await load()).save(p),
+      remove: async (id) => (await load()).remove(id),
+      activate: async (id) => (await load()).activate(id),
+      getActive: async () => (await load()).getActive()
+    };
+  })();
 
   async function getSettings() {
     const prefs = await loadGuiPreferences(projectRoot);

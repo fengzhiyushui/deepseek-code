@@ -3,10 +3,7 @@ import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createRequire } from "node:module";
-
-const require = createRequire(import.meta.url);
-const { createApiProfiles } = require("../../../gui/api-profiles.js");
+import { createApiProfiles, maskKey } from "../../../src/apps/api-profiles.js";
 
 async function tmp() { return fs.mkdtemp(path.join(os.tmpdir(), "dsc-api-")); }
 
@@ -35,4 +32,10 @@ test("save with id edits in place; ids do not collide across add/remove", async 
 test("activate unknown id throws", async () => {
   const store = createApiProfiles({ dir: await tmp() });
   await assert.rejects(() => store.activate("nope"));
+});
+
+test("maskKey masks all shapes", () => {
+  assert.equal(maskKey(""), "");
+  assert.equal(maskKey("short"), "•••");
+  assert.equal(maskKey("sk-1234567890abcd"), "sk-…abcd");
 });

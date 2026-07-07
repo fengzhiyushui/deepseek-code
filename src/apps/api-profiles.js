@@ -1,11 +1,10 @@
-// gui/api-profiles.js — GUI-managed list of model-API configurations (name/baseUrl/apiKey).
-// Stored under .deepseek-code/ (gitignored). The active profile's credentials are written
-// into config.json by kernel-host so the kernel reads them (kernel unchanged). Plaintext
-// keys live only on disk — kernel-host masks them before anything reaches the renderer.
-const fsp = require("fs/promises");
-const path = require("path");
+// src/apps/api-profiles.js — 模型 API 配置列表(名称/baseUrl/apiKey/model),GUI 与 TUI 共享一份实现与存储。
+// 存 .deepseek-code/(随仓忽略);激活时由调用方把凭据写进 config.json 供内核读(kernel 不变)。
+// 存储文件名 gui-api-profiles.json 是历史遗留,保留以兼容既有用户数据。
+import fsp from "node:fs/promises";
+import path from "node:path";
 
-function createApiProfiles({ dir }) {
+export function createApiProfiles({ dir }) {
   const file = path.join(dir, "gui-api-profiles.json");
 
   async function load() {
@@ -69,4 +68,9 @@ function createApiProfiles({ dir }) {
   return { list, save, remove, activate, getActive };
 }
 
-module.exports = { createApiProfiles };
+export function maskKey(key) {
+  const k = String(key || "");
+  if (!k) return "";
+  if (k.length <= 8) return "•••";
+  return `${k.slice(0, 3)}…${k.slice(-4)}`;
+}
