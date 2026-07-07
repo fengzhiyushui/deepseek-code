@@ -29,7 +29,7 @@ CLI / TUI / GUI
 | `limits` | 见 [§7](#7-运行护栏与配置) | 运行护栏(超时 / token / 调用次数 / 畸形 tool-call 重试) |
 | `recovery.enabled` | `false` | 持久化恢复总开关,**默认关闭**(opt-in,见 [§6](#6-持久化恢复)) |
 
-kernel facade 主要方法:`send()`(发起一个 turn)、`approve()`(审批并 resume 暂停的 turn)、`dispose()`(幂等释放项目锁);恢复启用时还暴露 `abortJournal()` / `commitJournal()`。
+kernel facade:`agent.send()`(发起 turn,经确定性路由器分单/多智能体通道,见 [§14](#14-多智能体编排v3-phase-c1c2))、`agent.approve()`(先路由编排暂停 resume / durable resume,再落 runtime.approve)、`agent.interrupt()` / `agent.listPaused()` / `agent.cancelPaused()`、`dispose()`(幂等:flush 经验 + 释放项目锁);`recovery.*`(list/resume/cancel/clear/report,恢复启用时另有 `abortJournal()`/`commitJournal()`);`experience.*`(C4,见 §14.4);`metrics.*`(用量 / 上下文统计)。
 
 ### turn 生命周期
 
@@ -142,7 +142,7 @@ ToolCall
 | `file:` | diff_preview / diff_applied / rollback_applied / transaction_*(started/committed/failed/rolled_back) / rollback_conflict |
 | `verification:` / `repair:` | verification:result · repair:started / attempt / result / exhausted |
 
-> 以代码为准:新增事件须同步登记到 `SESSION_EVENT_TYPES`,否则 `assertSessionEventType` 会拒绝。
+> 以代码为准:session-manager 只订阅 `SESSION_EVENT_TYPES` 中登记的类型——未登记的事件不会报错,而是**静默不入会话时间线**(仅走 eventBus);需持久化的新事件必须先登记。另有刻意的 eventBus 级事件(不入时间线):`orchestration:*`(§14/§14.3)、`experience:*`(§14.4)、`context:symbol_indexed` / `context:graph_built`(§13)。
 
 ---
 
@@ -208,6 +208,9 @@ ToolCall
 ```text
 .deepseek-code/
   config.json                  本地配置(含 API Key)
+  gui-api-profiles.json        API 接入列表(GUI/TUI 共享,文件名历史遗留)
+  gui-preferences.json         GUI 偏好(语言等)
+  tui-prefs.json               TUI 偏好(/lang 等)
   changes/<id>.json            变更记录
   rollbacks.jsonl              回滚记录
   sessions.jsonl               旧版会话日志(resume 命令读取)
@@ -216,8 +219,12 @@ ToolCall
       <sessionId>.jsonl        V2 会话时间线
       <sessionId>.branches.json 分支
       paused/                  暂停 sidecar(恢复启用时)
+      orchestration-paused/    编排暂停 sidecar(C-Durable,含 quarantine/)
     context/                   上下文缓存
+    experience/                跨任务经验库(C4:experience.json · experience-evictions.jsonl · pending.json)
+    orchestration/iso/<runId>/ C3 并行 Worker 隔离工作区(瞬态,任务后清理)
     recovery/inbox.json        恢复收件箱
+    recovered/<txId>/          事务恢复保全的 preimage(恢复启用时)
     journal/                   事务日志
     .lock/                     项目锁
 ```
@@ -244,16 +251,16 @@ src/
   context/        context-unit · token-budget · workspace-indexer · context-selector · context-snapshot · context-manifest · context-cache
   workspace/      path-safety
   security/       shell-policy · ssrf · redactor
-  apps/           kernel-options · cli/(render-events · kernel-runner)
+  apps/           kernel-options · api-profiles(GUI/TUI 共享 API 列表)· model-catalog · cli/(render-events · kernel-runner)· tui/(D-5 行内滚动流 TUI 十模块,见 §16)
   shared/         id · time · event-bus
-  (顶层)         cli.js · config.js · context.js · git.js · patch.js · changes.js · provider.js · search.js · theme.js · tui.js
-gui/              Electron:main.js · preload.js · kernel-host.js(+ 文件桥 listTree/readFile)· pty-host.js(node-pty)· src/(React+Vite 手写 VS Code 风格渲染层:components/hooks/state/i18n,Monaco 只读 + xterm 终端,无第三方 UI 套件,中英双语)· renderer/*(旧原生,休眠回退)· mockups/(设计基准)· vite.renderer.config.mjs
+  (顶层)         cli.js · config.js · context.js · git.js · patch.js · changes.js · provider.js · search.js · theme.js · tui.js(D-5 薄入口)
+gui/              Electron:main.js · preload.js · kernel-host.js(+ 文件桥 listTree/readFile)· pty-host.js(node-pty)· src/(React+Vite 手写 VS Code 风格渲染层:components/hooks/state/i18n,Monaco 可编辑(`Ctrl/⌘+S` 经 editService)+ xterm 终端,无第三方 UI 套件,中英双语)· renderer/*(旧原生,休眠回退)· mockups/(设计基准)· vite.renderer.config.mjs
 docs/             specs/ · plans/ · CHANGELOG.md · README.md(文档中心)
 tests/ + test/    单元 / 集成 / e2e
 preview-deepseek-code/ · DeepSeekCodeIDE.jsx   前端原型(V3 Phase D,未接入运行时)
 ```
 
-> 顶层 `cli.js`/`config.js`/`context.js`/`git.js`/`patch.js`/`changes.js`/`provider.js`/`search.js`/`theme.js`/`tui.js` 是 V1 时代保留、现作为 V2 共享依赖的工具模块,**不属 legacy**;V1 并存内核(`src/kernel/*`、`agent.js`、`chat.js`、`ui.js`)已于 V2-19 删除。
+> 顶层 `cli.js`/`config.js`/`context.js`/`git.js`/`patch.js`/`changes.js`/`provider.js`/`search.js`/`theme.js` 是 V1 时代保留、现作为 V2 共享依赖的工具模块,**不属 legacy**;`tui.js` 已在 D-5 重写为薄入口,实现全在 `src/apps/tui/`(见 §16);V1 并存内核(`src/kernel/*`、`agent.js`、`chat.js`、`ui.js`)已于 V2-19 删除。
 
 ---
 
@@ -418,7 +425,7 @@ Electron 桌面端(`gui/`),React + Vite 渲染层,**原创手写 VS Code 风格 
 
 - **外壳与状态**:四栏 IDE(TitleBar / ActivityBar / Explorer / EditorGroup / AgentPanel / StatusBar)+ 无原生标题栏(`titleBarStyle:"hidden"` + `Menu.setApplicationMenu(null)`,自绘窗口控件经 IPC)。状态是纯 reducer `workbench-state.js`(`useReducer`,不可变返回,node:test 全测);取数/派生/过滤/归一全抽纯函数。
 - **文件与编辑(D-2/D-3)**:真文件树(`listTree`/`readFile` 复用 `path-safety.js` realpath 边界,拒目录/超大/二进制/symlink 逃逸)+ Monaco 编辑器(本地 worker 离线,不走 CDN)。**D-3 起可编辑**:改动标脏,`Ctrl/⌘+S` 经 `kernel-host.writeFile` = 整文件 unified diff → **独立 `editService.apply`**(事务 + 回滚 + change 记录 + workspace 边界,不复用内核那只带 recoveryJournal 的实例,agent 回合不受影响);`DiffView` 看原↔改。真终端 `node-pty` + xterm(N-API 预编译免重编译)。
-- **设置页(D-3,活动栏齿轮 → 主区)**:七组二级菜单(通用/模型接入/运行护栏/多智能体/语义上下文/经验与恢复/关于)。`settings-schema.js` 纯定义字段 + 归一;config 表单整段回写 `configureProject`。**模型接入 = API 列表管理**(增/删/改/激活,`api-profiles.js` 原子存 `.deepseek-code/`;激活写 `config.json` 供内核读)+ **模型获取**(`GET {baseUrl}/models`,不设默认、失败报错)+ 连接测试。
+- **设置页(D-3,活动栏齿轮 → 主区)**:七组二级菜单(通用/模型接入/运行护栏/多智能体/语义上下文/经验与恢复/关于)。`settings-schema.js` 纯定义字段 + 归一;config 表单整段回写 `configureProject`。**模型接入 = API 列表管理**(增/删/改/激活,经 `src/apps/api-profiles.js`(D-5 起 GUI/TUI 共享,kernel-host 动态 import)原子存 `.deepseek-code/`;激活写 `config.json` 供内核读)+ **模型获取**(`GET {baseUrl}/models`,不设默认、失败报错)+ 连接测试。
 - **改动跟踪(D-4,源代码管理视图内「AGENT 改动」分区)**:看 agent(及 GUI 手动保存)改了哪些文件/位置 → 点文件行看该次改动「修改前 vs 修改后」→ 从对比里跳编辑器对应行。数据经**只读桥** `changes:list` / `changes:describe`(`kernel-host` 动态 import 复用 `src/edits/change-store.js` 的 `list`/`describe` + `src/patch.js` 的 `parseUnifiedDiff`,**kernel 零改动**):列表**主进程瘦身**(剥 `before/after` 与 diff 全文,只回 `id/time/prompt/rolledBack` + 每文件 `added/removed/hunkStarts`);`describe` 单文件切片才回 `before/after` 全文(**方案 C**:记录里 `captureChangePlan`/`finalizeChange` 已持久化前后全文,直喂 `DiffView` 的 Monaco DiffEditor,零反推、时点精确)。来源标签(prompt 前缀 `"GUI edit "` → 手动,否则 agent)、已回滚标(读 `.deepseek-code/rollbacks.jsonl`)。`ChangeDiffView` 头部 hunk chips(`@@ 12`)+「跳到编辑器」→ `openFile` + `revealLineInCenter`(行号 clamp,越界不崩);Agent 面板 diff 卡片带 `change_id` 可点开同一对比。实时刷新:reducer 收 `file:diff_applied`/`file:rollback_applied` 自增 `changesTick` 触发重拉(历史为底、`change_id` 对齐)。**并修**:`file:diff_applied` 事件真实字段是 `{change_id, summary, files}`,旧派生读不存在的 `e.path/e.added` 使卡片恒显空路径 +0−0,已改。
 - **安全不变量**:**API Key 绝不回渲染层明文**——只回 `hasKey` / 掩码(`sk-…abcd`);明文仅落盘 `.deepseek-code/`(随仓忽略)。保存经 `editService`(非裸 fs 写)且过 workspace 边界。改动跟踪对 `changes/` 与 `rollbacks.jsonl` 只读且列表不回大文本。GUI 进程 `nodeIntegration:false` + `contextIsolation:true` + `sandbox:true` + IPC 白名单(见 §8)。
 - **测试策略**:纯逻辑(reducer / `settings-schema` / `file-filter` / `menu-model` / `panels-derive` / `save-diff` / `api-profiles` / `changes-derive` / `kernel-host` 桥与 `writeFile`/`listChanges`/`describeChange`)全 node:test;React 组件 / Monaco / 真切换走 `vite build` + **门控 Electron smoke**(装 gui deps 才跑,硬断言外壳渲染;设置页 + **SCM 改动分区与前后对比**为截图留档、未渲染记 `SKIPPED` 日志不判红),无 gui deps 时优雅 skip,核心 `npm test` 不受影响。**注**:IPC 频道注册属主进程接线,单测不覆盖,靠门控 smoke 把关——核截图与 `SKIPPED` 日志(D-4 即由 smoke 逮出 `changes:list` 漏注册)。
@@ -427,7 +434,7 @@ Electron 桌面端(`gui/`),React + Vite 渲染层,**原创手写 VS Code 风格 
 
 `src/tui.js` 薄入口 + `src/apps/tui/` 十模块(**零新增依赖**,手写 ANSI/VT;需支持 VT 序列的终端)。**形态 = claude code 式行内滚动流**:历史(用户行 `❯`/流式回复/工具对/diff 卡/审批卡/编排与验证进度行)println 进终端**原生滚动区**(滚轮/复制/搜索原生可用),仅底部(流式预览 ≤3 行 + 分隔线 + slash 补全菜单 + 输入行 + 状态栏)为固定重绘区(painter 爬升→清除→重画,光标停靠输入列;reducer 判定无变化不重绘)。
 
-- **纯逻辑 + 薄 IO**:`tui-state.js` 纯 reducer(光标编辑/输入历史/流缓冲/审批/菜单/overlay)· `event-cards.js` 事件→卡片行(QUIET 静默集;`user:message`/`agent:final`/`agent:error` 走 send 结果路径防重复)· `input.js` 按键解码(CSI/SS3/括号粘贴,跨 chunk 缓冲 + 孤立 ESC 延时 flush)· `ansi.js` 序列构造 + CJK 显示宽度(2 列)· `paint.js` computeBottom + painter(`write` 可注入)· `tui-i18n.js` zh/en 字典(key 集对齐测试)· `slash.js`/`config-flow.js` 纯注册表与状态机 · `tui-app.js` 组合根(io/kernel/git/changes/profiles/fetch 全可注入)。
+- **纯逻辑 + 薄 IO**:`tui-state.js` 纯 reducer(光标编辑/输入历史/流缓冲/审批/菜单/overlay)· `event-cards.js` 事件→卡片行(QUIET 静默集;`user:message`/`agent:final`/`agent:error` 走 send 结果路径防重复)· `input.js` 按键解码(CSI/SS3/括号粘贴,跨 chunk 缓冲 + 孤立 ESC 延时 flush)· `ansi.js` 序列构造 + CJK 显示宽度(2 列)· `paint.js` computeBottom + painter(`write` 可注入)· `tui-i18n.js` zh/en 字典(key 集对齐测试)· `slash.js`/`config-flow.js` 纯注册表与状态机 · `prefs.js` tui-prefs.json 偏好读写(/lang 持久化)· `tui-app.js` 组合根(io/kernel/git/changes/profiles/fetch 全可注入)。
 - **kernel(`src/` 核心)零改动**:流式走既有 `kernel.agent.send(text, { autonomy, history, stream, onDelta })` 的 options 透传;会话 history 由 TUI 持有(同 chat REPL 的 10 轮裁剪);`awaiting_approval` 循环 `agent.approve`(y/n/Esc 行内答复);编排通道无顶层流式时降级为 spinner + 事件进度行。autonomy 默认 `gated`,`/mode` 切 `read-only|gated|auto`;`/lang` 双语切换持久化 `.deepseek-code/tui-prefs.json`。
 - **/config 与 GUI 共享一套 API 列表**:`src/apps/api-profiles.js`(原 `gui/api-profiles.js` ESM 化迁入,存储文件名 `gui-api-profiles.json` 保留兼容)+ `src/apps/model-catalog.js`(`GET {baseUrl}/models`,fetch 可注入),GUI kernel-host 改动态 import 复用、行为不变。TUI 内增/删/改/激活/拉模型(**不设默认、失败红字**)/连接测试;**激活 = activate → `configureProject` 写 config.json → dispose 旧自建 kernel → 重建 → 重订阅,对话上下文保留**,状态栏模型名即时刷新。
 - **安全不变量**:密钥明文只落 `.deepseek-code/`(随仓忽略);TUI 渲染路径(滚动区/状态栏/卡片/编辑回显)只出现掩码(`maskKey` 列表掩码、编辑框 `•` 逐字符),密钥不进对话 history;任何退出路径(含异常)恢复终端态(cooked mode/光标/颜色/括号粘贴关闭)。

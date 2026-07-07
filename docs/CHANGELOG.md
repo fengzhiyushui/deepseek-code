@@ -1,7 +1,7 @@
 # Changelog
 
 本文件记录 DeepSeek Code 的版本演进与重要里程碑。
-格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/);版本以 **V2-N 里程碑**为单位组织(项目尚未发布语义化版本号)。
+格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/);版本以**里程碑**(V2-N / V3 Phase)为单位组织(项目尚未发布语义化版本号)。
 
 > 维护约定见 [`docs/README.md` 文档维护规范](README.md#文档维护规范与更新顺序):代码 → specs/plans → project-overview → **本文件** → README(中+英)→ 索引。
 
@@ -10,10 +10,10 @@
 ## [Unreleased]
 
 ### 规划中 — V3 路线图
-- **支柱①语义级上下文**:从启发式文件分层升级为 AST/符号级检索 + 依赖图。
-- **支柱②多智能体调度**:三层 agent(主/次/子)+ 两级审核 + 双记忆 + 可开关的跨任务经验沉淀。
+- **支柱①语义级上下文**:✅ 已落地(Phase B / B+1 / B+3,opt-in 默认关,见下)——AST/符号级检索 + 依赖图 + 方法消歧 + 多语言(JS/TS/Python)。
+- **支柱②多智能体调度**:✅ 已落地(C1–C5 / C-Router / C4 / C-Durable 全收官,见下)——统一入口路由 + 两级审核 + 并行写隔离 + 重规划续跑 + 跨任务经验记忆(默认关)+ 编排级 durable 恢复(默认关)。
 - **支柱③前端三端重构**:GUI 迁 React + Vite(**原创手写 VS Code 风格设计系统,不用 Semi UI 等成品组件库**;库只用 Monaco/xterm 等引擎)+ **双语 zh/en 默认中文**;GUI(D-1–D-4)与 TUI 重设计(D-5)已落地(见下),余 CLI 打磨。
-- **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。支柱① 语义级上下文 **Phase B 首版已落地**(见下)。
+- **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
 
 ### 已落地 — Phase D-5 TUI 重设计(行内滚动流 agent 会话 / slash 命令 / 共享 API 配置)

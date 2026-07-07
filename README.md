@@ -76,6 +76,8 @@ node ./bin/deepseek-code.js tui
 | `config show \| init \| test` | 查看生效配置 / 写入本地配置 / 测试 API 连接 |
 | `changes list \| show [id\|latest]` | 查看变更记录与详情(`--limit`) |
 | `rollback [id\|latest]` | 回退指定变更 |
+
+> `ask` / `chat` / `edit` 另支持 `--semantic-context` / `--include-method-hints`(语义上下文,见特性)与 `--no-stream` / `--max-files` / `--max-bytes`;`ask` 还支持 `--autonomy`。
 | `resume` | 查看最近会话记录 |
 
 > 注意:`deepseek-code test` 跑的是**你的项目**的测试;`npm test` 跑的是 DeepSeek Code 自身的测试套件。
@@ -144,11 +146,14 @@ npm start                # 启动 Electron(加载构建产物)
 ```text
 CLI / TUI / GUI
    └─ src/index.js · createKernel()
-        ├─ core/runtime     Agent 生命周期 · 执行循环 · 验证-修复
-        ├─ deepseek         模型网关 · 路由 · JSON mode · streaming · FIM · 用量
-        ├─ tools            注册表 · schema · executor · 权限 · 内置工具
-        ├─ edits            diff 预览 / 应用 / 回滚
-        ├─ sessions         事件时间线 · 分支 · rewind
+        ├─ core/runtime          Agent 生命周期 · 执行循环 · 验证-修复
+        ├─ core/orchestration    多智能体:路由 · 拆派 · 并行隔离 · 两级审核 · 重规划续跑
+        ├─ core/recovery + memory 持久化恢复(含编排级 durable)· 跨任务经验记忆
+        ├─ context               分层上下文引擎 · 语义符号检索(semantic,opt-in)
+        ├─ deepseek              模型网关 · 路由 · JSON mode · streaming · FIM · 用量
+        ├─ tools                 注册表 · schema · executor · 权限 · 内置工具
+        ├─ edits                 diff 预览 / 应用 / 回滚
+        ├─ sessions              事件时间线 · 分支 · rewind
         └─ workspace · security · shared
 ```
 
@@ -186,7 +191,7 @@ git diff --check    # 检查行尾 / 冲突标记
 
 - **[`docs/project-overview.md`](docs/project-overview.md)** —— 项目深入说明(架构 / 工具 / 编辑 / 恢复 / 安全 / 事件 / 目录)。
 - [`docs/README.md`](docs/README.md) —— 文档中心:索引 + 维护规范。
-- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) —— 版本里程碑(当前主线 V2 已收尾,V3 路线图规划中)。
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) —— 版本里程碑(V2 主线已收尾;V3 三支柱——语义上下文、多智能体编排、GUI/TUI 重构——已落地,余 CLI 打磨)。
 - `docs/specs/` · `docs/plans/` —— 设计文档与实施计划(按 architecture / backend / frontend 划分)。
 
 ---

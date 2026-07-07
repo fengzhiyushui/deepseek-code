@@ -76,6 +76,8 @@ node ./bin/deepseek-code.js tui
 | `config show \| init \| test` | Show effective config / write local config / test the API connection |
 | `changes list \| show [id\|latest]` | Inspect change records and details (`--limit`) |
 | `rollback [id\|latest]` | Roll back a given change |
+
+> `ask` / `chat` / `edit` also accept `--semantic-context` / `--include-method-hints` (semantic context, see features) and `--no-stream` / `--max-files` / `--max-bytes`; `ask` additionally takes `--autonomy`.
 | `resume` | Show the most recent session records |
 
 > Note: `deepseek-code test` runs **your project's** tests; `npm test` runs DeepSeek Code's own test suite.
@@ -144,11 +146,14 @@ npm start                # launch Electron (loads the built renderer)
 ```text
 CLI / TUI / GUI
    └─ src/index.js · createKernel()
-        ├─ core/runtime     agent lifecycle · execution loop · verify-repair
-        ├─ deepseek         model gateway · router · JSON mode · streaming · FIM · usage
-        ├─ tools            registry · schema · executor · permissions · builtin tools
-        ├─ edits            diff preview / apply / rollback
-        ├─ sessions         event timeline · branching · rewind
+        ├─ core/runtime          agent lifecycle · execution loop · verify-repair
+        ├─ core/orchestration    multi-agent: routing · dispatch · parallel isolation · two-tier review · replan-resume
+        ├─ core/recovery + memory durable recovery (incl. orchestration-level) · cross-task experience memory
+        ├─ context               layered context engine · semantic symbol retrieval (opt-in)
+        ├─ deepseek              model gateway · router · JSON mode · streaming · FIM · usage
+        ├─ tools                 registry · schema · executor · permissions · builtin tools
+        ├─ edits                 diff preview / apply / rollback
+        ├─ sessions              event timeline · branching · rewind
         └─ workspace · security · shared
 ```
 
@@ -186,7 +191,7 @@ The doc-maintenance order (code → specs/plans → project-overview → CHANGEL
 
 - **[`docs/project-overview.md`](docs/project-overview.md)** — in-depth project guide (architecture / tools / edits / recovery / security / events / layout), in Chinese.
 - [`docs/README.md`](docs/README.md) — documentation hub: index + maintenance rules.
-- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — version milestones (the V2 line is complete; the V3 roadmap is in planning).
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — version milestones (V2 complete; the V3 pillars — semantic context, multi-agent orchestration, GUI/TUI redesign — have landed, CLI polish remains).
 - `docs/specs/` · `docs/plans/` — design specs and implementation plans (split by architecture / backend / frontend).
 
 ---
