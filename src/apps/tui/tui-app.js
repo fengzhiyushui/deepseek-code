@@ -14,6 +14,12 @@ import { loadTuiPrefs, saveTuiPrefs } from "./prefs.js";
 import { SLASH_COMMANDS, filterCommands, parseSlash } from "./slash.js";
 import { showDiff } from "../../git.js";
 import { listChanges, formatChange } from "../../changes.js";
+import path from "node:path";
+import { createApiProfiles, maskKey } from "../api-profiles.js";
+import { fetchModelIds } from "../model-catalog.js";
+import { testDeepSeekConnection } from "../../provider.js";
+import { configureProject } from "../../config.js";
+import { CONFIG_ACTIONS, CONFIG_FIELDS, initialConfigState, reduceConfig, renderConfigLines } from "./config-flow.js";
 
 const CTRLC_WINDOW_MS = 3000;
 const HISTORY_CAP = 20; // 与 kernel-runner appendHistory 同语义:10 轮
@@ -29,6 +35,10 @@ export function createTuiApp({
   showDiffImpl = showDiff,
   listChangesImpl = listChanges,
   formatChangeImpl = formatChange,
+  apiProfilesImpl = null,
+  fetchModelIdsImpl = fetchModelIds,
+  testConnectionImpl = testDeepSeekConnection,
+  configureProjectImpl = configureProject,
   now = Date.now,
   spinnerMs = 120
 } = {}) {
@@ -138,12 +148,121 @@ export function createTuiApp({
     }
   }
 
+  // ── /config:共享 api-profiles 存储 + config-flow 状态机的 IO 接线 ──
+  const profilesStore = apiProfilesImpl || createApiProfiles({ dir: path.join(root, ".deepseek-code") });
+  let cfgState = null;
+
+  function syncConfigOverlay() {
+    if (!cfgState) { modalHandler = null; dispatch({ type: "overlay", overlay: null }); return; }
+    dispatch({ type: "overlay", overlay: renderConfigLines(cfgState, T, maskKey, columns()) });
+  }
+
+  function cfgDispatch(action) { cfgState = reduceConfig(cfgState, action); syncConfigOverlay(); }
+
+  async function refreshCfgProfiles() {
+    const profiles = await profilesStore.list();
+    const active = await profilesStore.getActive();
+    cfgDispatch({ type: "cfg_profiles", profiles, activeId: active ? active.id : null });
+  }
+
+  async function activateProfile(profile) {
+    try {
+      const prof = await profilesStore.activate(profile.id);
+      await configureProjectImpl(root, { apiKey: prof.apiKey, baseUrl: prof.baseUrl, ...(prof.model ? { model: prof.model } : {}) });
+      subscription?.unsubscribe?.();
+      if (ownKernel && kernel?.dispose) await kernel.dispose().catch(() => {});
+      try {
+        kernel = await createKernelImpl(root, await buildKernelOptionsImpl(root));
+        ownKernel = true;
+      } catch { kernel = null; }
+      subscribeKernel();
+      dispatch({ type: "status", patch: { model: prof.model || "" } });
+      await refreshCfgProfiles();
+      cfgDispatch({ type: "cfg_notice", notice: T("cfg.activated", { name: prof.name || prof.id }) });
+    } catch (e) { cfgDispatch({ type: "cfg_error", error: `${e?.message || e}` }); }
+  }
+
+  async function runConfigAction(name, profile) {
+    if (name === "activate") { await activateProfile(profile); return; }
+    if (name === "edit") { cfgDispatch({ type: "cfg_draft_edit", profile }); return; }
+    if (name === "models") {
+      cfgDispatch({ type: "cfg_draft_edit", profile });
+      try {
+        const models = await fetchModelIdsImpl({ baseUrl: profile.baseUrl, apiKey: profile.apiKey });
+        if (!models.length) { cfgDispatch({ type: "cfg_error", error: T("cfg.modelsEmpty") }); return; }
+        cfgDispatch({ type: "cfg_models", models });
+      } catch (e) { cfgDispatch({ type: "cfg_error", error: T("cfg.modelsFail", { err: e?.message || e }) }); }
+      return;
+    }
+    if (name === "test") {
+      try {
+        await testConnectionImpl({ apiKey: profile.apiKey, baseUrl: profile.baseUrl });
+        cfgDispatch({ type: "cfg_notice", notice: T("cfg.testOk") });
+      } catch (e) { cfgDispatch({ type: "cfg_error", error: T("cfg.testFail", { err: e?.message || e }) }); }
+      return;
+    }
+    if (name === "delete") {
+      await profilesStore.remove(profile.id);
+      await refreshCfgProfiles();
+      cfgDispatch({ type: "cfg_notice", notice: T("cfg.deleted") });
+    }
+  }
+
+  async function saveDraft() {
+    const draft = cfgState.draft;
+    const saved = await profilesStore.save(draft);
+    await refreshCfgProfiles();
+    cfgDispatch({ type: "cfg_notice", notice: T("cfg.saved", { name: saved.name || saved.id }) });
+  }
+
+  function configKeys(ev) {
+    if (!cfgState) return;
+    if (ev.type === "esc") {
+      if (cfgState.view === "list") { cfgState = null; syncConfigOverlay(); return; }
+      if (cfgState.view === "models") { cfgDispatch({ type: "cfg_view", view: "edit" }); return; }
+      cfgDispatch({ type: "cfg_view", view: "list" });
+      return;
+    }
+    if (ev.type === "up") { cfgDispatch({ type: "cfg_move", delta: -1 }); return; }
+    if (ev.type === "down") { cfgDispatch({ type: "cfg_move", delta: 1 }); return; }
+    if (ev.type === "char" || ev.type === "paste") {
+      if (cfgState.view === "edit") cfgDispatch({ type: "cfg_field_input", text: ev.text });
+      return;
+    }
+    if (ev.type === "backspace") {
+      if (cfgState.view === "edit") cfgDispatch({ type: "cfg_field_backspace" });
+      return;
+    }
+    if (ev.type !== "enter") return;
+    if (cfgState.view === "list") {
+      if (cfgState.index === cfgState.profiles.length) { cfgDispatch({ type: "cfg_draft_new" }); return; }
+      cfgDispatch({ type: "cfg_view", view: "actions" });
+      return;
+    }
+    if (cfgState.view === "actions") {
+      const profile = cfgState.profiles[cfgState.index];
+      void runConfigAction(CONFIG_ACTIONS[cfgState.actionIndex], profile);
+      return;
+    }
+    if (cfgState.view === "edit") {
+      if (cfgState.field < CONFIG_FIELDS.length - 1) { cfgDispatch({ type: "cfg_field_next" }); return; }
+      void saveDraft();
+      return;
+    }
+    if (cfgState.view === "models") { cfgDispatch({ type: "cfg_model_pick" }); return; }
+  }
+
   const diffLine = (l) =>
     l.startsWith("+") ? ` ${color.green(l)}` : l.startsWith("-") ? ` ${color.red(l)}` : ` ${color.dim(l)}`;
 
   const SLASH_HANDLERS = {
     help: async () => {
       pushLines([...activeCommands().map((c) => `  /${c.name.padEnd(9)} ${color.dim(T(c.descKey))}`), ""]);
+    },
+    config: async () => {
+      cfgState = initialConfigState({ profiles: await profilesStore.list(), activeId: (await profilesStore.getActive())?.id || null });
+      modalHandler = configKeys;
+      syncConfigOverlay();
     },
     lang: async (arg) => {
       const next = arg === "en" || arg === "zh" ? arg : (state.lang === "zh" ? "en" : "zh");

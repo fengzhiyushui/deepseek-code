@@ -1,6 +1,7 @@
 // src/apps/tui/slash.js — slash 命令注册表与解析(纯)。执行器在 tui-app 闭包里。
 export const SLASH_COMMANDS = [
   { name: "help", descKey: "slash.help.desc" },
+  { name: "config", descKey: "slash.config.desc" },
   { name: "diff", descKey: "slash.diff.desc" },
   { name: "changes", descKey: "slash.changes.desc" },
   { name: "mode", descKey: "slash.mode.desc" },

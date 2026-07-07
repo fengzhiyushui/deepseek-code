@@ -2,15 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SLASH_COMMANDS, filterCommands, parseSlash } from "../../../src/apps/tui/slash.js";
 
-test("registry holds the M5 command set (config comes in M6)", () => {
+test("registry holds the command set", () => {
   assert.deepEqual(SLASH_COMMANDS.map((c) => c.name),
-    ["help", "diff", "changes", "mode", "lang", "clear", "recovery", "quit"]);
+    ["help", "config", "diff", "changes", "mode", "lang", "clear", "recovery", "quit"]);
   for (const c of SLASH_COMMANDS) assert.match(c.descKey, /^slash\./);
 });
 
 test("filterCommands prefix-matches", () => {
   assert.deepEqual(filterCommands("").map((c) => c.name), SLASH_COMMANDS.map((c) => c.name));
-  assert.deepEqual(filterCommands("c").map((c) => c.name), ["changes", "clear"]);
+  assert.deepEqual(filterCommands("c").map((c) => c.name), ["config", "changes", "clear"]);
   assert.deepEqual(filterCommands("zzz"), []);
 });
 
