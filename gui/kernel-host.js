@@ -8,6 +8,11 @@ function loadApiProfilesMod() {
   if (!apiProfilesModPromise) apiProfilesModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "apps", "api-profiles.js")).href);
   return apiProfilesModPromise;
 }
+let modelCatalogModPromise = null;
+function loadModelCatalogMod() {
+  if (!modelCatalogModPromise) modelCatalogModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "apps", "model-catalog.js")).href);
+  return modelCatalogModPromise;
+}
 
 let configModPromise = null;
 function loadConfigMod() {
@@ -457,16 +462,8 @@ function createKernelHost({
       baseUrl = baseUrl || (prof && prof.baseUrl);
       apiKey = apiKey || (prof && prof.apiKey);
     }
-    if (!apiKey) throw new Error("no API key configured");
-    const url = `${String(baseUrl || "https://api.deepseek.com").replace(/\/+$/, "")}/models`;
-    const fetchImpl = opts.fetchImpl || globalThis.fetch;
-    const res = await fetchImpl(url, { headers: { Authorization: `Bearer ${apiKey}` } });
-    if (!res.ok) {
-      const detail = res.text ? await res.text().catch(() => "") : "";
-      throw new Error(`models fetch failed: ${res.status} ${detail}`.trim());
-    }
-    const body = await res.json();
-    return (body.data || []).map((m) => m.id).filter(Boolean);
+    const m = await loadModelCatalogMod();
+    return m.fetchModelIds({ baseUrl, apiKey, fetchImpl: opts.fetchImpl });
   }
   async function testConnection(profileId) {
     const prof = profileId ? (await apiProfiles.list()).find((p) => p.id === profileId) : await apiProfiles.getActive();
