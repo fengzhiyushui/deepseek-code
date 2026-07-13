@@ -1,6 +1,6 @@
 {
   "name": "deepseek-code",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A local DeepSeek-powered coding agent CLI.",
   "type": "module",
   "bin": {

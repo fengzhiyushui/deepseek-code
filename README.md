@@ -2,11 +2,12 @@
 
 **简体中文** · [English](./README.en.md)
 
+![version](https://img.shields.io/badge/version-v1.0.0-blue.svg)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)
 ![deps](https://img.shields.io/badge/core%20runtime%20deps-0-success.svg)
 
-> 面向 DeepSeek 的本地 AI 编程 Agent —— **CLI · TUI · 桌面 GUI**,统一构建在同一个 V2 内核之上。
+> 面向 DeepSeek 的本地 AI 编程 Agent —— **CLI · TUI · 桌面 GUI**,统一构建在同一个内核之上。
 
 DeepSeek Code 在你的项目目录里运行,读代码、改代码、跑测试,并把每一步模型调用、工具执行、文件改动和审批都记录成可回放的会话时间线。它直连 DeepSeek 模型,只需 Node ≥ 20 和一个 API Key 即可使用。
 
@@ -16,7 +17,7 @@ DeepSeek Code 在你的项目目录里运行,读代码、改代码、跑测试,�
 
 ## ✨ 特性
 
-- **统一内核** —— CLI / TUI / GUI 共用一个 V2 Kernel:一个 Agent runtime、一条工具执行路径、一套编辑/回滚服务、一条会话时间线。
+- **统一内核** —— CLI / TUI / GUI 共用一个内核:一个 Agent runtime、一条工具执行路径、一套编辑/回滚服务、一条会话时间线。
 - **事务化编辑与回滚** —— 改文件前建快照,失败可回滚;每次变更都有 change id,可 `changes` 查看、`rollback` 撤销。
 - **验证-修复闭环** —— 应用变更后自动验证,必要时进入修复回合。
 - **上下文引擎** —— 项目文件按相关度分层 + token 预算 + 快照缓存,把对的代码喂给模型。
@@ -191,7 +192,7 @@ git diff --check    # 检查行尾 / 冲突标记
 
 - **[`docs/project-overview.md`](docs/project-overview.md)** —— 项目深入说明(架构 / 工具 / 编辑 / 恢复 / 安全 / 事件 / 目录)。
 - [`docs/README.md`](docs/README.md) —— 文档中心:索引 + 维护规范。
-- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) —— 版本里程碑(V2 主线已收尾;V3 三支柱——语义上下文、多智能体编排、GUI/TUI 重构——已落地,余 CLI 打磨)。
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) —— 版本日志(当前 **v1.0.0**,整合此前 V1/V2/V3 全部迭代;自 v1.0.0 起语义化版本)。
 - `docs/specs/` · `docs/plans/` —— 设计文档与实施计划(按 architecture / backend / frontend 划分)。
 
 ---

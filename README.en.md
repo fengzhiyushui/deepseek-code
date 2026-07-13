@@ -2,11 +2,12 @@
 
 [简体中文](./README.md) · **English**
 
+![version](https://img.shields.io/badge/version-v1.0.0-blue.svg)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)
 ![deps](https://img.shields.io/badge/core%20runtime%20deps-0-success.svg)
 
-> A local AI coding agent for DeepSeek — **CLI · TUI · desktop GUI**, all built on one V2 kernel.
+> A local AI coding agent for DeepSeek — **CLI · TUI · desktop GUI**, all built on one kernel.
 
 DeepSeek Code runs inside your project directory: it reads code, edits code, runs tests, and records every model call, tool execution, file change, and approval as a replayable session timeline. It talks to DeepSeek models directly, and all you need is Node ≥ 20 and an API key.
 
@@ -16,7 +17,7 @@ DeepSeek Code runs inside your project directory: it reads code, edits code, run
 
 ## ✨ Features
 
-- **Unified kernel** — CLI / TUI / GUI share one V2 Kernel: one agent runtime, one tool-execution path, one edit/rollback service, one session timeline.
+- **Unified kernel** — CLI / TUI / GUI share one kernel: one agent runtime, one tool-execution path, one edit/rollback service, one session timeline.
 - **Transactional edits & rollback** — snapshots before writing, rollback on failure; every change gets a change id you can inspect with `changes` and undo with `rollback`.
 - **Verify-repair loop** — changes are verified after they apply, with a repair round when needed.
 - **Context engine** — project files ranked into relevance tiers + a token budget + snapshot caching, so the model sees the right code.
@@ -191,7 +192,7 @@ The doc-maintenance order (code → specs/plans → project-overview → CHANGEL
 
 - **[`docs/project-overview.md`](docs/project-overview.md)** — in-depth project guide (architecture / tools / edits / recovery / security / events / layout), in Chinese.
 - [`docs/README.md`](docs/README.md) — documentation hub: index + maintenance rules.
-- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — version milestones (V2 complete; the V3 pillars — semantic context, multi-agent orchestration, GUI/TUI redesign — have landed, CLI polish remains).
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — version log (currently **v1.0.0**, consolidating all prior V1/V2/V3 iterations; semantic versioning from v1.0.0 onward).
 - `docs/specs/` · `docs/plans/` — design specs and implementation plans (split by architecture / backend / frontend).
 
 ---
