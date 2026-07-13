@@ -127,6 +127,7 @@ gui/src/state/
 
 - **别名兜底集中一处**:`name` = `call?.name || tool?.name || tool`;`changeId` = `change_id || record?.id`;`files` = `Array.isArray(files)&&length ? files : (Array.isArray(summary)?summary:[])`,再逐项归一 `{status:status||"M", path:path||file||null, added:Number.isFinite?…:null, removed:…}`。
 - **缺失一律 `null`**(不是 `""`、不是 `0`、不是 `"unknown"`)。表现层决定把 `null` 显示成什么。
+- **两处刻意的展示默认(非 "missing→null" 违例,已评审确认)**:①`normFiles` 的 `status` 缺失回退 `"M"`(Modified)——diff 每行必带状态字形,三端原渲染器本就默认 `"M"`,契约沿用以保逐字节一致;②`verification.pass` 是**三态** `true|false|null`:有 `pass` 布尔或状态含 `passed/pass`→`true`,`failed/fail/error`→`false`,**无任何信号→`null`**(未知≠失败)。除这两处外,所有 `fields` 缺失均为 `null`。
 - `describeEvent` 对**任意畸形输入(null / 非对象 / 缺 type)**返回 `{kind:"other", sourceType:"", severity:"info", quiet:true, fields:{}}`,绝不抛错。
 
 ---

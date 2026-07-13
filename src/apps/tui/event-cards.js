@@ -15,20 +15,11 @@ function clip(value, max = 48) {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-function argsHint(args) {
-  if (!args || typeof args !== "object") return "";
-  for (const key of ["path", "file", "pattern", "command", "query", "url"]) {
-    if (args[key]) return clip(args[key]);
-  }
-  return "";
-}
-
-function fileRows(event) {
-  const entries = (Array.isArray(event.files) && event.files.length ? event.files : event.summary) || [];
-  if (!Array.isArray(entries)) return [];
+function fileRows(files) {
+  const entries = Array.isArray(files) ? files : [];
   return entries.map((e) => {
     const status = e.status || "M";
-    const path = e.path || e.file || "?";
+    const path = e.path || "?";
     const counts = [
       Number.isFinite(e.added) ? color.green(`+${e.added}`) : "",
       Number.isFinite(e.removed) ? color.red(`−${e.removed}`) : ""
@@ -39,13 +30,14 @@ function fileRows(event) {
 
 export function eventToLines(event = {}, t) {
   const type = event.type || "";
+  const f = describeEvent(event).fields;
   if (type === "tool:call") {
-    const name = event.call?.name || event.tool?.name || event.tool || "?";
-    const hint = argsHint(event.call?.args || event.call?.arguments);
+    const name = f.name || "?";
+    const hint = f.argHint ? clip(f.argHint) : "";
     return [` ${color.dim("┌")} tool ▸ ${color.bold(name)}${hint ? ` ${color.dim(hint)}` : ""}`];
   }
   if (type === "tool:result") {
-    const status = event.result?.status || event.status || "?";
+    const status = f.status || "?";
     const mark = status === "ok" ? color.green(t("ev.toolOk")) : color.red(String(status));
     return [` ${color.dim("└")} ${mark}`];
   }
@@ -64,22 +56,22 @@ export function eventToLines(event = {}, t) {
   }
   if (type === "file:diff_applied") {
     return [
-      ` ${color.dim("┌─")} diff · ${color.cyan(event.change_id || event.record?.id || "?")}`,
-      ...fileRows(event),
+      ` ${color.dim("┌─")} diff · ${color.cyan(f.changeId || "?")}`,
+      ...fileRows(f.files),
       ` ${color.dim("└─")}`
     ];
   }
   if (type === "file:rollback_applied") {
-    return [` ${color.yellow(`↺ ${t("ev.rollback")} ${event.change_id || event.record?.id || ""}`)}`];
+    return [` ${color.yellow(`↺ ${t("ev.rollback")} ${f.changeId || ""}`)}`];
   }
   if (type === "verification:result") {
-    return [` ${color.dim(`· ${t("ev.verify")} ${event.result?.status || event.status || "?"}`)}`];
+    return [` ${color.dim(`· ${t("ev.verify")} ${f.status || "?"}`)}`];
   }
   if (type.startsWith("repair:")) {
     return [` ${color.dim(`· ${t("ev.repair")} ${type.slice("repair:".length)}`)}`];
   }
   if (type === "orchestration:route_resolved") {
-    return [` ${color.dim(`· ${t("ev.route")} ▸ ${event.lane || event.route || ""}`)}`];
+    return [` ${color.dim(`· ${t("ev.route")} ▸ ${f.lane || ""}`)}`];
   }
   if (type === "orchestration:subtask_started") {
     const f = describeEvent(event).fields;

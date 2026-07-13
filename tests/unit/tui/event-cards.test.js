@@ -57,6 +57,8 @@ test("orchestration subtask start/review render distinct cards", () => {
   assert.match(flat({ type: "orchestration:subtask_reviewed", subtask_id: "s1", pass: false, severity: "high" }), /审核.*未通过/);
 });
 
-test("existing orchestration one-liners still render (planned/replanned)", () => {
-  assert.match(flat({ type: "orchestration:planned", subtasks: 3 }), /orch|plan|子任务|round|3/);
+test("orchestration planned/round/replanned render meaningful summaries", () => {
+  assert.match(flat({ type: "orchestration:planned", subtasks: 3 }), /orch ▸ planned/);
+  assert.match(flat({ type: "orchestration:round_started", round: 2, subtasks: 4 }), /orch ▸ round_started/);
+  assert.match(flat({ type: "orchestration:replanned", round: 3, new_subtasks: 2 }), /orch ▸ replanned/);
 });

@@ -9,7 +9,11 @@ function plural(n, unit) {
 function orchestrationSummary(d) {
   const f = d.fields;
   switch (d.kind) {
-    case "orchestration-route": return "routing: multi-agent";
+    case "orchestration-route": {
+      if (f.lane === "single") return "routing: single-agent";
+      if (f.lane === "orchestrate" || !f.lane) return "routing: multi-agent";
+      return `routing: ${f.lane}`;
+    }
     case "orchestration-plan": return `plan: ${plural(f.subtasks ?? 0, "subtask")}`;
     case "orchestration-round-start": return `round ${f.round ?? 0}: ${plural(f.subtasks ?? 0, "subtask")}`;
     case "orchestration-replan": return `replan round ${f.round ?? 0}: ${plural(f.newSubtasks ?? 0, "new subtask")}`;
@@ -35,14 +39,14 @@ export function summarizeKernelEvent(event = {}) {
   if (d.kind === "experience-retrieved") return `experience: ${d.fields.count ?? 0} recalled`;
 
   if (event.type === "user:message") return `user ${clip(event.content || "")}`;
-  if (event.type === "tool:call") return `tool ${event.call?.name || event.tool?.name || event.tool || "unknown"}`;
-  if (event.type === "tool:result") return `tool result ${event.result?.status || event.status || "unknown"}`;
+  if (event.type === "tool:call") return `tool ${d.fields.name || "unknown"}`;
+  if (event.type === "tool:result") return `tool result ${d.fields.status || "unknown"}`;
   if (event.type === "permission:decision") return `permission ${event.permission?.decision || event.decision || "unknown"}`;
   if (event.type === "approval:requested") return `approval ${event.approval?.id || "unknown"} ${clip(event.approval?.summary || "")}`.trim();
   if (event.type === "file:diff_preview") return `diff preview ${event.summary || event.diff_hash || ""}`.trim();
-  if (event.type === "file:diff_applied") return `diff applied ${event.change_id || event.record?.id || ""}`.trim();
-  if (event.type === "file:rollback_applied") return `rollback ${event.change_id || event.record?.id || ""}`.trim();
-  if (event.type === "verification:result") return `verification ${event.result?.status || event.status || "unknown"}`;
+  if (event.type === "file:diff_applied") return `diff applied ${d.fields.changeId || ""}`.trim();
+  if (event.type === "file:rollback_applied") return `rollback ${d.fields.changeId || ""}`.trim();
+  if (event.type === "verification:result") return `verification ${d.fields.status || "unknown"}`;
   if (event.type === "agent:final") return `final ${clip(event.content || "")}`.trim();
   if (event.type === "agent:error") return `error ${clip(event.message || event.error || "")}`.trim();
   if (event.type === "session:branch_created") return `branch created ${event.branch_id || "unknown"}`;

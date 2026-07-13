@@ -8,20 +8,20 @@ export function deriveAgentCards(activity) {
   let planCard = null;
   for (const e of activity || []) {
     const type = e && e.type;
+    const f = describeEvent(e).fields;
     if (type === "orchestration:planned" || type === "orchestration:round_started" || type === "orchestration:replanned") {
       if (!planCard) { planCard = { kind: "plan", subtasks: 0, round: 0 }; cards.push(planCard); }
-      if (typeof e.subtasks === "number") planCard.subtasks = e.subtasks;
-      if (typeof e.new_subtasks === "number") planCard.subtasks = e.new_subtasks;
-      if (typeof e.round === "number") planCard.round = e.round;
+      if (typeof f.subtasks === "number") planCard.subtasks = f.subtasks;
+      if (typeof f.newSubtasks === "number") planCard.subtasks = f.newSubtasks;
+      if (typeof f.round === "number") planCard.round = f.round;
     } else if (type === "tool:call") {
-      const card = { kind: "tool", id: e.id, tool: e.tool || e.name || "tool", status: "running" };
+      const card = { kind: "tool", id: e.id, tool: f.name || "tool", status: "running" };
       toolIndex.set(e.id, card);
       cards.push(card);
     } else if (type === "tool:result") {
       const card = toolIndex.get(e.id);
-      if (card) card.status = e.status === "error" ? "error" : "ok";
+      if (card) card.status = f.status === "error" ? "error" : "ok";
     } else if (type === "file:diff_applied" || type === "file:diff_preview") {
-      const f = describeEvent(e).fields;
       const paths = (f.files || []).map((x) => x.path).filter(Boolean);
       cards.push({
         kind: "diff",
@@ -31,7 +31,7 @@ export function deriveAgentCards(activity) {
         applied: type === "file:diff_applied"
       });
     } else if (type === "verification:result") {
-      cards.push({ kind: "test", pass: Boolean(e.pass) });
+      cards.push({ kind: "test", pass: Boolean(f.pass) });
     }
   }
   return cards;

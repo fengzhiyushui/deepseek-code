@@ -66,8 +66,11 @@ export function describeEvent(event) {
   if (type === "file:rollback_applied") return d("rollback", src, "warn", false, { changeId: changeId(event) });
   if (type === "verification:result") {
     const status = str(event.result?.status) || str(event.status);
-    const pass = typeof event.pass === "boolean" ? event.pass : (status === "passed" || status === "pass");
-    return d("verification", src, (status === "passed" || pass) ? "success" : "warn", false, { status, pass });
+    const pass = typeof event.pass === "boolean" ? event.pass
+      : (status === "passed" || status === "pass") ? true
+      : (status === "failed" || status === "fail" || status === "error") ? false
+      : null;
+    return d("verification", src, (status === "passed" || pass === true) ? "success" : "warn", false, { status, pass });
   }
   if (type.startsWith("repair:")) return d("repair", src, "info", false, { phase: type.slice("repair:".length) });
 

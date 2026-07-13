@@ -128,3 +128,9 @@ test("experience:retrieved printed only when count>0", () => {
   renderer({ type: "experience:retrieved", count: 2, tiers: ["T1", "T2"] });
   assert.deepEqual(lines, ["- experience: 2 recalled"]);
 });
+
+test("orchestration route respects lane: single vs orchestrate", () => {
+  assert.equal(summarizeKernelEvent({ type: "orchestration:route_resolved", lane: "single" }), "routing: single-agent");
+  assert.equal(summarizeKernelEvent({ type: "orchestration:routed", lane: "orchestrate" }), "routing: multi-agent");
+  assert.equal(summarizeKernelEvent({ type: "orchestration:routed" }), "routing: multi-agent");
+});
