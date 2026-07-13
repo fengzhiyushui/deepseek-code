@@ -50,3 +50,13 @@ test("misc one-liners", () => {
   assert.match(flat({ type: "recovery:blocked", reason: "orphan", item_id: "x1" }), /恢复 blocked orphan x1/);
   assert.match(flat({ type: "some:new_thing" }), /· some:new_thing/);
 });
+
+test("orchestration subtask start/review render distinct cards", () => {
+  assert.match(flat({ type: "orchestration:subtask_started", subtask_id: "s1", attempt: 1, tool_profile: "edit" }), /子任务 s1/);
+  assert.match(flat({ type: "orchestration:subtask_reviewed", subtask_id: "s1", pass: true }), /审核.*通过/);
+  assert.match(flat({ type: "orchestration:subtask_reviewed", subtask_id: "s1", pass: false, severity: "high" }), /审核.*未通过/);
+});
+
+test("existing orchestration one-liners still render (planned/replanned)", () => {
+  assert.match(flat({ type: "orchestration:planned", subtasks: 3 }), /orch|plan|子任务|round|3/);
+});

@@ -1,6 +1,7 @@
 // src/apps/tui/event-cards.js — kernel 事件 → 已着色卡片行。纯函数;负载全部防御式读取。
 // user:message / agent:final / agent:error 静默:用户行与终态行由 app 从 send() 结果路径打印,避免重复。
 import { color } from "../../theme.js";
+import { describeEvent } from "../event-contract.js";
 
 export const QUIET = new Set([
   "model:request", "model:response", "agent:step", "agent:turn_started",
@@ -79,6 +80,16 @@ export function eventToLines(event = {}, t) {
   }
   if (type === "orchestration:route_resolved") {
     return [` ${color.dim(`· ${t("ev.route")} ▸ ${event.lane || event.route || ""}`)}`];
+  }
+  if (type === "orchestration:subtask_started") {
+    const f = describeEvent(event).fields;
+    const prof = f.toolProfile ? color.dim(` (${f.toolProfile})`) : "";
+    return [` ${color.dim(`· ${t("ev.subtaskStart")} ${f.subtaskId || "?"}`)}${prof}`];
+  }
+  if (type === "orchestration:subtask_reviewed") {
+    const f = describeEvent(event).fields;
+    const verdict = f.pass ? color.green(t("ev.reviewPass")) : color.red(t("ev.reviewFail"));
+    return [` ${color.dim(`· ${t("ev.subtaskReview")} ${f.subtaskId || "?"} `)}${verdict}`];
   }
   if (type.startsWith("orchestration:")) {
     return [` ${color.dim(`· orch ▸ ${type.slice("orchestration:".length)}`)}`];
