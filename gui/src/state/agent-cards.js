@@ -1,5 +1,7 @@
 // Fold the workbench activity event stream into agent-panel card view-models.
-// Pure — node:test-covered. Real cards replace the D-1 sample preview once events arrive.
+// Pure — node:test-covered. 字段归一走共享事件展示契约(src/apps/event-contract.js),避免第 4 份并行读法。
+import { describeEvent } from "../../../src/apps/event-contract.js";
+
 export function deriveAgentCards(activity) {
   const cards = [];
   const toolIndex = new Map();
@@ -19,12 +21,11 @@ export function deriveAgentCards(activity) {
       const card = toolIndex.get(e.id);
       if (card) card.status = e.status === "error" ? "error" : "ok";
     } else if (type === "file:diff_applied" || type === "file:diff_preview") {
-      const paths = Array.isArray(e.files) && e.files.length
-        ? e.files.filter((p) => typeof p === "string")
-        : (Array.isArray(e.summary) ? e.summary.map((s) => s && s.path).filter(Boolean) : []);
+      const f = describeEvent(e).fields;
+      const paths = (f.files || []).map((x) => x.path).filter(Boolean);
       cards.push({
         kind: "diff",
-        changeId: e.change_id || null,
+        changeId: f.changeId,
         path: paths[0] || "",
         fileCount: paths.length,
         applied: type === "file:diff_applied"

@@ -61,7 +61,7 @@ export function describeEvent(event) {
   if (type === "approval:requested") return d("approval", src, "warn", false, { id: str(event.approval?.id), summary: str(event.approval?.summary) });
   if (type === "approval:resolved") return d("approval-resolved", src, "info", false, { decision: str(event.decision) || str(event.approval?.decision) });
 
-  if (type === "file:diff_preview") return d("diff-preview", src, "info", false, { summaryText: str(event.summary_text), diffHash: str(event.diff_hash) });
+  if (type === "file:diff_preview") return d("diff-preview", src, "info", false, { summaryText: str(event.summary_text), diffHash: str(event.diff_hash), changeId: changeId(event), files: normFiles(event) });
   if (type === "file:diff_applied") return d("diff", src, "success", false, { changeId: changeId(event), files: normFiles(event) });
   if (type === "file:rollback_applied") return d("rollback", src, "warn", false, { changeId: changeId(event) });
   if (type === "verification:result") {

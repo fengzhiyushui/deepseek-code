@@ -84,3 +84,10 @@ test("unknown event falls back to other with sourceType preserved", () => {
   assert.equal(d.kind, "other");
   assert.equal(d.sourceType, "some:new_thing");
 });
+
+test("file:diff_preview carries changeId(null) and normalized files for gui card", () => {
+  const d = describeEvent({ type: "file:diff_preview", summary: [{ path: "src/x.js", status: "modify" }] });
+  assert.equal(d.kind, "diff-preview");
+  assert.equal(d.fields.changeId, null);
+  assert.equal(d.fields.files[0].path, "src/x.js");
+});
