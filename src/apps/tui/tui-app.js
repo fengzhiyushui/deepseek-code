@@ -314,8 +314,11 @@ export function createTuiApp({
         } else if (action === "cancel" && id) {
           const res = await kernel.recovery.cancel(id);
           pushLines([` ${T("ev.recovery")} cancel ${id}: ${res?.status || "ok"}`, ""]);
+        } else if (action === "clear" && id) {
+          const res = await kernel.recovery.clear(id);
+          pushLines([` ${T("ev.recovery")} clear ${id}: ${res?.status || "ok"}`, ""]);
         } else {
-          pushLines([` ${color.dim("/recovery [resume|cancel] <id>")}`, ""]);
+          pushLines([` ${color.dim("/recovery [resume|cancel|clear] <id>")}`, ""]);
         }
       } catch (e) { pushLines([` ${color.red(T("ev.error"))}: ${e?.message || e}`, ""]); }
     },
