@@ -12,9 +12,15 @@
 ### 规划中 — V3 路线图
 - **支柱①语义级上下文**:✅ 已落地(Phase B / B+1 / B+3,opt-in 默认关,见下)——AST/符号级检索 + 依赖图 + 方法消歧 + 多语言(JS/TS/Python)。
 - **支柱②多智能体调度**:✅ 已落地(C1–C5 / C-Router / C4 / C-Durable 全收官,见下)——统一入口路由 + 两级审核 + 并行写隔离 + 重规划续跑 + 跨任务经验记忆(默认关)+ 编排级 durable 恢复(默认关)。
-- **支柱③前端三端重构**:GUI 迁 React + Vite(**原创手写 VS Code 风格设计系统,不用 Semi UI 等成品组件库**;库只用 Monaco/xterm 等引擎)+ **双语 zh/en 默认中文**;GUI(D-1–D-4)与 TUI 重设计(D-5)已落地(见下),余 CLI 打磨。
+- **支柱③前端三端重构**:✅ 已落地(D-1–D-5 + D-G4 CLI 对齐,见下)——GUI 迁 React + Vite(**原创手写 VS Code 风格设计系统,不用 Semi UI 等成品组件库**;库只用 Monaco/xterm 等引擎)+ **双语 zh/en 默认中文**;三端事件展示经共享契约归一。
 - **V2 收尾**:✅ 已完成(2026-06-25)——V2-18 持久化恢复(a/b/c)、V2-19 删 V1 legacy、V2-20a–f 运行护栏;详见下方「已落地」。
 - 设计文档:[`specs/architecture/2026-06-24-v3-roadmap-design.md`](specs/architecture/2026-06-24-v3-roadmap-design.md)、[`specs/backend/2026-06-24-agent-layered-memory-design.md`](specs/backend/2026-06-24-agent-layered-memory-design.md)。
+
+### 已落地 — Phase D-G4 CLI 对齐(共享事件展示契约 / 多 agent 摘要 / /recovery CLI-TUI 对齐)
+- **共享事件展示契约(三端共用)**:新建纯模块 `src/apps/event-contract.js` 的 `describeEvent(event)` → 归一化描述符 `{kind, sourceType, severity, quiet, fields}`,作为「内核事件 → 展示语义」的唯一语义源(明确**非** core 事件生产契约)。CLI `render-events`、TUI `event-cards`、GUI `agent-cards` 三个渲染器降为薄适配层——所有 `event.call?.name || event.tool?.name`、`change_id || record?.id`、`files ?? summary` 这类防御式读字段逻辑收敛一处,**根治问题 #5(事件→展示逻辑并行实现)于受支持 ESM 路径**;字段缺失统一归一为 `null`,措辞/颜色/i18n 各端自持。
+- **CLI 多 agent 摘要(补缺失)**:CLI 此前对 `orchestration:*` / `experience:retrieved` 全无分支、打成裸类型串;现补齐可读摘要(`plan: N subtasks` / `round N: N subtasks` / `subtask <id>: starting (attempt N, profile <p>)` / `subtask <id>: review passed|failed (severity: <lv>)` / `replan round N: N new subtasks` / `orchestration complete: N succeeded, N failed (status: <s>)` / `experience: N recalled` 仅非零)。单复数、无空括号/悬空逗号、passed/failed 字面、`reviewSeverity` 与顶层 severity 区分,均由测试钉死。
+- **/recovery CLI/TUI 对齐**:TUI `/recovery` 补 `clear <id>`,与 CLI 平齐(CLI 已 resume/cancel/clear)。`clear` 非破坏性(inbox 软标记 `cleared`、拒 blocked 项),与 CLI 同策略无二次确认;含 help/补全 desc、参数校验、成功/失败、zh/en 用例。GUI recovery UI 仍属 D-G7,不在本轮。
+- **kernel `src/core`/`src/index.js` diff 为空**(纯展示层改造)。休眠 UMD fallback `gui/renderer/` 保留自有基础事件副本(不消费编排事件),列补救文档 P2 后续项,故 #5 **未标「完全解决」**。测试 **931 全绿**(+19:契约 11 / CLI 3 / TUI event-cards 2 / TUI recovery 3)、check OK。计划:[`plans/frontend/2026-07-12-v3-phase-dg4-cli-alignment.md`](plans/frontend/2026-07-12-v3-phase-dg4-cli-alignment.md);设计:[`specs/frontend/2026-07-12-v3-phase-dg4-cli-alignment-design.md`](specs/frontend/2026-07-12-v3-phase-dg4-cli-alignment-design.md);audit 补救:[`specs/backend/2026-07-12-agent-findings-remediation.md`](specs/backend/2026-07-12-agent-findings-remediation.md)。
 
 ### 已落地 — Phase D-5 TUI 重设计(行内滚动流 agent 会话 / slash 命令 / 共享 API 配置)
 - **菜单循环 → claude code 式行内滚动流**:`src/tui.js` 568 行菜单版整体重写为薄入口 + `src/apps/tui/` 十模块(手写 ANSI/VT)。历史消息 println 进终端**原生滚动区**(滚轮/复制/搜索原生可用),仅底部(流式预览/分隔线/补全菜单/输入行/状态栏)固定重绘;输入行支持光标编辑/输入历史/括号粘贴,CJK 宽度按 2 列对齐;reducer 判定无变化不重绘(无空转刷屏)。

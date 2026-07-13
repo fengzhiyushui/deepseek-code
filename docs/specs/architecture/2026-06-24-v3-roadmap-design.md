@@ -214,6 +214,7 @@ D-G3 Agent-aware 编辑器(轻量,拆细降风险)
      ✗ 不做:LSP · Debugger · 插件 · node-pty · 复杂 Git 图 · Monaco
 
 D-G4 CLI 对齐:render-events 吃同一契约 · /recovery 走同一 facade · 多 agent 摘要
+     # ✅ 2026-07-12 落地:共享事件展示契约 src/apps/event-contract.js 三端共用(收敛问题 #5 于受支持 ESM 路径)+ CLI 多 agent 摘要 + /recovery CLI/TUI 对齐;GUI recovery UI 仍属 D-G7。
 D-G5 输出终端:xterm 渲染 tool:result,不接交互式 PTY(避开 node-pty Windows 大坑)
 D-G6 TUI 对齐:分支/检查点/审批/恢复,与 CLI/GUI 术语能力齐平
 D-G7 Recovery Center 完整检查器:事务/阻塞/保留产物/恢复动作(收 V2-18 Task 13)

@@ -251,7 +251,7 @@ src/
   context/        context-unit · token-budget · workspace-indexer · context-selector · context-snapshot · context-manifest · context-cache
   workspace/      path-safety
   security/       shell-policy · ssrf · redactor
-  apps/           kernel-options · api-profiles(GUI/TUI 共享 API 列表)· model-catalog · cli/(render-events · kernel-runner)· tui/(D-5 行内滚动流 TUI 十模块,见 §16)
+  apps/           kernel-options · api-profiles(GUI/TUI 共享 API 列表)· model-catalog · event-contract(三端共享事件展示契约,见 §16)· cli/(render-events · kernel-runner)· tui/(D-5 行内滚动流 TUI 十模块,见 §16)
   shared/         id · time · event-bus
   (顶层)         cli.js · config.js · context.js · git.js · patch.js · changes.js · provider.js · search.js · theme.js · tui.js(D-5 薄入口)
 gui/              Electron:main.js · preload.js · kernel-host.js(+ 文件桥 listTree/readFile)· pty-host.js(node-pty)· src/(React+Vite 手写 VS Code 风格渲染层:components/hooks/state/i18n,Monaco 可编辑(`Ctrl/⌘+S` 经 editService)+ xterm 终端,无第三方 UI 套件,中英双语)· renderer/*(旧原生,休眠回退)· mockups/(设计基准)· vite.renderer.config.mjs
@@ -439,4 +439,9 @@ Electron 桌面端(`gui/`),React + Vite 渲染层,**原创手写 VS Code 风格 
 - **/config 与 GUI 共享一套 API 列表**:`src/apps/api-profiles.js`(原 `gui/api-profiles.js` ESM 化迁入,存储文件名 `gui-api-profiles.json` 保留兼容)+ `src/apps/model-catalog.js`(`GET {baseUrl}/models`,fetch 可注入),GUI kernel-host 改动态 import 复用、行为不变。TUI 内增/删/改/激活/拉模型(**不设默认、失败红字**)/连接测试;**激活 = activate → `configureProject` 写 config.json → dispose 旧自建 kernel → 重建 → 重订阅,对话上下文保留**,状态栏模型名即时刷新。
 - **安全不变量**:密钥明文只落 `.deepseek-code/`(随仓忽略);TUI 渲染路径(滚动区/状态栏/卡片/编辑回显)只出现掩码(`maskKey` 列表掩码、编辑框 `•` 逐字符),密钥不进对话 history;任何退出路径(含异常)恢复终端态(cooked mode/光标/颜色/括号粘贴关闭)。
 - **测试策略**:纯层全 node:test;`tui-app` 以注入 PassThrough 流 + mock kernel 做全链路测试(流式回合/审批 y·Esc/slash 补全/config 增改激活重建/双语/Ctrl+C 退出与终端恢复),**不依赖真 pty**;**门控真 pty smoke**(检测 `gui/node_modules/node-pty`,未装优雅 skip):启动 offline → `/help` 渲染 → `/quit`,以 pasteOff 序列断言终端态恢复。
+
+### 16.1 三端共享事件展示契约(D-G4)
+
+`src/apps/event-contract.js` 的 `describeEvent(event)` 是**内核事件 → 展示语义**的唯一映射源(明确**非** core 的事件生产契约,后者由 `src/sessions/event-types.js` 负责),输出归一化描述符 `{ kind, sourceType, severity, quiet, fields }`:`kind` 为展示类别(编排类带 `orchestration-` 前缀)、`sourceType` 保原始 `type` 供 `other` 忠实回退、`quiet` 是默认可见性提示(非丢弃)、`fields` 按 kind 区分且缺失一律 `null`。三端渲染器(CLI `render-events`、TUI `event-cards`、GUI `agent-cards`)均降为薄适配层,只读描述符字段、各自决定措辞/颜色/i18n——所有 `call?.name || tool?.name`、`change_id || record?.id`、`files ?? summary` 的防御式读法收敛一处。CLI 由此补齐此前缺失的多 agent(orchestration/experience)摘要;TUI `/recovery` 补 `clear` 与 CLI 平齐。**边界**:纯函数、任意输入不抛错、`src/core`/`src/index.js` 零改动;休眠 UMD 渲染层 `gui/renderer/` 未纳入契约(不消费编排事件,列后续项)。
+
 
