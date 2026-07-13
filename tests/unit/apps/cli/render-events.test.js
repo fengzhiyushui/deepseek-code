@@ -101,3 +101,30 @@ test("renderer summarizes recovery events without payload leaks", () => {
   assert.ok(lines.some((line) => line.includes("rehydrated approval approval_456")));
   assert.equal(lines.join("\n").includes("resume_state"), false);
 });
+
+test("summarizeKernelEvent renders multi-agent orchestration summaries", () => {
+  assert.equal(summarizeKernelEvent({ type: "orchestration:routed", lane: "orchestrate" }), "routing: multi-agent");
+  assert.equal(summarizeKernelEvent({ type: "orchestration:planned", subtasks: 1 }), "plan: 1 subtask");
+  assert.equal(summarizeKernelEvent({ type: "orchestration:planned", subtasks: 3 }), "plan: 3 subtasks");
+  assert.equal(summarizeKernelEvent({ type: "orchestration:round_started", round: 2, subtasks: 1 }), "round 2: 1 subtask");
+  assert.equal(summarizeKernelEvent({ type: "orchestration:round_started", round: 2, subtasks: 4 }), "round 2: 4 subtasks");
+  assert.equal(summarizeKernelEvent({ type: "orchestration:replanned", round: 3, new_subtasks: 1 }), "replan round 3: 1 new subtask");
+  assert.equal(summarizeKernelEvent({ type: "orchestration:replanned", round: 3, new_subtasks: 2 }), "replan round 3: 2 new subtasks");
+  assert.equal(summarizeKernelEvent({ type: "orchestration:completed", completed: 3, failed: 1, status: "partial" }), "orchestration complete: 3 succeeded, 1 failed (status: partial)");
+});
+
+test("subtask start/review: no dangling parens/commas, passed|failed literal", () => {
+  assert.equal(summarizeKernelEvent({ type: "orchestration:subtask_started", subtask_id: "s1", attempt: 1, tool_profile: "edit" }), "subtask s1: starting (attempt 1, profile edit)");
+  assert.equal(summarizeKernelEvent({ type: "orchestration:subtask_started", subtask_id: "s2", attempt: 2 }), "subtask s2: starting (attempt 2)");
+  assert.equal(summarizeKernelEvent({ type: "orchestration:subtask_reviewed", subtask_id: "s1", pass: true }), "subtask s1: review passed");
+  assert.equal(summarizeKernelEvent({ type: "orchestration:subtask_reviewed", subtask_id: "s1", pass: false, severity: "high" }), "subtask s1: review failed (severity: high)");
+  assert.equal(summarizeKernelEvent({ type: "orchestration:subtask_reviewed", subtask_id: "s1", pass: false }), "subtask s1: review failed");
+});
+
+test("experience:retrieved printed only when count>0", () => {
+  const lines = [];
+  const renderer = createEventRenderer({ write: (l) => lines.push(l) });
+  renderer({ type: "experience:retrieved", count: 0 });
+  renderer({ type: "experience:retrieved", count: 2, tiers: ["T1", "T2"] });
+  assert.deepEqual(lines, ["- experience: 2 recalled"]);
+});

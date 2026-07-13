@@ -1,6 +1,39 @@
+import { describeEvent } from "../event-contract.js";
+
 const QUIET_EVENTS = new Set(["model:request", "model:response", "agent:step", "agent:turn_started"]);
 
+function plural(n, unit) {
+  return `${n} ${unit}${n === 1 ? "" : "s"}`;
+}
+
+function orchestrationSummary(d) {
+  const f = d.fields;
+  switch (d.kind) {
+    case "orchestration-route": return "routing: multi-agent";
+    case "orchestration-plan": return `plan: ${plural(f.subtasks ?? 0, "subtask")}`;
+    case "orchestration-round-start": return `round ${f.round ?? 0}: ${plural(f.subtasks ?? 0, "subtask")}`;
+    case "orchestration-replan": return `replan round ${f.round ?? 0}: ${plural(f.newSubtasks ?? 0, "new subtask")}`;
+    case "orchestration-complete": return `orchestration complete: ${f.completed ?? 0} succeeded, ${f.failed ?? 0} failed (status: ${f.status ?? "unknown"})`;
+    case "orchestration-subtask-start": {
+      const attempt = `attempt ${f.attempt ?? 1}`;
+      const parts = f.toolProfile ? `${attempt}, profile ${f.toolProfile}` : attempt;
+      return `subtask ${f.subtaskId ?? "?"}: starting (${parts})`;
+    }
+    case "orchestration-subtask-review": {
+      const verdict = f.pass ? "passed" : "failed";
+      const sev = (!f.pass && f.reviewSeverity) ? ` (severity: ${f.reviewSeverity})` : "";
+      return `subtask ${f.subtaskId ?? "?"}: review ${verdict}${sev}`;
+    }
+    default: return null;
+  }
+}
+
 export function summarizeKernelEvent(event = {}) {
+  const d = describeEvent(event);
+  const orch = orchestrationSummary(d);
+  if (orch) return orch;
+  if (d.kind === "experience-retrieved") return `experience: ${d.fields.count ?? 0} recalled`;
+
   if (event.type === "user:message") return `user ${clip(event.content || "")}`;
   if (event.type === "tool:call") return `tool ${event.call?.name || event.tool?.name || event.tool || "unknown"}`;
   if (event.type === "tool:result") return `tool result ${event.result?.status || event.status || "unknown"}`;
@@ -48,7 +81,11 @@ export function renderKernelResult(result = {}) {
 export function createEventRenderer({ write = console.log } = {}) {
   return function renderEvent(event) {
     if (!event?.type || QUIET_EVENTS.has(event.type)) return;
-    write(`- ${summarizeKernelEvent(event)}`);
+    const line = summarizeKernelEvent(event);
+    // experience:retrieved 在 count===0 时不打印(契约 quiet);其余照原行为。
+    const d = describeEvent(event);
+    if (d.kind === "experience-retrieved" && d.quiet) return;
+    write(`- ${line}`);
   };
 }
 
