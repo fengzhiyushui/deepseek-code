@@ -176,7 +176,7 @@ npm test            # node --test: full suite (currently 932 passing)
 npm run check       # node --check: syntax-validate all source files
 ```
 
-The docs maintenance order (code → specs/plans → project-overview → CHANGELOG → README zh+en → index) and conventions are in [`docs/README.md`](docs/README.md).
+The docs maintenance order (code → specs/plans → project-overview → CHANGELOG → index; the main README zh+en is **rewritten only on major-version updates, at the developer's discretion**) and conventions are in [`docs/README.md`](docs/README.md).
 
 **Versioning** follows [Semantic Versioning](https://semver.org/) `major.minor.patch` from v1.0.0 onward: major versions (e.g. v2.0.0) are for large feature additions or new model-generation adaptations, **initiated by the maintainer**; minor versions add features within a major version's plan without restructuring the core; patch versions cover docs, small fixes, and tests. See [`docs/README.md` §版本命名规则](docs/README.md#版本命名规则).
 

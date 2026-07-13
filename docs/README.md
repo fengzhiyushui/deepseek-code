@@ -38,10 +38,10 @@ docs/
 | | 3 | `docs/plans/<area>/` | 勾掉已完成任务、登记新发现的子任务 |
 | | 4 | [`project-overview.md`](project-overview.md) | 变更**触及架构 / 内核 / 工具 / 编辑回滚 / 恢复 / 安全 / 会话事件 / 配置 / 目录**时,同步这份内部总览(它是"活的"参考,非 per-feature spec) |
 | **2 · 叙述层**<br>(面向读者) | 5 | [`CHANGELOG.md`](CHANGELOG.md) | 在 `[Unreleased]` 累积条目;发布时按[版本命名规则](#版本命名规则)定级、移入带版本号小节(并同步 `package.json` / `src/theme.js` 的版本) |
-| | 6 | 根 [`README.md`](../README.md) **+ 英文镜像 [`README.en.md`](../README.en.md)** | 仅当影响**命令 / 架构说明 / 使用方式**时;**中英两份门面必须同步**(改了中文就改英文) |
+| | 6 | 根 [`README.md`](../README.md) **+ 英文镜像 [`README.en.md`](../README.en.md)** | **仅大版本(major)更新时重写**,何时重写由**开发者自行抉择**;重写时**中英两份门面必须同步**(改了中文就改英文)。其余文档维护顺序不受此影响 |
 | **3 · 索引** | 7 | `docs/README.md`(本文件) | 仅当**新增 / 移动 / 删除**文档,需要同步结构图与索引时 |
 
-**一句话顺序**:代码 → specs/plans → project-overview → CHANGELOG → README(中+英)→ 索引。
+**一句话顺序**:代码 → specs/plans → project-overview → CHANGELOG → 索引(主 README 中+英**仅大版本更新时重写,时机由开发者抉择**)。
 
 **`<area>` 取值**:`backend`(内核/runtime)、`frontend`(GUI/CLI/TUI)、`architecture`(跨端架构)。
 

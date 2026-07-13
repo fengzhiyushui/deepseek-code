@@ -173,7 +173,7 @@ npm test            # node --test:全部用例(当前 932 全绿)
 npm run check       # node --check:全部源码语法校验
 ```
 
-文档维护顺序(代码 → specs/plans → project-overview → CHANGELOG → README 中+英 → 索引)与规范见 [`docs/README.md`](docs/README.md)。
+文档维护顺序(代码 → specs/plans → project-overview → CHANGELOG → 索引;主 README 中+英**仅大版本更新时重写,时机由开发者抉择**)与规范见 [`docs/README.md`](docs/README.md)。
 
 **版本命名**自 v1.0.0 起采用语义化版本 `major.minor.patch`:大版本(major,例如 v2.0.0)对应大功能更新 / 新模型代际适配,**由维护者抉择启动**;小版本(minor)对应大版本规划内的功能累加,不重构核心;补丁(patch)对应文档 / 小修 / 测试。详见 [`docs/README.md` §版本命名规则](docs/README.md#版本命名规则)。
 
