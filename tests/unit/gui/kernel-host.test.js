@@ -73,6 +73,39 @@ test("buildKernelOptions bridges legacy config into V2 DeepSeek options", async 
   });
 });
 
+test("buildKernelOptions passes orchestration and context config through shared implementation", async () => {
+  const options = await buildKernelOptions("/repo", {}, async () => ({
+    apiKey: "sk-gui",
+    baseUrl: "https://example.invalid",
+    limits: { maxModelCalls: 3 },
+    orchestration: { maxRounds: 4, router: { model: { enabled: false } } },
+    context: { semantic: { enabled: true, hops: 3 } }
+  }));
+
+  assert.deepEqual(options, {
+    deepseek: { apiKey: "sk-gui", baseUrl: "https://example.invalid" },
+    limits: { maxModelCalls: 3 },
+    orchestration: { maxRounds: 4, router: { model: { enabled: false } } },
+    context: { semantic: { enabled: true, hops: 3 } }
+  });
+});
+
+test("buildKernelOptions preserves GUI semantic override over project config", async () => {
+  const options = await buildKernelOptions("/repo", {
+    context: { semantic: { enabled: false, includeMethodHints: true } }
+  }, async () => ({
+    apiKey: "sk-gui",
+    baseUrl: "https://example.invalid",
+    context: { semantic: { enabled: true, hops: 2 } }
+  }));
+
+  assert.deepEqual(options.context.semantic, {
+    enabled: false,
+    hops: 2,
+    includeMethodHints: true
+  });
+});
+
 test("kernel host delegates timeline to V2 session facade", async () => {
   const host = createKernelHost({
     projectRoot: "/repo",

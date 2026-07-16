@@ -14,6 +14,20 @@ test("classifyMessage separates query, edit, diagnostic, and general tasks", () 
   assert.equal(classifyMessage("continue").task_type, "general");
 });
 
+test("classifyMessage supports Chinese edit, diagnostic, query, and full-width question mark", () => {
+  assert.equal(classifyMessage("修复这个登录 bug").task_type, "edit");
+  assert.equal(classifyMessage("重构认证模块并补测试").task_type, "edit");
+  assert.equal(classifyMessage("排查为什么测试失败").task_type, "diagnostic");
+  assert.equal(classifyMessage("解释这个项目的架构").task_type, "query");
+  assert.equal(classifyMessage("这个函数做什么？").task_type, "query");
+  assert.equal(classifyMessage("可以继续吗").task_type, "query");
+  assert.equal(classifyMessage("继续").task_type, "general");
+});
+
+test("Chinese edit intent wins over embedded query words", () => {
+  assert.equal(classifyMessage("修复为什么登录失败的问题").task_type, "edit");
+});
+
 test("classifyMessage carries autonomy and route metadata", () => {
   const result = classifyMessage("fix the bug", { autonomy: "supervised" });
 

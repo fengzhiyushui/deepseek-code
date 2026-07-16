@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createWebFetchTool } from "../../../src/tools/builtin/web-fetch.js";
+import { Readable } from "node:stream";
+import {
+  createWebFetchTool,
+  collectCappedBody,
+  WEB_FETCH_MAX_BODY_BYTES
+} from "../../../src/tools/builtin/web-fetch.js";
 import { createMemoryTool } from "../../../src/tools/builtin/memory.js";
 import { createTaskTool } from "../../../src/tools/builtin/task.js";
 import { createAskUserTool } from "../../../src/tools/builtin/ask-user.js";
@@ -26,9 +31,58 @@ test("web_fetch validates URL and truncates response", async () => {
   assert.equal(result.metadata.original_length, 40000);
 });
 
+test("web_fetch gives network layer the prevalidated IP (no second DNS resolution)", async () => {
+  let seen = null;
+  const tool = createWebFetchTool({
+    lookup: async () => [
+      { address: "93.184.216.34", family: 4 },
+      { address: "93.184.216.35", family: 4 }
+    ],
+    fetchImpl: async (url, options) => {
+      seen = { url, options };
+      return {
+        ok: true,
+        status: 200,
+        headers: new Map(),
+        text: async () => "ok"
+      };
+    }
+  });
+
+  await tool.execute({ url: "https://example.com/path" }, {});
+  assert.equal(seen.url, "https://example.com/path");
+  assert.equal(seen.options.validatedAddress, "93.184.216.34");
+  assert.equal(seen.options.redirect, "manual");
+});
+
 test("web_fetch blocks localhost", async () => {
   const tool = createWebFetchTool();
   await assert.rejects(() => tool.execute({ url: "http://localhost:3000" }, {}), /blocked/i);
+});
+
+test("collectCappedBody stores at most WEB_FETCH_MAX_BODY_BYTES but reports full length", async () => {
+  const payload = Buffer.alloc(WEB_FETCH_MAX_BODY_BYTES + 5000, 0x61); // 'a'
+  const stream = Readable.from([payload.subarray(0, 10000), payload.subarray(10000)]);
+  const { text, originalLength } = await collectCappedBody(stream, WEB_FETCH_MAX_BODY_BYTES);
+  assert.equal(originalLength, WEB_FETCH_MAX_BODY_BYTES + 5000);
+  assert.equal(text.length, WEB_FETCH_MAX_BODY_BYTES);
+  assert.equal(text, "a".repeat(WEB_FETCH_MAX_BODY_BYTES));
+});
+
+test("web_fetch metadata preserves originalLength from network layer", async () => {
+  const tool = createWebFetchTool({
+    lookup: async () => ({ address: "93.184.216.34" }),
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      headers: new Map([["content-type", "text/plain"]]),
+      originalLength: 90000,
+      text: async () => "y".repeat(WEB_FETCH_MAX_BODY_BYTES)
+    })
+  });
+  const result = await tool.execute({ url: "https://example.com/big" }, {});
+  assert.equal(result.content[0].text.length, WEB_FETCH_MAX_BODY_BYTES);
+  assert.equal(result.metadata.original_length, 90000);
 });
 
 test("memory tool maps categories by action and persists project memory", async () => {

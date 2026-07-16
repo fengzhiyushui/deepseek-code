@@ -15,7 +15,7 @@ export function makeIO() {
   return { input, output, text: () => chunks.join("") };
 }
 
-export function makeFakeKernel({ onSend, onApprove } = {}) {
+export function makeFakeKernel({ onSend, onApprove, onInterrupt } = {}) {
   const subs = new Set();
   const kernel = {
     disposed: false,
@@ -24,7 +24,8 @@ export function makeFakeKernel({ onSend, onApprove } = {}) {
     metrics: { getUsage: () => ({ total_tokens: 42, cache_hit_rate: 0.5 }) },
     agent: {
       send: (text, options) => onSend({ text, options, emit }),
-      approve: (id, decision) => onApprove({ id, decision })
+      approve: (id, decision) => onApprove({ id, decision }),
+      interrupt: () => onInterrupt?.()
     },
     async dispose() { kernel.disposed = true; }
   };

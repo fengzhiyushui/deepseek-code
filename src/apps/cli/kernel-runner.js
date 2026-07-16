@@ -14,7 +14,8 @@ export async function runKernelAgentCommand({
   createKernelOptions = {},
   loadConfigImpl = null,
   sendOptions = {},
-  promptApproval = defaultPromptApproval
+  promptApproval = defaultPromptApproval,
+  onSigint = defaultOnSigint
 } = {}) {
   const message = String(prompt || "").trim();
   if (!message) throw new Error("prompt is required");
@@ -23,8 +24,13 @@ export async function runKernelAgentCommand({
   const renderEvent = createEventRenderer({ write });
   const subscription = kernel.session.subscribe(renderEvent);
   try {
-    const result = await kernel.agent.send(message, { autonomy, ...sendOptions });
-    return await resolveApprovals({ kernel, result, write, promptApproval });
+    const result = await withTurnInterrupt({
+      kernel,
+      write,
+      onSigint,
+      run: () => kernel.agent.send(message, { autonomy, ...sendOptions })
+    });
+    return await resolveApprovals({ kernel, result, write, promptApproval, onSigint });
   } finally {
     subscription.unsubscribe();
   }
@@ -39,7 +45,8 @@ export async function runKernelChatCommand({
   createKernelOptions = {},
   loadConfigImpl = null,
   sendOptions = {},
-  promptApproval = defaultPromptApproval
+  promptApproval = defaultPromptApproval,
+  onSigint = defaultOnSigint
 } = {}) {
   const kernel = await createKernelForRunner({ root, createKernelImpl, createKernelOptions, loadConfigImpl });
   const renderEvent = createEventRenderer({ write });
@@ -47,12 +54,17 @@ export async function runKernelChatCommand({
   try {
     const initialPrompt = String(prompt || "").trim();
     if (initialPrompt) {
-      const result = await kernel.agent.send(initialPrompt, {
-        ...sendOptions,
-        autonomy: "read-only",
-        history: []
+      const result = await withTurnInterrupt({
+        kernel,
+        write,
+        onSigint,
+        run: () => kernel.agent.send(initialPrompt, {
+          ...sendOptions,
+          autonomy: "read-only",
+          history: []
+        })
       });
-      return await resolveApprovals({ kernel, result, write, promptApproval });
+      return await resolveApprovals({ kernel, result, write, promptApproval, onSigint });
     }
 
     return await runChatRepl({
@@ -60,26 +72,32 @@ export async function runKernelChatCommand({
       write,
       question,
       sendOptions,
-      promptApproval
+      promptApproval,
+      onSigint
     });
   } finally {
     subscription.unsubscribe();
   }
 }
 
-export async function resolveApprovals({ kernel, result, write = console.log, promptApproval = defaultPromptApproval } = {}) {
+export async function resolveApprovals({ kernel, result, write = console.log, promptApproval = defaultPromptApproval, onSigint = defaultOnSigint } = {}) {
   let current = result;
   for (const line of renderKernelResult(current)) write(line);
   while (current.status === "awaiting_approval" && current.approval?.id) {
     const answer = await promptApproval(current.approval);
     const decision = isApprovalYes(answer) ? "approve" : "deny";
-    current = await kernel.agent.approve(current.approval.id, decision);
+    current = await withTurnInterrupt({
+      kernel,
+      write,
+      onSigint,
+      run: () => kernel.agent.approve(current.approval.id, decision)
+    });
     for (const line of renderKernelResult(current)) write(line);
   }
   return current;
 }
 
-async function runChatRepl({ kernel, write, question, sendOptions, promptApproval }) {
+async function runChatRepl({ kernel, write, question, sendOptions, promptApproval, onSigint }) {
   let mode = "read-only";
   let history = [];
   write("chat mode: read-only");
@@ -99,12 +117,17 @@ async function runChatRepl({ kernel, write, question, sendOptions, promptApprova
       continue;
     }
 
-    const result = await kernel.agent.send(input, {
-      ...sendOptions,
-      autonomy: mode,
-      history
+    const result = await withTurnInterrupt({
+      kernel,
+      write,
+      onSigint,
+      run: () => kernel.agent.send(input, {
+        ...sendOptions,
+        autonomy: mode,
+        history
+      })
     });
-    const resolved = await resolveApprovals({ kernel, result, write, promptApproval });
+    const resolved = await resolveApprovals({ kernel, result, write, promptApproval, onSigint });
     if (resolved.status === "complete") {
       history = appendHistory(history, input, resolved.content || "");
     }
@@ -224,6 +247,35 @@ async function handleRecoveryCommand({ rawArg, kernel, write, mode, history }) {
 
   write("usage: /recovery [resume|cancel|clear] <id>");
   return { mode, history, exit: false };
+}
+
+async function withTurnInterrupt({ kernel, write, onSigint, run }) {
+  let requested = false;
+  const unsubscribe = onSigint(() => {
+    if (requested) return;
+    requested = true;
+    kernel.agent.interrupt?.();
+    write("Interrupt requested for the current turn...");
+  });
+  try {
+    return await run();
+  } catch (error) {
+    if (requested && isInterruptError(error)) {
+      return { status: "interrupted", content: "Turn interrupted" };
+    }
+    throw error;
+  } finally {
+    unsubscribe?.();
+  }
+}
+
+function isInterruptError(error) {
+  return error?.code === "INTERRUPTED" || error?.name === "InterruptedError" || error?.name === "AbortError";
+}
+
+function defaultOnSigint(handler) {
+  process.on("SIGINT", handler);
+  return () => process.removeListener("SIGINT", handler);
 }
 
 function nextChatMode(mode) {

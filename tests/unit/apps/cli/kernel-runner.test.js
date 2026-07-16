@@ -48,6 +48,42 @@ test("runKernelAgentCommand sends prompt through V2 kernel and renders result", 
   assert.ok(lines.includes("answer"));
 });
 
+test("runKernelAgentCommand SIGINT interrupts current turn and removes handler", async () => {
+  const lines = [];
+  let rejectSend;
+  let interrupted = 0;
+  let unsubscribed = false;
+  const kernel = {
+    session: { subscribe: () => ({ unsubscribe() {} }) },
+    agent: {
+      send: () => new Promise((resolve, reject) => { rejectSend = reject; }),
+      interrupt: () => {
+        interrupted += 1;
+        const error = new Error("turn was interrupted");
+        error.code = "INTERRUPTED";
+        rejectSend(error);
+      }
+    }
+  };
+
+  const result = await runKernelAgentCommand({
+    root: "/repo",
+    prompt: "long task",
+    write: (line) => lines.push(line),
+    createKernelImpl: async () => kernel,
+    onSigint(handler) {
+      queueMicrotask(handler);
+      return () => { unsubscribed = true; };
+    }
+  });
+
+  assert.equal(interrupted, 1);
+  assert.equal(result.status, "interrupted");
+  assert.equal(unsubscribed, true);
+  assert.ok(lines.some((line) => line.includes("Interrupt requested")));
+  assert.ok(lines.some((line) => line.includes("Turn interrupted")));
+});
+
 test("runKernelAgentCommand unsubscribes after send", async () => {
   const events = [];
   await runKernelAgentCommand({

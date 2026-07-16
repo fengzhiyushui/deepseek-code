@@ -1,6 +1,10 @@
-const EDIT_PATTERN = /\b(fix|change|modify|edit|delete|remove|add|create|write|update|refactor|implement)\b/i;
-const DIAGNOSTIC_PATTERN = /\b(debug|diagnose|analyze|investigate|inspect|check)\b/i;
-const QUERY_PATTERN = /\b(what|how|why|explain|describe|show|list|who|where|when|can|could|tell|find|get)\b/i;
+import {
+  EDIT_PATTERN,
+  DIAGNOSTIC_PATTERN,
+  QUERY_PATTERN,
+  CN_QUESTION_HINT_PATTERN,
+  endsWithQuestionMark
+} from "./keywords.js";
 
 export function classifyMessage(message, options = {}) {
   const text = String(message || "").trim();
@@ -28,7 +32,7 @@ export function classifyMessage(message, options = {}) {
     };
   }
 
-  if (QUERY_PATTERN.test(text) || text.endsWith("?")) {
+  if (QUERY_PATTERN.test(text) || CN_QUESTION_HINT_PATTERN.test(text) || endsWithQuestionMark(text)) {
     return {
       task_type: "query",
       risk: "low",

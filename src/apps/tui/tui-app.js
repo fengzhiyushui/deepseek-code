@@ -142,7 +142,11 @@ export function createTuiApp({
         pushLines([` ${color.red("✗")} ${T("ev.error")}: ${result.error || result.message || "?"}`, ""]);
       }
     } catch (error) {
-      pushLines([` ${color.red("✗")} ${T("msg.sendFailed", { err: error?.message || String(error) })}`, ""]);
+      if (error?.code === "INTERRUPTED" || error?.name === "InterruptedError" || error?.name === "AbortError") {
+        pushLines([` ${color.yellow("↯")} ${T("msg.interrupted")}`, ""]);
+      } else {
+        pushLines([` ${color.red("✗")} ${T("msg.sendFailed", { err: error?.message || String(error) })}`, ""]);
+      }
     } finally {
       dispatch({ type: "stream_clear" });
       dispatch({ type: "busy", busy: false });
@@ -402,7 +406,12 @@ export function createTuiApp({
       case "end": dispatch({ type: "input_end" }); return;
       case "up": dispatch({ type: "input_hist_prev" }); return;
       case "down": dispatch({ type: "input_hist_next" }); return;
-      case "esc": if (state.busy) dispatch({ type: "hint", text: T("hint.busy") }); return;
+      case "esc":
+        if (state.busy) {
+          kernel?.agent?.interrupt?.();
+          dispatch({ type: "hint", text: T("hint.interruptRequested") });
+        }
+        return;
       default: return;
     }
   }

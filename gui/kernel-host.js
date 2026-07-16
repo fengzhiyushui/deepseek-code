@@ -8,6 +8,12 @@ function loadApiProfilesMod() {
   if (!apiProfilesModPromise) apiProfilesModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "apps", "api-profiles.js")).href);
   return apiProfilesModPromise;
 }
+
+let kernelOptionsModPromise;
+function loadKernelOptionsMod() {
+  if (!kernelOptionsModPromise) kernelOptionsModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "apps", "kernel-options.js")).href);
+  return kernelOptionsModPromise;
+}
 let modelCatalogModPromise = null;
 function loadModelCatalogMod() {
   if (!modelCatalogModPromise) modelCatalogModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "apps", "model-catalog.js")).href);
@@ -156,23 +162,8 @@ async function loadLegacyConfig(projectRoot) {
 }
 
 async function buildKernelOptions(projectRoot, overrides = {}, configLoader = loadLegacyConfig) {
-  if (overrides.modelGateway || overrides.deepseek) return overrides;
-  let config = {};
-  try {
-    config = await configLoader(projectRoot);
-  } catch {
-    config = {};
-  }
-  if (!config.apiKey) return overrides;
-  const result = {
-    ...overrides,
-    deepseek: {
-      apiKey: config.apiKey,
-      baseUrl: config.baseUrl
-    }
-  };
-  if (config.limits) result.limits = config.limits;
-  return result;
+  const mod = await loadKernelOptionsMod();
+  return mod.buildKernelOptions(projectRoot, overrides, configLoader);
 }
 
 function createKernelHost({

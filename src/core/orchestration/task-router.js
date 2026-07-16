@@ -1,9 +1,7 @@
 import { extractFeatures, computeScore, classifyBand, featuresForEvent } from "./router-scoring.js";
+import { COMPLEXITY_MARKERS } from "../planning/keywords.js";
 
-const DEFAULT_MARKERS = [
-  "这几个", "这些", "分别", "各自", "逐个", "逐一", "重构整个", "迁移", "跨多个文件", "跨文件",
-  "for each", "each of", "across multiple", "refactor the entire", "migrate"
-];
+const DEFAULT_MARKERS = COMPLEXITY_MARKERS;
 // Today's file-count signal regex — kept verbatim so the disabled-path lane is byte-identical.
 const LEGACY_FILE_TOKEN = /\b[\w.-]+\.(?:js|mjs|cjs|jsx|ts|tsx|py|json|md)\b/gi;
 

@@ -42,6 +42,39 @@ test("full streaming round: echo, deltas, final, history", async () => {
   assert.equal(kernel.disposed, false);          // 注入的 kernel 不由 app dispose
 });
 
+test("busy Esc interrupts current turn and input becomes usable again", async () => {
+  const io = makeIO();
+  let rejectPending = null;
+  let interrupts = 0;
+  const sends = [];
+  const kernel = makeFakeKernel({
+    onSend: ({ text }) => {
+      sends.push(text);
+      if (sends.length > 1) return Promise.resolve({ status: "complete", content: "next done" });
+      return new Promise((resolve, reject) => { rejectPending = reject; });
+    },
+    onInterrupt: () => {
+      interrupts += 1;
+      const error = new Error("turn was interrupted");
+      error.code = "INTERRUPTED";
+      rejectPending?.(error);
+    }
+  });
+  const app = createTuiApp({ root: await tmpRoot(), kernel, input: io.input, output: io.output });
+  const done = app.run();
+  await until(() => io.text().includes("❯"));
+  io.input.write("long task\r");
+  await until(() => sends.length === 1);
+  io.input.write("\x1b");
+  await until(() => interrupts === 1);
+  await until(() => io.text().includes("已中断当前回合"));
+  io.input.write("next\r");
+  await until(() => sends.length === 2);
+  await until(() => io.text().includes("next done"));
+  io.input.write("\x03"); io.input.write("\x03");
+  await done;
+});
+
 test("approval flow: y approves, esc denies", async () => {
   const io = makeIO();
   const approvals = [];

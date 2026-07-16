@@ -1,8 +1,12 @@
 import { classifyMessage } from "../planning/classifier.js";
+import {
+  COMPLEXITY_STRONG_MARKERS,
+  COMPLEXITY_WEAK_MARKERS
+} from "../planning/keywords.js";
 
-// Strong complexity markers score +2; everything else configured scores +1 (weak).
-export const STRONG_MARKERS = ["重构整个", "迁移", "跨多个文件", "跨文件", "refactor the entire", "migrate", "across multiple"];
-export const DEFAULT_WEAK_MARKERS = ["这几个", "这些", "分别", "各自", "逐个", "逐一", "for each", "each of"];
+// 兼容既有导出名;实际词表唯一来源是 planning/keywords.js。
+export const STRONG_MARKERS = COMPLEXITY_STRONG_MARKERS;
+export const DEFAULT_WEAK_MARKERS = COMPLEXITY_WEAK_MARKERS;
 export const LONG_EDIT_CHARS = 80;
 
 const FILE_EXT = "js|mjs|cjs|jsx|ts|tsx|py|json|md";

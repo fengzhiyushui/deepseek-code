@@ -15,7 +15,18 @@
 
 - (暂无)
 
-**已挂账(待立项,方案见 [`specs/backend/2026-07-12-agent-findings-remediation.md`](specs/backend/2026-07-12-agent-findings-remediation.md)):** 中文意图分类(P0)、GUI 内核配置分叉(P0)、TUI/CLI 回合中断(P1)、SSRF/脱敏/ReDoS/shell 环境隔离(安全)、语义上下文静默降级可观测化、`agent-runtime.js` 可维护性重构等。
+**已挂账(待立项,方案见 [`specs/backend/2026-07-12-agent-findings-remediation.md`](specs/backend/2026-07-12-agent-findings-remediation.md)):** grep ReDoS、shell 环境变量隔离、语义上下文静默降级可观测化、仓库卫生、`agent-runtime.js` 可维护性重构等 P2/P3 项。
+
+---
+
+## v1.1.0 — 2026-07-15 · 可靠性、安全与中文体验修复
+
+- 中文请求不再全落 `general`:classifier 新增中英共享词表(edit / diagnostic / query / 全角问号),复杂度路由共用同一词表来源。
+- GUI 删除分叉的 kernel-options 装配逻辑,动态复用 CLI/TUI 的共享实现;`orchestration` / `context.semantic` 配置与 override 语义三端一致。
+- TUI busy 态 Esc 与 CLI SIGINT 可中断当前回合;中断收口为可读状态,不退出整个会话,审批续跑链同样受保护。
+- `web_fetch` SSRF 加固:校验全部 DNS A 记录、补齐 CGNAT/0/8/benchmark/文档/组播等保留网段,默认网络路径固定到已验证 IP 直连(保留原 hostname 作 Host/SNI),消除校验后再次解析的 DNS rebinding/TOCTOU;网络层按 32KB 上限截断缓冲,重定向/非 2xx 丢弃 body。
+- 脱敏扩面:确定性覆盖 AWS/GitHub/sk- token、私钥块及常见 token/secret/password 赋值;不启用易误伤源码的通用高熵猜测。
+- 版本同步为 `1.1.0`(`package.json` / `package-lock.json` / CLI-TUI banner);受影响测试与全量回归通过。
 
 ---
 

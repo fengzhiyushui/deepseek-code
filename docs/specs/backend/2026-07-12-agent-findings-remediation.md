@@ -1,7 +1,7 @@
-# V3 收尾 · agent 审计发现补救计划(本轮不实现,仅方案)
+# agent 审计发现补救计划与处理状态
 
-- 日期:2026-07-12
-- 状态:方案文档(用户已定:D-G4 本轮实现,其余 audit 问题只出可执行补救计划)
+- 日期:2026-07-12;状态更新:2026-07-13
+- 状态:**#1–#5 已在 v1.1.0 解决**;#6–#10 仍为后续 P2/P3 可执行方案
 - 来源:6 个并行只读 agent 对全仓库子系统的审计(docs / kernel / context / model+tools+security / frontends / sessions+edits)
 - 关联:D-G4 设计 [`../frontend/2026-07-12-v3-phase-dg4-cli-alignment-design.md`](../frontend/2026-07-12-v3-phase-dg4-cli-alignment-design.md)
 - **重要:本文所有条目本轮均不实现**,仅提供根因、改法、影响文件、风险、验证方式、优先级,供后续逐项立项(各自走 spec/plan 或直接小改)。
@@ -12,11 +12,11 @@
 
 | # | 问题 | Tier | 优先级 | 影响面 |
 |---|---|---|---|---|
-| 1 | 意图分类器只认英文,中文请求全落 general | 快速 bug | **P0** | 中文用户核心体验 |
-| 2 | GUI buildKernelOptions 分叉,丢编排/语义配置 | 快速 bug | **P0** | GUI 行为与 CLI/TUI 不一致 |
-| 3 | TUI/CLI 无法中断运行中的回合 | 快速 bug | **P1** | 长任务体验 |
-| 4 | SSRF:DNS rebinding 窗口 + 黑名单缺网段 | 安全 | **P1** | web_fetch 内网穿透面 |
-| 5 | 脱敏正则覆盖过窄 | 安全 | **P1** | 密钥泄漏面 |
+| 1 | 意图分类器只认英文,中文请求全落 general | 快速 bug | **✅ v1.1.0** | 中文用户核心体验 |
+| 2 | GUI buildKernelOptions 分叉,丢编排/语义配置 | 快速 bug | **✅ v1.1.0** | GUI 行为与 CLI/TUI 不一致 |
+| 3 | TUI/CLI 无法中断运行中的回合 | 快速 bug | **✅ v1.1.0** | 长任务体验 |
+| 4 | SSRF:DNS rebinding 窗口 + 黑名单缺网段 | 安全 | **✅ v1.1.0** | web_fetch 内网穿透面 |
+| 5 | 脱敏正则覆盖过窄 | 安全 | **✅ v1.1.0** | 密钥泄漏面 |
 | 6 | grep 工具 ReDoS | 安全 | **P2** | 模型正则拖垮进程 |
 | 7 | shell 无命令白名单 + 子进程继承含密钥环境 | 安全 | **P2** | auto 档执行面 |
 | 8 | 语义上下文静默粘性降级 + languages 配置空转 | 健壮性 | **P2** | 可观测性/文档一致性 |
@@ -36,7 +36,7 @@
 - **影响文件:** `classifier.js`、`task-router.js`(改为引用共享词表)、新增词表模块。
 - **风险:** 低。分类只影响上下文通道选择与快答/工具循环分流,错分不产生错误副作用(至多多跑一轮)。共享词表需保证 router 现有 disabled-parity 测试不变。
 - **验证:** 新增中文样例分类单测(edit/diagnostic/query 各若干);router 现有启发式测试原样全绿;端到端:中文提问命中快答路径。
-- **本轮不实现。**
+- **✅ v1.1.0 已解决:** 新增 `planning/keywords.js` 作为 classifier 与 complexity router 的中英词表唯一来源;覆盖 edit/diagnostic/query、中文疑问语气与全角问号,保留原英文行为。
 
 ### 2. GUI buildKernelOptions 分叉,丢编排/语义配置(P0)
 
@@ -45,7 +45,7 @@
 - **影响文件:** `gui/kernel-host.js`(删副本、改为动态 import);`src/apps/kernel-options.js`(确认导出契约足够)。
 - **风险:** 中。GUI 内核装配路径变更,需门控 Electron smoke 覆盖;注意 GUI 传入的 options 形状与 CLI/TUI 对齐。
 - **验证:** 新增单测断言 GUI 装配路径产出的 options 含 orchestration/context 字段;门控 GUI smoke 通过。
-- **本轮不实现。**
+- **✅ v1.1.0 已解决:** `gui/kernel-host.js` 动态 import 共享 `src/apps/kernel-options.js`,删除分叉装配逻辑;测试覆盖 limits/orchestration/context 与 semantic override 合并。
 
 ### 3. TUI/CLI 无法中断运行中的回合(P1)
 
@@ -54,7 +54,7 @@
 - **影响文件:** `src/apps/tui/tui-app.js`(键路由 + interrupt 接线)、`src/apps/tui/tui-i18n.js`(中断词条)、`src/apps/cli/kernel-runner.js`(SIGINT 处理)。
 - **风险:** 中。中断时序与流式 onDelta / 审批暂停态交互需小心(中断应清当前回合但不误清暂停审批);CLI 的 SIGINT 双击语义要与现有 readline 协调。
 - **验证:** TUI 组合根注入 mock kernel,断言 busy+Esc 触发 interrupt 且回 idle;CLI 注入可中断的 fake send,断言首次 SIGINT 调 interrupt。
-- **本轮不实现。**
+- **✅ v1.1.0 已解决:** TUI busy 态 Esc 调 `agent.interrupt()`并渲染稳定中断行;CLI 在 send/approve 运行期注册可清理的 SIGINT handler,首次信号中断当前回合并收敛为 `status:"interrupted"`,chat 保持可继续输入。
 
 ---
 
@@ -67,7 +67,7 @@
 - **影响文件:** `src/security/ssrf.js`、`src/tools/builtin/web-fetch.js`(连接层 pin IP)。
 - **风险:** 中。IP-pinning 改连接方式,需处理 HTTPS SNI/证书校验仍按原域名;IPv6 现全拒(保持)。
 - **验证:** 单测:多 A 记录/私网记录被拒;mock resolver 模拟 rebinding(两次解析不同)被拦;新增 CIDR 网段逐个拒绝用例。
-- **本轮不实现。**
+- **✅ v1.1.0 已解决:** DNS `all:true` 校验全部 A 记录;补 CGNAT/0/8/protocol/TEST-NET/benchmark/组播等保留网段;默认 http/https 网络层固定 socket 到已验证 IP,原 hostname 保留作 Host/SNI,每跳重定向重做同一流程。
 
 ### 5. 脱敏正则覆盖过窄(P1)
 
@@ -76,7 +76,7 @@
 - **影响文件:** `src/security/redactor.js`。
 - **风险:** 低-中。高熵启发式可能误脱敏正常内容(如 hash/base64 资源),建议先只加**确定性前缀/块**规则,高熵项单列可选开关。
 - **验证:** 单测逐规则命中/不误伤;确认 executor 对所有工具输出 text 统一套用。
-- **本轮不实现。**
+- **✅ v1.1.0 已解决:** 规则表确定性覆盖 Bearer、常见 key/token/secret/password 赋值、AWS/GitHub/sk- 前缀与多行私钥块;特意不做通用高熵猜测,并以普通 hash/短源码字面量不误伤测试钉死。
 
 ### 6. grep 工具 ReDoS(P2)
 
