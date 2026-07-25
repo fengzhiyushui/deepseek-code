@@ -1,5 +1,7 @@
 # V2-20b 护栏注入与优雅停止 Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **状态:✅ 已完成(2026-06-25)** — 3 个任务落地,测试 531 全绿、`npm run check` 通过。
 > 提交:`aa90498`(优雅停止·loop)、`927b5b9`(优雅停止·runtime)、`055f426`(modelTimeoutMs 注入)。
 

@@ -1,5 +1,7 @@
 # V3 Phase D-4 · GUI agent 改动跟踪 实施计划
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 > 纯逻辑(M1 桥 / M2 派生+reducer)node:test 内联先跑;UI(M3/M4)走 `cd gui && npm run build:renderer`;M5 门控 smoke + 全量回归。
 > 提交前**单独验证绿**(勿用 `npm test | grep` 吞退出码后直接提交)。

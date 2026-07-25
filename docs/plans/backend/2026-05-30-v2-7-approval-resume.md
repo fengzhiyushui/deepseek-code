@@ -1,5 +1,7 @@
 # V2-7 Approval Resume Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make V2 approval requests resumable so CLI, TUI, and GUI can approve or deny a paused tool call and finish the same agent turn.

@@ -1,7 +1,7 @@
 # agent 审计发现补救计划与处理状态
 
-- 日期:2026-07-12;状态更新:2026-07-13
-- 状态:**#1–#5 已在 v1.1.0 解决**;#6–#10 仍为后续 P2/P3 可执行方案
+- 日期:2026-07-12;状态更新:2026-07-19
+- 状态:**#1–#5 已在 v1.1.0 解决**;**#6、#7(env 部分)与 #9 易项(9.1/9.2/9.4/9.5/9.7)已在 v1.2.0 解决**(计划 [`../../plans/backend/2026-07-16-v1.2.0-agent-findings-p2.md`](../../plans/backend/2026-07-16-v1.2.0-agent-findings-p2.md));**#8、#9.3、#9.6、#10 与 shell 命令白名单延后挂账**
 - 来源:6 个并行只读 agent 对全仓库子系统的审计(docs / kernel / context / model+tools+security / frontends / sessions+edits)
 - 关联:D-G4 设计 [`../frontend/2026-07-12-v3-phase-dg4-cli-alignment-design.md`](../frontend/2026-07-12-v3-phase-dg4-cli-alignment-design.md)
 - **重要:本文所有条目本轮均不实现**,仅提供根因、改法、影响文件、风险、验证方式、优先级,供后续逐项立项(各自走 spec/plan 或直接小改)。
@@ -17,11 +17,11 @@
 | 3 | TUI/CLI 无法中断运行中的回合 | 快速 bug | **✅ v1.1.0** | 长任务体验 |
 | 4 | SSRF:DNS rebinding 窗口 + 黑名单缺网段 | 安全 | **✅ v1.1.0** | web_fetch 内网穿透面 |
 | 5 | 脱敏正则覆盖过窄 | 安全 | **✅ v1.1.0** | 密钥泄漏面 |
-| 6 | grep 工具 ReDoS | 安全 | **P2** | 模型正则拖垮进程 |
-| 7 | shell 无命令白名单 + 子进程继承含密钥环境 | 安全 | **P2** | auto 档执行面 |
-| 8 | 语义上下文静默粘性降级 + languages 配置空转 | 健壮性 | **P2** | 可观测性/文档一致性 |
-| 9 | 仓库卫生(遗留原型/双测试目录/明文变更记录/模型名硬编码/死代码/plan 回写) | 清理 | **P2/P3** | 维护成本 |
-| 10 | `agent-runtime.js` 可维护性(职责混合/依赖集中/测试边界不足) | 可维护性 | **P2** | 回归风险集中点 |
+| 6 | grep 工具 ReDoS | 安全 | **✅ v1.2.0** | 模型正则拖垮进程 |
+| 7 | shell 无命令白名单 + 子进程继承含密钥环境 | 安全 | **✅ v1.2.0(env);命令白名单延后** | auto 档执行面 |
+| 8 | 语义上下文静默粘性降级 + languages 配置空转 | 健壮性 | **P2(延后)** | 可观测性/文档一致性 |
+| 9 | 仓库卫生(遗留原型/双测试目录/明文变更记录/模型名硬编码/死代码/plan 回写) | 清理 | **部分 ✅ v1.2.0(9.1/9.2/9.4/9.5/9.7);9.3/9.6 延后** | 维护成本 |
+| 10 | `agent-runtime.js` 可维护性(职责混合/依赖集中/测试边界不足) | 可维护性 | **P2(延后)** | 回归风险集中点 |
 
 > **audit 问题 #5(事件→展示逻辑四份并行实现)**:已在 D-G4 随共享事件展示契约**在三个受支持 ESM 渲染器(CLI/TUI/GUI-React)上解决**;休眠 UMD fallback(`gui/renderer/`)保留自有基础事件副本,列为本文 **9.6** 后续项(改为契约产物或随构建常态化后删除)。**未标「完全解决」。**
 
@@ -85,7 +85,7 @@
 - **影响文件:** `src/tools/builtin/grep.js`。
 - **风险:** 低。加超时不改正常搜索语义,仅对病态输入优雅失败。
 - **验证:** 单测:已知病态正则在超时内返回错误而非挂起;正常搜索结果不变。
-- **本轮不实现。**
+- **✅ v1.2.0 已解决:** 每文件(默认 2s)+ 总预算(默认 10s)协作式超时,注入式时钟可测;超时优雅返回已得匹配并以 metadata(`timed_out` / `timed_out_scope` / `files_skipped_timeout` / `files_searched`)标注;非法 pattern 行为不变。
 
 ### 7. shell 无命令白名单 + 子进程继承含密钥环境(P2)
 
@@ -94,7 +94,7 @@
 - **影响文件:** `src/tools/builtin/shell.js`、`src/security/shell-policy.js`。
 - **风险:** 中。剥离环境可能影响依赖特定 env 的合法命令(如需要代理变量),需保留可配放行。
 - **验证:** 单测:子进程 env 不含密钥变量;放行清单生效;现有 shell 执行测试不回归。
-- **本轮不实现。**
+- **✅ v1.2.0 已解决(env 部分):** `buildChildEnv` 白名单继承(PATH / Windows 系统变量 / 用户与临时目录 / 区域设置),密钥类与代理键、`NODE_OPTIONS` 默认剥离;`allowExtra` 仅供测试注入,不暴露用户配置面。**命令白名单(改法 ②)延后挂账。**
 
 ---
 
@@ -117,13 +117,13 @@
 
 ### 9. 卫生集合(逐项独立、可零散清理)
 
-- **9.1 遗留原型物(P3):** 根目录 [`DeepSeekCodeIDE.jsx`](../../../DeepSeekCodeIDE.jsx)(1278 行静态原型,未接运行时)与 `preview-deepseek-code/`(独立 node_modules + 残留 `vite.err.log`/`vite.out.log`)位于仓库根,易与现役 GUI 混淆。**改法:** 移入 `docs/prototypes/` 或删除;清残留日志。**风险:** 极低。
-- **9.2 双测试目录(P3):** `test/` 仅剩 1 个 V1 遗留 `patch.test.js` 与 `tests/` 并存,`npm test` 维护两个 glob。**改法:** 迁 `patch.test.js` 入 `tests/unit/`,删 `test/`,`package.json` test 脚本单 glob。**风险:** 极低(纯移动 + 脚本改)。
+- **9.1 遗留原型物(P3):** 根目录 [`DeepSeekCodeIDE.jsx`](../../../DeepSeekCodeIDE.jsx)(1278 行静态原型,未接运行时)与 `preview-deepseek-code/`(独立 node_modules + 残留 `vite.err.log`/`vite.out.log`)位于仓库根,易与现役 GUI 混淆。**改法:** 移入 `docs/prototypes/` 或删除;清残留日志。**风险:** 极低。**✅ v1.2.0:** 轻量源码迁入 `docs/prototypes/`(node_modules 与 `*.log` 不随迁),原目录删除。
+- **9.2 双测试目录(P3):** `test/` 仅剩 1 个 V1 遗留 `patch.test.js` 与 `tests/` 并存,`npm test` 维护两个 glob。**改法:** 迁 `patch.test.js` 入 `tests/unit/`,删 `test/`,`package.json` test 脚本单 glob。**风险:** 极低(纯移动 + 脚本改)。**✅ v1.2.0:** 已迁移,`npm test` 单 glob。
 - **9.3 明文变更记录(P2):** `.deepseek-code/changes/<id>.json` 存文件 before/after **全文明文**(事件流已脱敏只发 hash/size,但磁盘记录未脱敏),含密钥文件会全量落盘。**硬约束:回滚依赖存储的 before/after 与 after_hash 复原文件,任何改动存储内容的方案都会破坏回滚,故不能对落盘内容套 `redactor`。** **改法(不碰存储内容):** ① 敏感路径跳过捕获(`.env*`/`*.pem`/`*.key` 等,与 context 扫描的忽略集共用一份),这些文件本就不该进变更记录;② 文件大小上限,超限只存 hash + 摘要不存全文;③ 目录整体限权(收紧 `.deepseek-code/changes/` 权限位)与「展示层脱敏」(GUI/CLI 显示 change 详情时套 redactor,存储保持原文供回滚)。**影响:** `src/edits/change-store.js`、展示侧。**风险:** 中(跳过敏感路径会导致这些文件的 agent 改动无法回滚 —— 但敏感文件本不应被 agent 编辑,属可接受取舍;需与 edit-service 的路径安全集对齐)。**注:此项需单独设计,回滚正确性是硬约束。**
-- **9.4 模型名硬编码(P2):** `deepseek-v4-flash`/`deepseek-v4-pro` 硬编码在 [`src/deepseek/model-router.js`](../../../src/deepseek/model-router.js) `CHANNELS` 表,无法经 config 整体切换,只能逐调用 `explicitModel` 覆盖。**改法:** CHANNELS 的模型名改为从 `config.deepseek.models.{act,think,fim}` 读取,保留现值为默认。**影响:** `model-router.js`、`src/config.js`。**风险:** 低-中(需保证默认值与今天一致、覆盖路径测试)。
-- **9.5 死代码(P3):** [`src/index.js`](../../../src/index.js) `createPausedRecoveryFacade`(约 544-604 行)无任何调用点(实际用 `createRecoveryServiceFacade`/`disabledRecoveryFacade`)。**改法:** 删除或标注。**风险:** 低(需确认确无动态引用)。**注:属 `src/index.js`,若删需与「kernel 零改动」纪律分开立项。**
+- **9.4 模型名硬编码(P2):** `deepseek-v4-flash`/`deepseek-v4-pro` 硬编码在 [`src/deepseek/model-router.js`](../../../src/deepseek/model-router.js) `CHANNELS` 表,无法经 config 整体切换,只能逐调用 `explicitModel` 覆盖。**改法:** CHANNELS 的模型名改为从 `config.deepseek.models.{act,think,fim}` 读取,保留现值为默认。**影响:** `model-router.js`、`src/config.js`。**风险:** 低-中(需保证默认值与今天一致、覆盖路径测试)。**✅ v1.2.0:** config 顶层 `models.{act,think,fim}` 可配,gateway/FIM 同步透传,缺省与现网一致。
+- **9.5 死代码(P3):** [`src/index.js`](../../../src/index.js) `createPausedRecoveryFacade`(约 544-604 行)无任何调用点(实际用 `createRecoveryServiceFacade`/`disabledRecoveryFacade`)。**改法:** 删除或标注。**风险:** 低(需确认确无动态引用)。**注:属 `src/index.js`,若删需与「kernel 零改动」纪律分开立项。** **✅ v1.2.0:** 已删除(净 -101 行,含仅被其使用的 helpers;全仓无引用,回归全绿)。
 - **9.6 UMD fallback 第 4 份渲染副本(P2):** `gui/renderer/event-adapter.js` 的 `summarizeEvent`/`eventIcon` 是问题 #5 的残留副本(D-G4 已收敛另三份)。fallback 属受支持的未构建态(`renderer-dist` 是 gitignore 构建产物),但该层不消费 orchestration 事件。**改法:** 改为由共享事件展示契约生成,或在 renderer-dist 构建常态化后删除休眠层。**风险:** 低(休眠层不在主路径)。
-- **9.7 plan checkbox 与 roadmap 回写(P3):** 实施计划 checkbox 全未勾(完成状态只在 CHANGELOG),roadmap spec 未回写已发生的 pivot(Semi UI→手写、CodeMirror→Monaco、xterm→node-pty、D-0/D-G*→D-1~D-5)。**改法:** 文档维护动作 —— 勾掉已完成 plan 项或在 plan 头标「完成状态以 CHANGELOG 为准」;roadmap 补 pivot 注记。**风险:** 无(纯文档)。
+- **9.7 plan checkbox 与 roadmap 回写(P3):** 实施计划 checkbox 全未勾(完成状态只在 CHANGELOG),roadmap spec 未回写已发生的 pivot(Semi UI→手写、CodeMirror→Monaco、xterm→node-pty、D-0/D-G*→D-1~D-5)。**改法:** 文档维护动作 —— 勾掉已完成 plan 项或在 plan 头标「完成状态以 CHANGELOG 为准」;roadmap 补 pivot 注记。**风险:** 无(纯文档)。**✅ v1.2.0:** 51 份历史 plan 头部已标注,roadmap 已补 pivot 注记。
 
 ---
 

@@ -1,5 +1,7 @@
 # V2 Frontend Workbench Redesign Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 ## Task 1: Strengthen Design Tests
 
 - Add static tests requiring design tokens in `style.css`.

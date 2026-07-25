@@ -1,5 +1,7 @@
 # Future GUI DeepSeek Code IDE Redesign Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > Status: Deferred future plan  
 > Date: 2026-06-01  
 > Trigger: Revisit after the V2 iteration/recovery milestones are complete enough to avoid mixing product UI redesign with runtime hardening.

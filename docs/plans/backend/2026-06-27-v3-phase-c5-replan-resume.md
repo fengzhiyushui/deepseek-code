@@ -1,5 +1,7 @@
 # V3 Phase C5 重规划 + 持续派发回合循环(同进程编排级续跑)Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把 orchestrator 的「规划一次→派发一次」一般化为**确定性回合循环**(失败重规划 + 长任务持续派发),并支持**同进程编排级续跑**(回合中主区 worker 命中审批暂停 → 保存编排状态 → `approve` 后从原状态续跑,不重 plan、不重复派发)。

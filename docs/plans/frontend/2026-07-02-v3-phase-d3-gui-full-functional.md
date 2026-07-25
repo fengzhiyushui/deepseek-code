@@ -1,5 +1,7 @@
 # V3 Phase D-3 · GUI 全功能可用 + 设置页 实施计划
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** 按 TDD bite-sized 步骤落地,每 Task 末「跑测试 + 提交」。
 > **纯逻辑(M1/M3/M4/M6/M9)可内联先跑**;设置表单 / Monaco diff / 真切换(M2/M5/M7/M8/M10)走 build + 门控 smoke。
 > 提交前**单独验证绿**(勿用 `npm test | grep` 吞退出码后直接提交)。

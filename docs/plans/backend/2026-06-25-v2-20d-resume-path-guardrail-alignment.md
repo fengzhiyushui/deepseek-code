@@ -1,5 +1,7 @@
 # V2-20d resume 路径护栏对齐 Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans。Steps 用 `- [ ]`。
 > 承接 V2-20a/b/c;约定沿用(ESM、`node:test`、默认关闭零回归、`Co-Authored-By`)。
 

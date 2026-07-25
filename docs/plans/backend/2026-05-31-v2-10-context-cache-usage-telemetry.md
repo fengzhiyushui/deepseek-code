@@ -1,5 +1,7 @@
 # V2-10 Context Cache & Usage Telemetry Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add metadata-only context caching, incremental workspace scans, stable context snapshot hydration, and real DeepSeek usage telemetry exposed through the V2 kernel.

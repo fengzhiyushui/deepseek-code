@@ -1,5 +1,7 @@
 # V2-20c 畸形 tool-call 有界重试 Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans。Steps 用 `- [ ]`。
 > 承接 [V2-20a](2026-06-24-v2-20a-runtime-cost-timeout-guardrails.md) / [V2-20b](2026-06-25-v2-20b-guardrail-injection-graceful-stop.md);约定沿用(ESM、`node:test`、默认关闭零回归、`Co-Authored-By`)。
 

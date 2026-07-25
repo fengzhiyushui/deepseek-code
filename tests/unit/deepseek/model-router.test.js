@@ -51,3 +51,21 @@ test("buildChannelParams removes undefined fields", () => {
   const params = buildChannelParams({ purpose: "fim" });
   assert.deepEqual(Object.keys(params).sort(), ["max_tokens", "model"].sort());
 });
+
+test("models option overrides channel default models", () => {
+  const models = { act: "custom-act", think: "custom-think", fim: "custom-fim" };
+  assert.equal(routeModel({ purpose: "act", models }).model, "custom-act");
+  assert.equal(routeModel({ purpose: "plan", models }).model, "custom-think");
+  assert.equal(routeModel({ purpose: "fim", models }).model, "custom-fim");
+  assert.equal(routeModel({ purpose: "act" }).model, "deepseek-v4-flash"); // 默认不变
+});
+
+test("partial models override keeps other channel defaults", () => {
+  const route = routeModel({ purpose: "plan", models: { act: "only-act" } });
+  assert.equal(route.model, "deepseek-v4-pro");
+  assert.equal(routeModel({ purpose: "act", models: { act: "only-act" } }).model, "only-act");
+});
+
+test("explicitModel still wins over configured models", () => {
+  assert.equal(routeModel({ purpose: "act", models: { act: "cfg" }, explicitModel: "explicit" }).model, "explicit");
+});

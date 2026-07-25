@@ -1,5 +1,7 @@
 # V2-3 Edit Service Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make V2 edit tools real by wrapping the mature legacy unified diff, change record, and rollback pipeline behind a new `src/edits` service boundary.

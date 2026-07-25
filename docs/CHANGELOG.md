@@ -15,7 +15,18 @@
 
 - (暂无)
 
-**已挂账(待立项,方案见 [`specs/backend/2026-07-12-agent-findings-remediation.md`](specs/backend/2026-07-12-agent-findings-remediation.md)):** grep ReDoS、shell 环境变量隔离、语义上下文静默降级可观测化、仓库卫生、`agent-runtime.js` 可维护性重构等 P2/P3 项。
+**已挂账(待立项,方案见 [`specs/backend/2026-07-12-agent-findings-remediation.md`](specs/backend/2026-07-12-agent-findings-remediation.md)):** 语义上下文静默降级可观测化(#8)、明文变更记录脱敏方案(#9.3,需独立 design)、UMD fallback 渲染副本(#9.6)、`agent-runtime.js` 可维护性重构(#10)、shell 命令白名单(#7 后半)。
+
+---
+
+## v1.2.0 — 2026-07-19 · 工具安全护栏与仓库卫生
+
+- `grep` 工具加超时闸:每文件(默认 2s)+ 总预算(默认 10s)协作式检查,病态正则不再拖死进程;超时不抛错,返回已得匹配并以 metadata(`timed_out` / `timed_out_scope` / `files_skipped_timeout` / `files_searched`)标注,非法 pattern 行为不变。
+- `shell` 子进程环境改为**白名单继承**:仅透传 PATH、Windows 系统变量、用户/临时目录与区域设置;`DEEPSEEK_*`、`*_API_KEY` / `*_TOKEN` / `*_SECRET`、代理(`HTTP(S)_PROXY` / `NO_PROXY` / `ALL_PROXY`)与 `NODE_OPTIONS` 默认不可见。`git` 工具子进程走同一 `runProcess`,同样受白名单约束(`GIT_*` 被剥离;只读 git 操作不受影响)。
+- 模型 id 可配置:config 顶层 `models.{act,think,fim}` 整体切换路由 CHANNELS 的模型,缺省与现网一致(`deepseek-v4-flash` / `deepseek-v4-pro`);gateway 与 FIM 路径同步透传,`explicitModel` 仍最高优先。
+- 仓库卫生:`test/` 并入 `tests/`(npm test 单 glob);删除 `src/index.js` 无引用的 `createPausedRecoveryFacade`(净 -101 行);根目录原型 `DeepSeekCodeIDE.jsx` 与 `preview-deepseek-code` 轻量源码迁入 `docs/prototypes/`(node_modules 与日志不随迁),`.gitignore` 清 stale 行;51 份历史 plan 头部标注「完成状态以 CHANGELOG 为准」,roadmap 补 pivot 注记。
+- 版本同步为 `1.2.0`(`package.json` / `package-lock.json` / CLI-TUI banner);全量回归通过、语法检查通过。
+- 本版明确未做(仍挂账):#8 语义降级可观测、#9.3 明文变更记录、#9.6 UMD 副本、#10 `agent-runtime` 重构、shell 命令白名单。
 
 ---
 

@@ -87,6 +87,8 @@ user:message
 
 编辑类工具是"延迟绑定"的([`builtin/edit-deferred.js`](../src/tools/builtin/edit-deferred.js)),在内核装配时注入 `editService`:`diff_preview → preview`、`diff_apply`/`edit → apply`、`diff_rollback → rollback`。
 
+> **v1.2.0 工具安全加固:** `grep` 带每文件 2s + 总 10s 协作式超时(超时优雅返回,metadata 标注 `timed_out` 等字段,病态正则不再挂死);`shell` / `test` / `git` 子进程环境**白名单继承**(`buildChildEnv`:仅 PATH、系统、用户/临时目录、区域键;密钥与代理变量默认不可见);模型 id 可经 config 顶层 `models.{act,think,fim}` 整体切换,缺省不变。
+
 ### 固定执行顺序
 
 ```text

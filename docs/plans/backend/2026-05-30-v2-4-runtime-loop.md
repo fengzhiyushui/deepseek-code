@@ -1,5 +1,7 @@
 # V2-4 Runtime Loop Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Upgrade `kernel.agent.send()` from a single model reply into a real multi-round DeepSeek tool loop that can plan, execute tools, feed tool results back to the model, stop for approvals, verify edits, and produce final responses.

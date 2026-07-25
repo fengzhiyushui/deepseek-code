@@ -1,5 +1,7 @@
 # V3 Phase D-2 · GUI 做「真」 实施计划
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** 按 TDD bite-sized 步骤落地,每 Task 末「跑测试 + 提交」。
 > **纯逻辑(M1 部分/M2/M4/M5)无 GUI 集成依赖,主控内联做**;**Monaco(M3)/node-pty·xterm(M6)需装依赖 + node-pty 原生重建**,门控(本机/联网)。
 >

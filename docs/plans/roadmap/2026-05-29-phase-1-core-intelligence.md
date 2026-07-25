@@ -1,5 +1,7 @@
 # Phase 1: Core Intelligence — Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the three core intelligence modules — ModelProvider (dual-channel DeepSeek API), ContextEngine (3-layer memory with cache-aware assembly), and TaskOrchestrator (event-driven state machine) — on top of the Phase 0 kernel foundation.

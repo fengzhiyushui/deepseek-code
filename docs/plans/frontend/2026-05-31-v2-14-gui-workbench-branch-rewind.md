@@ -1,5 +1,7 @@
 # V2-14 GUI Workbench Refresh & Branch Rewind UX Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rebuild the Electron GUI into a polished three-column agent workbench with visible usage, speed, cache-hit metrics, and branch/checkpoint/rewind workflows.

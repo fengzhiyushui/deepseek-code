@@ -541,68 +541,6 @@ async function createRecoveryServiceFacade({
   };
 }
 
-function createPausedRecoveryFacade({ runtime, pausedTurnPersistence }) {
-  let lastReport = { found: [], done: [], blocked: [], next: [] };
-
-  async function rehydratePausedSidecars() {
-    if (!pausedTurnPersistence?.scan) return [];
-    const scanned = await pausedTurnPersistence.scan();
-    const current = new Set(runtime.listPaused().map((record) => record.approval_id));
-    for (const record of scanned) {
-      if (record.status || current.has(record.approval_id)) continue;
-      runtime.restorePaused(record);
-      current.add(record.approval_id);
-    }
-    return scanned;
-  }
-
-  return {
-    async list() {
-      const scanned = await rehydratePausedSidecars();
-      const corruptItems = scanned
-        .filter((item) => item.status === "corrupt")
-        .map(corruptSidecarToRecoveryItem);
-      const pausedItems = runtime.listPaused().map(pausedRecordToRecoveryItem);
-      const items = [...pausedItems, ...corruptItems].sort((left, right) => {
-        const byCreated = String(left.created_at || "").localeCompare(String(right.created_at || ""));
-        return byCreated || String(left.id).localeCompare(String(right.id));
-      });
-      lastReport = {
-        found: items,
-        done: [],
-        blocked: corruptItems,
-        next: items.map((item) => ({ id: item.id, allowed_actions: item.allowed_actions || [] }))
-      };
-      return items;
-    },
-    async resume(id, { decision = "approve" } = {}) {
-      await rehydratePausedSidecars();
-      const approvalId = approvalIdFromRecoveryId(id);
-      const result = await runtime.approve(approvalId, decision);
-      return { status: "resumed", approval_id: approvalId, result };
-    },
-    async cancel(id, reason = "cancelled") {
-      const scanned = await rehydratePausedSidecars();
-      const approvalId = approvalIdFromRecoveryId(id);
-      const record = await runtime.cancelPaused(approvalId, reason);
-      if (record) {
-        return { status: "cancelled", item: pausedRecordToRecoveryItem(record) };
-      }
-      const corrupt = scanned.find((item) => item.status === "corrupt" && item.approval_id === approvalId);
-      if (corrupt && pausedTurnPersistence?.quarantine) {
-        return pausedTurnPersistence.quarantine(approvalId, reason);
-      }
-      return null;
-    },
-    async clear() {
-      throw Object.assign(new Error("recovery clear is not available for paused approvals yet"), { code: "RECOVERY_CLEAR_UNAVAILABLE" });
-    },
-    report() {
-      return lastReport;
-    }
-  };
-}
-
 function disabledRecoveryFacade() {
   return {
     list: async () => [],
@@ -611,45 +549,6 @@ function disabledRecoveryFacade() {
     clear: async () => { throw Object.assign(new Error("recovery is disabled"), { code: "RECOVERY_DISABLED" }); },
     report: () => ({ found: [], done: [], blocked: [], next: [] })
   };
-}
-
-function pausedRecordToRecoveryItem(record) {
-  const permissionContext = record.permission_context || record.resume_state?.permission_context || {};
-  return {
-    id: `rec_pause_${record.approval_id}`,
-    type: "paused_turn",
-    status: "pending",
-    source_id: record.approval_id,
-    summary: record.approval?.summary || "Approval paused",
-    metadata: {
-      autonomy: permissionContext.autonomy || record.turn?.autonomy || "gated",
-      surface: record.surface || "unknown",
-      turn_id: record.turn_id,
-      session_id: record.session_id || record.turn?.session_id || null
-    },
-    allowed_actions: ["resume", "cancel"],
-    created_at: record.created_at || null,
-    updated_at: record.created_at || null
-  };
-}
-
-function corruptSidecarToRecoveryItem(item) {
-  return {
-    id: `rec_pause_${item.approval_id}`,
-    type: "paused_turn",
-    status: "blocked",
-    source_id: item.approval_id,
-    summary: "Paused approval sidecar is corrupt",
-    metadata: { reason: item.reason },
-    allowed_actions: ["cancel"],
-    created_at: null,
-    updated_at: null
-  };
-}
-
-function approvalIdFromRecoveryId(id) {
-  const value = String(id || "");
-  return value.startsWith("rec_pause_") ? value.slice("rec_pause_".length) : value;
 }
 
 function redactSnapshot(snap) {

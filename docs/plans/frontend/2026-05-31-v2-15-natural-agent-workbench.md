@@ -1,5 +1,7 @@
 # V2-15 Natural Agent Workbench Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 ## Task 1: Replace GUI Static Contract Tests
 
 - Update `tests/unit/gui/renderer-static.test.js` to require:

@@ -101,5 +101,30 @@ test("reply forwards options history into assembled request messages", async () 
   assert.equal(calls[0][3].content, "second");
 });
 
+test("construction-time models drive chat requests; per-call models override", () => {
+  const gateway = createDeepSeekGateway({ apiKey: "key", models: { act: "cfg-act", think: "cfg-think", fim: "cfg-fim" } });
+  const request = gateway.buildChatRequest([{ role: "user", content: "hi" }], { purpose: "act", stream: false });
+  assert.equal(request.body.model, "cfg-act");
+  const overridden = gateway.buildChatRequest([{ role: "user", content: "hi" }], { purpose: "act", stream: false, models: { act: "call-act" } });
+  assert.equal(overridden.body.model, "call-act");
+});
+
+test("fimComplete uses configured fim model and explicit options.model wins", async () => {
+  const calls = [];
+  const gateway = createDeepSeekGateway({
+    apiKey: "key",
+    models: { act: "cfg-act", think: "cfg-think", fim: "cfg-fim" },
+    fetchImpl: async (url, init) => {
+      calls.push({ url, body: JSON.parse(init.body) });
+      return jsonResponse(200, { choices: [{ text: "done" }], usage: { prompt_tokens: 1, completion_tokens: 1, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1 } });
+    }
+  });
+  await gateway.fimComplete("prefix");
+  assert.equal(calls.at(-1).url, "https://api.deepseek.com/beta/completions");
+  assert.equal(calls.at(-1).body.model, "cfg-fim");
+  await gateway.fimComplete("prefix", "", { model: "explicit-fim" });
+  assert.equal(calls.at(-1).body.model, "explicit-fim");
+});
+
 function jsonResponse(status, payload) { return { ok: status >= 200 && status < 300, status, json: async () => payload, text: async () => JSON.stringify(payload) }; }
 function streamResponse(chunks) { return { ok: true, status: 200, text: async () => "", body: new ReadableStream({ start(controller) { for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk)); controller.close(); } }) }; }

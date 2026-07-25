@@ -15,6 +15,11 @@ export const DEFAULT_CONFIG = {
   maxTokens: 4096,
   thinking: { type: "disabled" },
   reasoningEffort: "high",
+  models: {
+    act: "deepseek-v4-flash",
+    think: "deepseek-v4-pro",
+    fim: "deepseek-v4-pro"
+  },
   limits: {
     toolTimeoutMs: 120000,
     modelTimeoutMs: 120000,
@@ -60,6 +65,7 @@ export async function loadConfig(root, options = {}) {
     model: process.env.DEEPSEEK_MODEL || fileConfig.model || DEFAULT_CONFIG.model,
     thinking: normalizeThinking(fileConfig.thinking ?? DEFAULT_CONFIG.thinking),
     reasoningEffort: process.env.DEEPSEEK_REASONING_EFFORT || fileConfig.reasoningEffort || DEFAULT_CONFIG.reasoningEffort,
+    models: normalizeModels(fileConfig.models),
     limits: limitsFromEnv(normalizeLimits(fileConfig.limits)),
     context: normalizeContext(fileConfig.context)
   };
@@ -100,10 +106,22 @@ export function normalizeConfig(config) {
     maxTokens: Math.trunc(toNumber(config.maxTokens, DEFAULT_CONFIG.maxTokens)),
     thinking: normalizeThinking(config.thinking ?? DEFAULT_CONFIG.thinking),
     reasoningEffort: normalizeReasoningEffort(config.reasoningEffort),
+    models: normalizeModels(config.models),
     limits: normalizeLimits(config.limits),
     context: normalizeContext(config.context),
     orchestration: normalizeOrchestration(config.orchestration)
   };
+}
+
+export function normalizeModels(raw) {
+  const d = DEFAULT_CONFIG.models;
+  if (!raw || typeof raw !== "object") return { ...d };
+  const out = { ...d };
+  for (const key of ["act", "think", "fim"]) {
+    const value = typeof raw[key] === "string" ? raw[key].trim() : "";
+    if (value) out[key] = value;
+  }
+  return out;
 }
 
 export function normalizeLimits(raw = {}) {

@@ -1,5 +1,7 @@
 # V3 Phase C4 跨任务经验记忆(完整)实施计划
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** 按 TDD bite-sized 步骤落地,每个 Task 末「跑测试 + 提交」。全程主控内联(模型调用全 mock,无 429/联网依赖)。
 >
 > 设计 spec:[2026-06-27-v3-phase-c4-experience-memory-design.md](../../specs/backend/2026-06-27-v3-phase-c4-experience-memory-design.md)。

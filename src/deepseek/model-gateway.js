@@ -7,13 +7,14 @@ import { createFimClient } from "./fim-client.js";
 import { normalizeToolCalls } from "./tool-call-repair.js";
 import { assembleReplyMessages } from "./prompt-assembler.js";
 
-export function createDeepSeekGateway({ apiKey = process.env.DEEPSEEK_API_KEY || "", baseUrl = "https://api.deepseek.com", fetchImpl = globalThis.fetch, userId = null } = {}) {
+export function createDeepSeekGateway({ apiKey = process.env.DEEPSEEK_API_KEY || "", baseUrl = "https://api.deepseek.com", fetchImpl = globalThis.fetch, userId = null, models } = {}) {
   const usageTracker = createUsageTracker();
   const fimClient = createFimClient({ apiKey, baseUrl, fetchImpl });
 
   function buildChatRequest(messages, options = {}) {
-    const route = routeModel(options);
-    const body = applyJsonMode({ messages, jsonMode: Boolean(options.jsonMode), body: removeUndefined({ ...buildChannelParams(options), messages, stream: Boolean(options.stream ?? route.stream), tools: options.tools, tool_choice: options.toolChoice, user_id: userId }) });
+    const routed = { ...options, models: options.models ?? models };
+    const route = routeModel(routed);
+    const body = applyJsonMode({ messages, jsonMode: Boolean(options.jsonMode), body: removeUndefined({ ...buildChannelParams(routed), messages, stream: Boolean(options.stream ?? route.stream), tools: options.tools, tool_choice: options.toolChoice, user_id: userId }) });
     if (body.stream) body.stream_options = { include_usage: true };
     return { url: `${baseUrl.replace(/\/+$/, "")}/chat/completions`, body, route };
   }
@@ -62,7 +63,8 @@ export function createDeepSeekGateway({ apiKey = process.env.DEEPSEEK_API_KEY ||
   }
 
   async function fimComplete(prefix, suffix = "", options = {}) {
-    const result = await fimClient.complete({ prefix, suffix, model: options.model, maxTokens: options.maxTokens, signal: options.signal });
+    const resolvedModels = options.models ?? models;
+    const result = await fimClient.complete({ prefix, suffix, model: options.model ?? resolvedModels?.fim, maxTokens: options.maxTokens, signal: options.signal });
     usageTracker.recordUsage({ usage: result.usage, channel: "fim", model: result.model, latency_ms: result.latency_ms || 0 });
     return result.content;
   }

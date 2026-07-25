@@ -1,5 +1,7 @@
 # V2-20a 运行时成本与超时护栏 Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **状态:✅ 已完成(2026-06-25)** — 全部 5 个任务落地,测试 529 全绿、`npm run check` 通过。
 > 提交:`c7fd9e1`(cost-budget)、`0603bd0`(model timeout)、`9bffcc5`(tool timeout)、`b0e6354`(executor-loop budget)、`49f338b`(runtime + kernel limits)。
 > 后续见文末「范围说明与后续」(V2-20b)。

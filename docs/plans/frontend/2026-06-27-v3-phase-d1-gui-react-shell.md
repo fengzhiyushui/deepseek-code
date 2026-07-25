@@ -1,5 +1,7 @@
 # V3 Phase D-1 · GUI React 外壳 实施计划
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** 按 TDD bite-sized 步骤落地,每 Task 末「跑测试 + 提交」。
 > **纯逻辑里程碑(M1/M3/M6 的纯函数)无 gui deps,主控内联做**;**依赖门控里程碑(M2 build / M4–M5 组件 / M7 smoke·截图)需 `npm install` gui deps + vite/electron**——环境 429 时**单列交用户本地跑**。
 >

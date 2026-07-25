@@ -1,5 +1,7 @@
 # DeepSeek Code GUI 前端优化与集成方案
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 ## 一、当前 GUI 现状
 
 当前 GUI 是一个基于原生 HTML/CSS/JS 的 Electron 应用，架构如下：

@@ -1,5 +1,7 @@
 # V3 Phase C1+C2 多智能体编排 Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把「单 agent」与「多 agent」合并为一条路 —— `kernel.send()` 经确定性路由器:简单任务走今天的 `agentRuntime.send()`(零回归),复杂任务走 Orchestrator(Planner 拆 → 串行 Worker 执行 → 两级审核 → 汇总),Worker/Reviewer 复用 `agent-runtime` 实例。

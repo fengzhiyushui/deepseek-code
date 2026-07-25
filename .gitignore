@@ -1,6 +1,5 @@
 node_modules/
 gui/node_modules/
-preview-deepseek-code/node_modules/
 
 dist/
 build/

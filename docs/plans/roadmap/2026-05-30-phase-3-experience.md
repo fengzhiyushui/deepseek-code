@@ -1,5 +1,7 @@
 # Phase 3: Experience Layer — Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Wire SessionLog into the kernel runtime (persist events, timeline query) and upgrade the TUI with event timeline + status bar. Full session resume/replay deferred to a follow-up.

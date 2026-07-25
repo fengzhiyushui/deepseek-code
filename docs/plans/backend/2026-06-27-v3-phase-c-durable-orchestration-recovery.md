@@ -1,5 +1,7 @@
 # V3 Phase C-Durable · 跨进程编排级 durable 恢复 Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 让编排回合(orchestration round)在崩溃/重启后能从暂停点续跑 —— 重启后精确重水化被暂停的 worker turn(Option B「完整 worker turn 重水化」),审批落到其原在途工具调用,而非重派整个 subtask。

@@ -1,5 +1,7 @@
 # Phase B+1 · 方法消歧(--include-method-hints)Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 点亮 `includeMethodHints` —— 开启后把 `obj.method()`(member 调用)在"项目内恰好一个同名可调用符号"时升级为 `confidence:"probable"` 边,并新增 CLI `--semantic-context` / `--include-method-hints`;默认关、关闭时行为逐字节不变。

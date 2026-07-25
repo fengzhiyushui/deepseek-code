@@ -21,6 +21,7 @@ docs/
     roadmap/                ← 宏观阶段(phase-0..5)与未来路线图
     backend/                ← 后端按特性的实施计划
     frontend/               ← 前端按特性的实施计划
+  prototypes/               ← 历史静态原型存档(不接运行时,v1.2.0 自仓库根迁入)
 ```
 
 **specs 与 plans 的区别**:`specs/` 回答"要做成什么样、为什么这么设计";`plans/` 回答"分几步、每步怎么做、怎么验证"。一个特性通常先有 spec 再有 plan。
@@ -99,6 +100,8 @@ docs/
 - [v3-phase-c-router tiered](specs/backend/2026-06-27-v3-phase-c-router-tiered-design.md) — **C-Router 分层路由**:启发式评分三档(明显简单/复杂免费短路、模糊中间档调一次便宜模型判 lane)+ 长 edit 捕手修「关键词太窄」+ 文件 token 归一化首个免计 + 模型档总调用/总超时上限 + 全失败收敛启发式兜底;**默认开**、`router.model.enabled=false` opt-out 逐字节回今天(`agent-runtime`/`classifier` 不改)
 - [v3-phase-c4 experience-memory](specs/backend/2026-06-27-v3-phase-c4-experience-memory-design.md) — **C4 跨任务经验记忆(完整)**:独立经验库 + 三级分化(打分/老化/末位淘汰)+ Jaccard 聚簇去重 + 巩固器(次 agent 任务边界异步)+ planner 检索注入(adopted=used∩presented)+ **风险经验单调升级权限**(只 allow→ask、不改 agent-runtime)+ 开关 off/on/gated;默认 off 零回归
 - [v3-phase-c-durable orchestration-recovery](specs/backend/2026-06-27-v3-phase-c-durable-orchestration-recovery-design.md) — **C-Durable 跨进程编排级 durable 恢复**:暂停双写(worker turn sidecar + 编排 sidecar,同 approvalId)→ 重启扫描交叉校验(schema+指纹+归属门)→ `worker-factory` 确定性重建 + 共享 `pausedTurnStore` 重水化 approve → 续跑不重 plan;5 边界(孤儿 blocked / 不存 raw options / 版本指纹门 / approval 归属 / 预算续扣);opt-in `recovery.enabled`,默认关,`agent-runtime` 一行未改
+- [agent-findings remediation](specs/backend/2026-07-12-agent-findings-remediation.md) — **agent 审计发现补救台账**:10 条目根因/改法/验证与处理状态(#1–#5 ✅ v1.1.0;#6/#7(env)/#9 易项 ✅ v1.2.0;#8/#9.3/#9.6/#10 挂账)
+- [v1.2.0 agent-findings-p2 design](specs/backend/2026-07-17-v1.2.0-agent-findings-p2-design.md) — **v1.2.0 设计**:grep 每文件+总超时 · shell env 白名单继承(不放行代理) · #9 卫生易项;#8/#9.3/#9.6/#10 明确非目标
 
 ### specs/frontend — 前端设计
 - [v2-14 gui-workbench-branch-rewind](specs/frontend/2026-05-31-v2-14-gui-workbench-branch-rewind-design.md)
@@ -129,6 +132,7 @@ docs/
 - [v3-phase-c-router tiered](plans/backend/2026-06-27-v3-phase-c-router-tiered.md) — **C-Router 实施计划**:4 任务 / M1–M4(router-scoring 纯函数 → task-router 分层+模型档 → config 归一化+index 注入+route_resolved 事件 → e2e+回归 670+文档)
 - [v3-phase-c4 experience-memory](plans/backend/2026-06-27-v3-phase-c4-experience-memory.md) — **C4 实施计划**:M0–M9 / TDD(契约 → store 写队列 → scoring → cluster → upsert → consolidator → retrieval+planner → orchestrator 接线 → permission 单调升级 → gated+e2e+回归 739+文档)
 - [v3-phase-c-durable orchestration-recovery](plans/backend/2026-06-27-v3-phase-c-durable-orchestration-recovery.md) — **C-Durable 实施计划**:M0–M8 / TDD(契约层 → orchestration-persistence → budget 种子+serializeState → 共享 store → resumeDurable → 暂停双写 → recovery-service 扫描+孤儿 blocked → index 接线+durable approve → 跨实例 e2e+回归 782+文档)
+- [v1.2.0 agent-findings P2](plans/backend/2026-07-16-v1.2.0-agent-findings-p2.md) — **v1.2.0 实施计划**:审计挂账有界收口(#6 grep 超时 · #7 shell env 白名单 · #9 卫生易项 9.1/9.2/9.4/9.5/9.7;#8/#9.3/#10 延后)
 - v2-0 skeleton-protocol-foundation · v2-1 deepseek-gateway · v2-2 tool-plane · v2-3 edit-service · v2-4 runtime-loop · v2-6 release-closure · v2-7 approval-resume · v2-8 verifier-repair-loop · v2-9 context-engine · v2-10 context-cache-usage-telemetry · v2-11 transactional-edit-dirty-workspace · v2-12 branching-conversation-rewind · v2-13 rewind-hardening-recovery · v2-17 chat-kernel-unification · v2-18 durable-recovery-resume-hardening · **v2-20a runtime-cost-timeout-guardrails** · **v2-20b guardrail-injection-graceful-stop** · **v2-20c malformed-toolcall-retry** · **v2-20d resume-path-guardrail-alignment** · **v2-20e repair-path-model-timeout** · **v2-20f guardrail-defaults-config** · **v2-19 delete-v1-legacy** · **v2-18c edit-rewind-journaling**
 - 文件位于 [`plans/backend/`](plans/backend/)
 
@@ -150,6 +154,6 @@ docs/
 
 ## 版本与里程碑
 
-当前版本 **v1.1.0**(2026-07-15,可靠性、安全与中文体验修复)。首个正式版本 v1.0.0 整合此前全部内部迭代;完整能力总结与后续版本日志见 [`CHANGELOG.md`](CHANGELOG.md),版本升级判定见上文[版本命名规则](#版本命名规则)。
+当前版本 **v1.2.0**(2026-07-19,工具安全护栏与仓库卫生)。首个正式版本 v1.0.0 整合此前全部内部迭代;完整能力总结与后续版本日志见 [`CHANGELOG.md`](CHANGELOG.md),版本升级判定见上文[版本命名规则](#版本命名规则)。
 
 v1.0.0 的开发历程分三代(详细里程碑见上方 specs/plans 索引与 git 历史):**V1 原型** → **V2 干净运行时**(内核统一 / 工具平面 / 编辑回滚 / 验证修复 / 上下文引擎 / 分支 rewind / 持久化恢复 / 运行护栏)→ **V3 三支柱**(语义级上下文 · 多智能体调度 · 前端三端重构 + CLI 对齐 D-G4)。

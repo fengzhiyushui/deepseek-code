@@ -1,5 +1,7 @@
 # V2-18 Durable Recovery / Resume Hardening Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement process-crash durable recovery for V2 approval/repair pauses, agent-managed edit/rewind transactions, single-writer takeover, and the shared Recovery Center UX.

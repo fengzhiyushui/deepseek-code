@@ -1,5 +1,7 @@
 # V3 Phase D-G4 · CLI 对齐 Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 实现路线图 D-G4 完成 V3 支柱③ —— 抽出三端共用的「共享事件展示契约」`describeEvent`,CLI/TUI/GUI-React 三个渲染器改为消费它;补齐 CLI 当前完全缺失的多 agent(orchestration/experience)摘要;TUI `/recovery` 补 `clear` 与 CLI 对齐。

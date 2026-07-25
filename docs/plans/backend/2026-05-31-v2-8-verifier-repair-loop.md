@@ -1,5 +1,7 @@
 # V2-8 Verifier & Repair Loop Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Turn V2 verification from a terminal gate into a bounded DeepSeek repair loop that can verify edits, ask the repair channel for corrective tool calls, execute repairs through ToolExecutor, and verify again.

@@ -34,7 +34,33 @@ function clampTimeout(value) {
   return Math.min(numeric, 120000);
 }
 
-export function runProcess(argv, { cwd, timeoutMs = 30000 } = {}) {
+const CHILD_ENV_ALLOW = new Set([
+  "path", "pathext", "systemroot", "comspec", "windir",
+  "home", "userprofile", "homedrive", "homepath",
+  "tmp", "temp", "tmpdir",
+  "lang", "lc_all", "lc_ctype", "language"
+]);
+
+export function buildChildEnv(baseEnv = process.env, { allowExtra = [] } = {}) {
+  const out = {};
+  const lowerToActual = new Map();
+  for (const key of Object.keys(baseEnv || {})) {
+    const lower = key.toLowerCase();
+    if (!lowerToActual.has(lower)) lowerToActual.set(lower, key);
+  }
+  for (const allowed of CHILD_ENV_ALLOW) {
+    const actual = lowerToActual.get(allowed);
+    if (actual != null && baseEnv[actual] != null) out[actual] = baseEnv[actual];
+  }
+  for (const extra of allowExtra) {
+    if (typeof extra === "string" && Object.prototype.hasOwnProperty.call(baseEnv || {}, extra)) {
+      out[extra] = baseEnv[extra];
+    }
+  }
+  return out;
+}
+
+export function runProcess(argv, { cwd, timeoutMs = 30000, env } = {}) {
   return new Promise((resolve) => {
     let settled = false;
     let stdout = "";
@@ -66,7 +92,7 @@ export function runProcess(argv, { cwd, timeoutMs = 30000 } = {}) {
     }
 
     try {
-      child = spawn(argv[0], argv.slice(1), { cwd, shell: false, windowsHide: true });
+      child = spawn(argv[0], argv.slice(1), { cwd, shell: false, windowsHide: true, env: env ?? buildChildEnv(process.env) });
     } catch (err) {
       finish(spawnErrorResult(err.message));
       return;

@@ -1,5 +1,7 @@
 # V3 Phase C3 并行 Worker 写隔离 Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 让「无依赖 + 声明文件范围不重叠」的子任务并行执行,每个并行 Worker 在 fs 拷贝隔离工作区里改动,完成后经快照一致性校验 + 每 subtask 原子事务**回放合并**进主工作区;`maxParallelWorkers=1` 或批大小=1 时与 C1+C2 串行逐字节一致。

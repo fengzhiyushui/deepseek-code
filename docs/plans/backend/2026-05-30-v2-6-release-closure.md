@@ -1,5 +1,7 @@
 # V2-6 Release Closure Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Close the V2 migration by adding durable V2 session timeline persistence, release smoke tests, legacy boundary guards, and accurate user-facing documentation.

@@ -1,5 +1,7 @@
 # V2-20f 护栏默认值与用户配置 Implementation Plan
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans。Steps 用 `- [ ]`。
 > 承接 V2-20a–e(护栏 plumbing 已完整);本切片把护栏**点亮**并交给用户配置。
 

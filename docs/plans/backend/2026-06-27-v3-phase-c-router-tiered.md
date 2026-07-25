@@ -1,5 +1,7 @@
 # V3 Phase C-Router 分层路由 实施计划
 
+> 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+
 > **For agentic workers:** 本计划按 TDD bite-sized 步骤落地;每个 Task 末「跑测试 + 提交」。全程主控内联(无 429/联网依赖,模型调用全 mock)。
 >
 > 设计 spec:[2026-06-27-v3-phase-c-router-tiered-design.md](../../specs/backend/2026-06-27-v3-phase-c-router-tiered-design.md)。
