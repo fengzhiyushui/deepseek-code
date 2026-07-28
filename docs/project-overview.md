@@ -88,6 +88,8 @@ user:message
 编辑类工具是"延迟绑定"的([`builtin/edit-deferred.js`](../src/tools/builtin/edit-deferred.js)),在内核装配时注入 `editService`:`diff_preview → preview`、`diff_apply`/`edit → apply`、`diff_rollback → rollback`。
 
 > **v1.2.0 工具安全加固:** `grep` 带每文件 2s + 总 10s 协作式超时(超时优雅返回,metadata 标注 `timed_out` 等字段,病态正则不再挂死);`shell` / `test` / `git` 子进程环境**白名单继承**(`buildChildEnv`:仅 PATH、系统、用户/临时目录、区域键;密钥与代理变量默认不可见);模型 id 可经 config 顶层 `models.{act,think,fim}` 整体切换,缺省不变。
+>
+> **v1.3.1 命令级安全策略:** `shell`/`git` 子进程执行在权限档位之外新增**命令级分类**([`src/security/command-policy.js`](../src/security/command-policy.js)):forbidden(format/mkfs*/diskpart/bcdedit/dd)映射 `destructive` 各档一律拒绝且审批缓存不可放行;dangerous(删除类/系统类/curl/wget/npm publish/git push 强推/包装 shell/解释器执行参数)映射 `execute_dangerous`,supervised–full-auto 一律人工确认(read-only 拒绝);`runProcess` spawn 前兜底拒绝 forbidden。审批 summary 附带 argv 预览,事件展示契约 `argHint` 修复读取 `call.params`。
 
 ### 固定执行顺序
 

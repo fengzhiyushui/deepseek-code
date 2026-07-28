@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { classifyCommand } from "./command-policy.js";
 
 export function normalizeShellParams(raw = {}) {
   if (typeof raw.cmd === "string") {
@@ -89,6 +90,12 @@ export function runProcess(argv, { cwd, timeoutMs = 30000, env } = {}) {
           stderr_truncated: errOut.truncated
         }
       };
+    }
+
+    // 兜底仅拦 forbidden(dangerous 属审批层职责,拦了会打断 test 工具的包装 shell 嵌套回路)。
+    if (classifyCommand(argv) === "forbidden") {
+      finish(spawnErrorResult(`command policy: forbidden command refused: ${argv[0]}`));
+      return;
     }
 
     try {

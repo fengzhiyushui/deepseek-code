@@ -15,7 +15,17 @@
 
 - (暂无)
 
-**已挂账(待立项,方案见 [`specs/backend/2026-07-12-agent-findings-remediation.md`](specs/backend/2026-07-12-agent-findings-remediation.md)):** 语义上下文静默降级可观测化(#8)、明文变更记录脱敏方案(#9.3,需独立 design)、UMD fallback 渲染副本(#9.6)、`agent-runtime.js` 可维护性重构(#10)、shell 命令白名单(#7 后半)。
+**已挂账(待立项,方案见 [`specs/backend/2026-07-12-agent-findings-remediation.md`](specs/backend/2026-07-12-agent-findings-remediation.md)):** 语义上下文静默降级可观测化(#8)、明文变更记录脱敏方案(#9.3,需独立 design)、UMD fallback 渲染副本(#9.6)、`agent-runtime.js` 可维护性重构(#10)。
+
+---
+
+## v1.3.1 — 2026-07-28 · shell 命令级安全策略
+
+- `shell`/`git` 子进程执行在权限档位之外新增**命令级分类**([`src/security/command-policy.js`](../src/security/command-policy.js),清单硬编码):`classifyCommand(argv)` 将命令分为 safe / dangerous / forbidden 三类,经工具 `resolveCategory` 映射进权限引擎——**forbidden**(format / mkfs* / diskpart / bcdedit / dd)映射到 `destructive`,在所有自治档位一律拒绝且审批缓存不可放行;**dangerous**(rm/del 等删除类、shutdown/reg/taskkill 等系统类、curl/wget、npm publish、git push 强制推送、bash/cmd/powershell 等包装 shell、node -e / python -c 等解释器执行参数)映射到 `execute_dangerous`,在 supervised / gated / auto / **full-auto** 四档一律要求人工确认(read-only 档拒绝,与其余 execute 一致);safe 命令行为不变。命令名归一化覆盖 basename、大小写、`.exe`/`.cmd`/`.bat`/`.com` 扩展名及 Win32 尾部点号变体。
+- `runProcess` 兜底:spawn 前对 forbidden 命令直接拒绝(不经审批层),防止绕过工具定义的路径;dangerous 不在此层拦截,保证 `test` 工具的 cmd.exe 嵌套回路不受影响。
+- 审批体验:审批请求 summary 现在附带 argv 预览(120 字符截断);事件展示契约 `argHint` 修复为读取 `call.params`(此前读 `call.args`,tool:call 事件 argv 预览始终为空),`ARG_KEYS` 增加 `argv`。
+- 版本同步为 `1.3.1`(`package.json` / `package-lock.json` / CLI-TUI banner);全量回归(991 项)与语法检查通过。
+- 本版范围说明:对应设计中另两项(语义上下文降级可观测化 #8、GUI 休眠渲染层删除 #9.6)在 `feat/v1.3.0` 分支上继续开发,作为后续版本发布。
 
 ---
 

@@ -96,6 +96,62 @@ test("executor publishes tool call permission approval and result events", async
   assert.ok(events.some(([type]) => type === "tool:result"));
 });
 
+test("executor approval summary includes clipped argv preview", async () => {
+  const registry = createToolRegistry({
+    tools: [{
+      name: "shell_like",
+      description: "Argv tool",
+      category: "execute",
+      side_effect: "process",
+      risk_level: "medium",
+      source: "test",
+      version: "1.0",
+      params: { argv: { type: "array" } },
+      execute: async () => ({ content: [{ type: "text", text: "ran" }] })
+    }]
+  });
+  const executor = createToolExecutor({ registry, permissionEngine: createPermissionEngine() });
+
+  const short = await executor.execute(
+    createToolCall({ name: "shell_like", params: { argv: ["git", "push", "--force", "origin", "main"] }, requestedByStepId: "step_1" }),
+    createPolicyContext({ autonomy: "supervised" })
+  );
+  assert.equal(short.status, "approval_required");
+  assert.equal(short.metadata.approval.summary, "shell_like requires approval: `git push --force origin main`");
+
+  const long = await executor.execute(
+    createToolCall({ name: "shell_like", params: { argv: ["node", "x".repeat(200)] }, requestedByStepId: "step_1" }),
+    createPolicyContext({ autonomy: "supervised" })
+  );
+  assert.equal(long.status, "approval_required");
+  assert.ok(long.metadata.approval.summary.length <= "shell_like requires approval: ``…".length + 120);
+  assert.match(long.metadata.approval.summary, /…`$/);
+});
+
+test("executor approval summary unchanged for tools without argv", async () => {
+  const registry = createToolRegistry({
+    tools: [{
+      name: "needs_approval",
+      description: "Approval tool",
+      category: "execute",
+      side_effect: "process",
+      risk_level: "medium",
+      source: "test",
+      version: "1.0",
+      params: {},
+      execute: async () => ({ content: [{ type: "text", text: "ran" }] })
+    }]
+  });
+  const executor = createToolExecutor({ registry, permissionEngine: createPermissionEngine() });
+
+  const result = await executor.execute(
+    createToolCall({ name: "needs_approval", params: {}, requestedByStepId: "step_1" }),
+    createPolicyContext({ autonomy: "supervised" })
+  );
+  assert.equal(result.status, "approval_required");
+  assert.equal(result.metadata.approval.summary, "needs_approval requires approval");
+});
+
 test("executor redacts secrets from tool output", async () => {
   const registry = createToolRegistry({
     tools: [{

@@ -4,7 +4,8 @@
 // 明确边界:这不是 core 的事件生产契约(那由 src/sessions/event-types.js 负责),只做「已产出事件 → 展示语义」的单向映射。
 
 const NOISY = new Set(["model:request", "model:response", "agent:step", "agent:turn_started"]);
-const ARG_KEYS = ["path", "file", "pattern", "command", "query", "url"];
+const ARG_KEYS = ["path", "file", "pattern", "command", "query", "url", "argv"];
+const ARG_HINT_LIMIT = 120;
 
 function num(v) { return Number.isFinite(v) ? v : null; }
 function str(v) { return typeof v === "string" && v.length ? v : null; }
@@ -13,10 +14,20 @@ function toolName(event) {
   return str(event.call?.name) || str(event.tool?.name) || str(event.tool) || null;
 }
 function argHint(event) {
-  const args = event.call?.args || event.call?.arguments || event.args;
+  const args = event.call?.params ?? event.call?.args ?? event.call?.arguments ?? event.args;
   if (!args || typeof args !== "object") return null;
-  for (const k of ARG_KEYS) { if (args[k]) return String(args[k]); }
+  for (const k of ARG_KEYS) {
+    const v = args[k];
+    if (Array.isArray(v)) {
+      if (!v.length) continue;
+      return clip(v.join(" "));
+    }
+    if (v) return clip(String(v));
+  }
   return null;
+}
+function clip(s) {
+  return s.length > ARG_HINT_LIMIT ? `${s.slice(0, ARG_HINT_LIMIT)}…` : s;
 }
 function changeId(event) {
   return str(event.change_id) || str(event.record?.id) || null;

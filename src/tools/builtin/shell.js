@@ -1,3 +1,4 @@
+import { classifyCommand } from "../../security/command-policy.js";
 import { normalizeShellParams, runProcess } from "../../security/shell-policy.js";
 import { resolveWorkspacePath } from "../../workspace/path-safety.js";
 
@@ -17,6 +18,12 @@ export function createShellTool() {
       shell: { type: "boolean", required: false, internal: true }
     },
     normalizeParams: normalizeShellParams,
+    resolveCategory(params) {
+      const classification = classifyCommand(params.argv);
+      if (classification === "forbidden") return "destructive";
+      if (classification === "dangerous") return "execute_dangerous";
+      return "execute";
+    },
     execute: async (params, context) => {
       const normalized = normalizeShellParams(params);
       const cwd = await resolveWorkspacePath(context.projectRoot, normalized.cwd, { mustExist: true });

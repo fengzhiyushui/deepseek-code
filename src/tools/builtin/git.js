@@ -1,3 +1,4 @@
+import { classifyCommand } from "../../security/command-policy.js";
 import { runProcess } from "../../security/shell-policy.js";
 import { resolveWorkspacePath } from "../../workspace/path-safety.js";
 
@@ -22,6 +23,14 @@ export function createGitTool() {
       argv: { type: "array", required: false, internal: true }
     },
     normalizeParams,
+    // 白名单 read op 之外的 argv 现网不可达(normalizeParams 先抛),分类分支为防御性接线。
+    resolveCategory(params) {
+      if (GIT_READ_OPS[params.op]) return "read";
+      const classification = classifyCommand(params.argv);
+      if (classification === "forbidden") return "destructive";
+      if (classification === "dangerous") return "execute_dangerous";
+      return "read";
+    },
     execute: async (params, context) => {
       const normalized = normalizeParams(params);
       const cwd = await resolveWorkspacePath(context.projectRoot, ".", { mustExist: true });

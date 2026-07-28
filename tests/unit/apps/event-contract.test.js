@@ -24,6 +24,17 @@ test("tool:call argHint picks first non-empty key in order", () => {
   assert.equal(describeEvent({ type: "tool:call", call: { name: "x", args: {} } }).fields.argHint, null);
 });
 
+test("tool:call argHint reads executor call.params and joins argv", () => {
+  const d = describeEvent({ type: "tool:call", call: { name: "shell", params: { argv: ["git", "status"] } } });
+  assert.equal(d.fields.argHint, "git status");
+  const path = describeEvent({ type: "tool:call", call: { name: "read", params: { path: "src/a.js" } } });
+  assert.equal(path.fields.argHint, "src/a.js");
+  const long = describeEvent({ type: "tool:call", call: { name: "shell", params: { argv: ["node", "y".repeat(200)] } } });
+  assert.ok(long.fields.argHint.length <= 121);
+  assert.match(long.fields.argHint, /…$/);
+  assert.equal(describeEvent({ type: "tool:call", call: { name: "x", params: { argv: [] } } }).fields.argHint, null);
+});
+
 test("tool:result severity maps ok->success else warn", () => {
   assert.equal(describeEvent({ type: "tool:result", result: { status: "ok" } }).severity, "success");
   assert.equal(describeEvent({ type: "tool:result", status: "error" }).severity, "warn");

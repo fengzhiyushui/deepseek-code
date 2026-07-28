@@ -4,27 +4,27 @@ export const DEFAULT_POLICY_MATRIX = Object.freeze({
   "read-only": {
     read: "allow", read_secret: "ask",
     write_create: "deny", write_update: "deny", write_delete: "deny",
-    execute: "deny", network: "deny", destructive: "deny"
+    execute: "deny", execute_dangerous: "deny", network: "deny", destructive: "deny"
   },
   supervised: {
     read: "allow", read_secret: "ask",
     write_create: "ask", write_update: "ask", write_delete: "ask",
-    execute: "ask", network: "ask", destructive: "deny"
+    execute: "ask", execute_dangerous: "ask", network: "ask", destructive: "deny"
   },
   gated: {
     read: "allow", read_secret: "ask",
     write_create: "allow", write_update: "allow", write_delete: "ask",
-    execute: "ask", network: "ask", destructive: "deny"
+    execute: "ask", execute_dangerous: "ask", network: "ask", destructive: "deny"
   },
   auto: {
     read: "allow", read_secret: "ask",
     write_create: "allow", write_update: "allow", write_delete: "allow",
-    execute: "allow", network: "ask", destructive: "deny"
+    execute: "allow", execute_dangerous: "ask", network: "ask", destructive: "deny"
   },
   "full-auto": {
     read: "allow", read_secret: "ask",
     write_create: "allow", write_update: "allow", write_delete: "allow",
-    execute: "allow", network: "allow", destructive: "deny"
+    execute: "allow", execute_dangerous: "ask", network: "allow", destructive: "deny"
   }
 });
 

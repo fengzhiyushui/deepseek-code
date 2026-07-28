@@ -60,6 +60,28 @@ test("buildChildEnv preserves actual key casing for whitelist matches", () => {
   assert.equal("PATH" in env, false);
 });
 
+test("runProcess refuses forbidden commands before spawning", async () => {
+  const result = await runProcess(["format", "/?"], { cwd: process.cwd(), timeoutMs: 10000 });
+  assert.equal(result.metadata.exit_code, null);
+  assert.match(result.metadata.spawn_error, /command policy: forbidden/);
+  assert.match(result.content[0].text, /command policy: forbidden/);
+});
+
+test("runProcess refuses forbidden commands spelled with the trailing dots Win32 drops", async () => {
+  const result = await runProcess(["diskpart.", "/?"], { cwd: process.cwd(), timeoutMs: 10000 });
+  assert.equal(result.metadata.exit_code, null);
+  assert.match(result.metadata.spawn_error, /command policy: forbidden/);
+});
+
+test("runProcess does not block the dangerous wrapper shell used by the test tool", async () => {
+  const argv = process.platform === "win32"
+    ? ["cmd.exe", "/d", "/s", "/c", "echo", "nested-ok"]
+    : ["sh", "-c", "echo nested-ok"];
+  const result = await runProcess(argv, { cwd: process.cwd(), timeoutMs: 10000 });
+  assert.equal(result.metadata.exit_code, 0);
+  assert.equal(result.stdout.trim(), "nested-ok");
+});
+
 test("runProcess does not leak secrets to child processes", async () => {
   const previous = process.env.DEEPSEEK_API_KEY;
   process.env.DEEPSEEK_API_KEY = "sk-should-not-leak";

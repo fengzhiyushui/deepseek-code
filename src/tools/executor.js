@@ -1,6 +1,16 @@
 import { createToolResult, createApprovalRequest } from "../core/protocol/index.js";
 import { redactToolContent } from "../security/redactor.js";
 
+const ARGV_PREVIEW_LIMIT = 120;
+
+function approvalSummary(name, params) {
+  const argv = params?.argv;
+  if (!Array.isArray(argv) || !argv.length) return `${name} requires approval`;
+  const joined = argv.join(" ");
+  const preview = joined.length > ARGV_PREVIEW_LIMIT ? `${joined.slice(0, ARGV_PREVIEW_LIMIT)}…` : joined;
+  return `${name} requires approval: \`${preview}\``;
+}
+
 export function createToolExecutor({ registry, permissionEngine, eventBus = null, defaultToolTimeoutMs = null } = {}) {
   if (!registry) throw new Error("registry is required");
   if (!permissionEngine) throw new Error("permissionEngine is required");
@@ -49,7 +59,7 @@ export function createToolExecutor({ registry, permissionEngine, eventBus = null
         turnId: context.turnId || "turn_unknown",
         kind: "tool",
         risk: def.risk_level,
-        summary: `${def.name} requires approval`,
+        summary: approvalSummary(def.name, securedCall.params),
         detailsRef: toolCall.id
       });
       publish("approval:requested", { approval, call: securedCall });
