@@ -40,6 +40,7 @@ export const SESSION_EVENT_TYPES = Object.freeze([
   "context:cache_loaded",
   "context:cache_saved",
   "context:cache_reused",
+  "context:semantic_degraded",
   "file:diff_preview",
   "file:diff_applied",
   "file:rollback_applied",
