@@ -10,6 +10,7 @@ import { resolvePythonModule } from "./python-module-resolver.js";
 import { readWorkspaceTextFile } from "../../workspace/path-safety.js";
 
 const MAX_FILE_BYTES = 64 * 1024;
+const DEGRADED_REASON_LIMIT = 200;
 
 export function createSemanticEngine({ root, options = {}, eventBus = null, provider = null } = {}) {
   const cfg = options.semantic || {};
@@ -58,8 +59,11 @@ export function createSemanticEngine({ root, options = {}, eventBus = null, prov
         resolved: graph.callEdges.filter((e) => e.confidence === "resolved").length,
         unresolved: graph.callEdges.filter((e) => e.confidence === "unresolved").length
       });
-    } catch {
+    } catch (error) {
       // provider/grammar unavailable or parse failure -> degrade to file-level context.
+      // Publish a one-time observable event with the reason before flipping degraded.
+      const reason = clipReason(error?.message ?? String(error));
+      eventBus?.publish?.("context:semantic_degraded", { reason });
       degraded = true;
       state = null;
     }
@@ -83,4 +87,9 @@ export function createSemanticEngine({ root, options = {}, eventBus = null, prov
   }
 
   return { enabled, index, select };
+}
+
+function clipReason(message) {
+  const s = String(message ?? "").trim();
+  return s.length > DEGRADED_REASON_LIMIT ? `${s.slice(0, DEGRADED_REASON_LIMIT)}…` : s;
 }

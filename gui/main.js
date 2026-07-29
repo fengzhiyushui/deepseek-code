@@ -1,5 +1,5 @@
 // gui/main.js - Electron main process
-const { app, BrowserWindow, ipcMain, Menu } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, dialog } = require("electron");
 const path = require("path");
 const fs = require("node:fs");
 const { createKernelHost, resolveProjectRoot } = require("./kernel-host.js");
@@ -104,8 +104,8 @@ async function createWindow() {
   }
 
   registerIpcHandlers();
-  // Load order: dev server (DEEPSEEK_CODE_GUI_DEV_URL) → built React renderer
-  // (renderer-dist) → legacy vanilla renderer (dormant fallback until the React build exists).
+  // Load order: dev server (DEEPSEEK_CODE_GUI_DEV_URL) → built React renderer (renderer-dist).
+  // Neither available → show error dialog and exit (no legacy fallback).
   const devUrl = process.env.DEEPSEEK_CODE_GUI_DEV_URL;
   const builtIndex = path.join(__dirname, "renderer-dist", "index.html");
   if (devUrl) {
@@ -113,7 +113,11 @@ async function createWindow() {
   } else if (fs.existsSync(builtIndex)) {
     win.loadFile(builtIndex);
   } else {
-    win.loadFile(path.join(__dirname, "renderer", "index.html"));
+    const msg = "未找到 renderer-dist 构建产物。请先运行 npm run build:renderer 进行构建。";
+    console.error(msg);
+    try { dialog.showErrorBox("构建产物缺失", msg); } catch { /* non-interactive ok */ }
+    app.quit();
+    return;
   }
   if (smoke) {
     win.webContents.once("did-finish-load", async () => {

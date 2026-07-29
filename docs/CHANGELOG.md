@@ -15,11 +15,17 @@
 
 - (暂无)
 
-**已挂账(待立项,方案见 [`specs/backend/2026-07-12-agent-findings-remediation.md`](specs/backend/2026-07-12-agent-findings-remediation.md)):** 语义上下文静默降级可观测化(#8)、明文变更记录脱敏方案(#9.3,需独立 design)、UMD fallback 渲染副本(#9.6)、`agent-runtime.js` 可维护性重构(#10)。
+**已挂账(待立项,方案见 [`specs/backend/2026-07-12-agent-findings-remediation.md`](specs/backend/2026-07-12-agent-findings-remediation.md)):** 明文变更记录脱敏方案(#9.3,需独立 design)、`agent-runtime.js` 可维护性重构(#10)。
 
 ---
 
-## v1.3.1 — 2026-07-28 · shell 命令级安全策略
+## v1.3.2 — 2026-07-29 · 语义降级可观测 & GUI 休眠渲染层删除
+
+- **语义上下文降级可观测化(#8):** `semantic-engine.js` 在降级翻转处恰好发布一次 `context:semantic_degraded` 事件(含 error.message reason,~200 字符截断),经事件类型注册入会话时间线、`event-contract.js` 以非静默 warn kind 展示(CLI/TUI 默认行渲染即可读);粘性降级与文件级回退行为不变。
+- **删除 `context.semantic.languages` 空转配置(#8):** 从 `DEFAULT_CONFIG` 与 `normalizeContext` 移除从未被消费的 `languages` 键及 `normalizeLanguages` 函数;含旧键的用户配置静默消失(`normalizeContext` 固定键集重建)。同步删除从未被加载的 `tree-sitter-tsx.wasm`(2.4 MB 死重)及 `wasm-tree-sitter-provider.js` 中的 `tsx` 条目。
+- **删除 GUI 休眠渲染层(#9.6):** 整目录 `gui/renderer/`(app.js / event-adapter.js / workbench-state.js / index.html / style.css)已删除——消除问题 #5(事件→展示四份并行实现)的最后残留。`gui/main.js` 加载决策改为:dev URL → renderer-dist,两者皆无→`dialog.showErrorBox` + stderr 报错「请先运行 npm run build:renderer」+ 非零退出。删除 2 个对应单测;`npm run check` 移除了 `gui/renderer/*` 条目。
+- 版本同步为 `1.3.2`(`package.json` / `package-lock.json` / CLI-TUI banner);全量回归(978 项)与语法检查通过。
+- 本版范围说明:#7 命令策略已在 v1.3.1 发布;#9.3(明文变更记录)、#10(agent-runtime 重构)继续挂账。
 
 - `shell`/`git` 子进程执行在权限档位之外新增**命令级分类**([`src/security/command-policy.js`](../src/security/command-policy.js),清单硬编码):`classifyCommand(argv)` 将命令分为 safe / dangerous / forbidden 三类,经工具 `resolveCategory` 映射进权限引擎——**forbidden**(format / mkfs* / diskpart / bcdedit / dd)映射到 `destructive`,在所有自治档位一律拒绝且审批缓存不可放行;**dangerous**(rm/del 等删除类、shutdown/reg/taskkill 等系统类、curl/wget、npm publish、git push 强制推送、bash/cmd/powershell 等包装 shell、node -e / python -c 等解释器执行参数)映射到 `execute_dangerous`,在 supervised / gated / auto / **full-auto** 四档一律要求人工确认(read-only 档拒绝,与其余 execute 一致);safe 命令行为不变。命令名归一化覆盖 basename、大小写、`.exe`/`.cmd`/`.bat`/`.com` 扩展名及 Win32 尾部点号变体。
 - `runProcess` 兜底:spawn 前对 forbidden 命令直接拒绝(不经审批层),防止绕过工具定义的路径;dangerous 不在此层拦截,保证 `test` 工具的 cmd.exe 嵌套回路不受影响。

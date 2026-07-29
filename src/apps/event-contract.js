@@ -57,6 +57,7 @@ export function describeEvent(event) {
   const src = type;
 
   if (NOISY.has(type)) return d("other", src, "info", true, {});
+  if (type === "context:semantic_degraded") return d("context-degraded", src, "warn", false, { reason: str(event.reason) });
   if (type.startsWith("context:")) return d("context", src, "info", true, {});
 
   if (type === "user:message") return d("user", src, "info", true, { text: str(event.content) });

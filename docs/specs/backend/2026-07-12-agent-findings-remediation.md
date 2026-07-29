@@ -1,7 +1,7 @@
 # agent 审计发现补救计划与处理状态
 
-- 日期:2026-07-12;状态更新:2026-07-19
-- 状态:**#1–#5 已在 v1.1.0 解决**;**#6、#7(env 部分)与 #9 易项(9.1/9.2/9.4/9.5/9.7)已在 v1.2.0 解决**(计划 [`../../plans/backend/2026-07-16-v1.2.0-agent-findings-p2.md`](../../plans/backend/2026-07-16-v1.2.0-agent-findings-p2.md));**#8、#9.3、#9.6、#10 与 shell 命令白名单延后挂账**
+- 日期:2026-07-12;状态更新:2026-07-29
+- 状态:**#1–#5 已在 v1.1.0 解决**;**#6、#7(env 部分)与 #9 易项(9.1/9.2/9.4/9.5/9.7)已在 v1.2.0 解决**(计划 [`../../plans/backend/2026-07-16-v1.2.0-agent-findings-p2.md`](../../plans/backend/2026-07-16-v1.2.0-agent-findings-p2.md));**#7 后半(命令级分类)已在 v1.3.1 解决**;**#8、#9.6 已在 v1.3.2 解决**(计划 [`../../plans/backend/2026-07-26-v1.3.0-agent-findings-p3.md`](../../plans/backend/2026-07-26-v1.3.0-agent-findings-p3.md));**#9.3、#10 继续挂账**
 - 来源:6 个并行只读 agent 对全仓库子系统的审计(docs / kernel / context / model+tools+security / frontends / sessions+edits)
 - 关联:D-G4 设计 [`../frontend/2026-07-12-v3-phase-dg4-cli-alignment-design.md`](../frontend/2026-07-12-v3-phase-dg4-cli-alignment-design.md)
 - **重要:本文所有条目本轮均不实现**,仅提供根因、改法、影响文件、风险、验证方式、优先级,供后续逐项立项(各自走 spec/plan 或直接小改)。
@@ -19,11 +19,11 @@
 | 5 | 脱敏正则覆盖过窄 | 安全 | **✅ v1.1.0** | 密钥泄漏面 |
 | 6 | grep 工具 ReDoS | 安全 | **✅ v1.2.0** | 模型正则拖垮进程 |
 | 7 | shell 无命令白名单 + 子进程继承含密钥环境 | 安全 | **✅ v1.2.0(env);命令白名单延后** | auto 档执行面 |
-| 8 | 语义上下文静默粘性降级 + languages 配置空转 | 健壮性 | **P2(延后)** | 可观测性/文档一致性 |
-| 9 | 仓库卫生(遗留原型/双测试目录/明文变更记录/模型名硬编码/死代码/plan 回写) | 清理 | **部分 ✅ v1.2.0(9.1/9.2/9.4/9.5/9.7);9.3/9.6 延后** | 维护成本 |
+| 8 | 语义上下文静默粘性降级 + languages 配置空转 | 健壮性 | **✅ v1.3.2** | 可观测性/文档一致性 |
+| 9 | 仓库卫生(遗留原型/双测试目录/明文变更记录/模型名硬编码/死代码/plan 回写) | 清理 | **部分 ✅ v1.2.0(9.1/9.2/9.4/9.5/9.7);9.3 延后;✅ v1.3.2(9.6)** | 维护成本 |
 | 10 | `agent-runtime.js` 可维护性(职责混合/依赖集中/测试边界不足) | 可维护性 | **P2(延后)** | 回归风险集中点 |
 
-> **audit 问题 #5(事件→展示逻辑四份并行实现)**:已在 D-G4 随共享事件展示契约**在三个受支持 ESM 渲染器(CLI/TUI/GUI-React)上解决**;休眠 UMD fallback(`gui/renderer/`)保留自有基础事件副本,列为本文 **9.6** 后续项(改为契约产物或随构建常态化后删除)。**未标「完全解决」。**
+> **audit 问题 #5(事件→展示逻辑四份并行实现)**:已在 D-G4 随共享事件展示契约**在三个受支持 ESM 渲染器(CLI/TUI/GUI-React)上解决**;休眠 UMD fallback(`gui/renderer/`) 已在 **v1.3.2(#9.6)** 删除。**✅ 完全解决。**
 
 ---
 
@@ -109,7 +109,7 @@
 - **影响文件:** `semantic-engine.js`、`src/config.js`、`src/context/semantic/language-registry.js`、README(中英)、D-G4 展示契约(加 kind)。
 - **风险:** 低。加事件不改降级行为;languages 决策取「移除文档宣称」路线则零代码风险。
 - **验证:** 单测:注入 wasm 加载失败 → 发降级事件且回落文件级;languages 配置行为与文档一致(测其一)。
-- **本轮不实现。**
+- **✅ v1.3.2已解决:** 降级事件 exactly-once + reason(`clipReason` 截断 ~200 字符);`languages` 键从 `DEFAULT_CONFIG` 与 `normalizeContext` 移除,`normalizeLanguages` 函数删除;含旧键配置正常加载键静默消失;`tree-sitter-tsx.wasm`(2.4 MB)与 `wasm-tree-sitter-provider.js` tsx 条目同步删除。
 
 ---
 
@@ -123,6 +123,7 @@
 - **9.4 模型名硬编码(P2):** `deepseek-v4-flash`/`deepseek-v4-pro` 硬编码在 [`src/deepseek/model-router.js`](../../../src/deepseek/model-router.js) `CHANNELS` 表,无法经 config 整体切换,只能逐调用 `explicitModel` 覆盖。**改法:** CHANNELS 的模型名改为从 `config.deepseek.models.{act,think,fim}` 读取,保留现值为默认。**影响:** `model-router.js`、`src/config.js`。**风险:** 低-中(需保证默认值与今天一致、覆盖路径测试)。**✅ v1.2.0:** config 顶层 `models.{act,think,fim}` 可配,gateway/FIM 同步透传,缺省与现网一致。
 - **9.5 死代码(P3):** [`src/index.js`](../../../src/index.js) `createPausedRecoveryFacade`(约 544-604 行)无任何调用点(实际用 `createRecoveryServiceFacade`/`disabledRecoveryFacade`)。**改法:** 删除或标注。**风险:** 低(需确认确无动态引用)。**注:属 `src/index.js`,若删需与「kernel 零改动」纪律分开立项。** **✅ v1.2.0:** 已删除(净 -101 行,含仅被其使用的 helpers;全仓无引用,回归全绿)。
 - **9.6 UMD fallback 第 4 份渲染副本(P2):** `gui/renderer/event-adapter.js` 的 `summarizeEvent`/`eventIcon` 是问题 #5 的残留副本(D-G4 已收敛另三份)。fallback 属受支持的未构建态(`renderer-dist` 是 gitignore 构建产物),但该层不消费 orchestration 事件。**改法:** 改为由共享事件展示契约生成,或在 renderer-dist 构建常态化后删除休眠层。**风险:** 低(休眠层不在主路径)。
+- **✅ v1.3.2 已解决:** 整目录 `gui/renderer/` 已删除;`gui/main.js` 加载决策改为 dev URL → renderer-dist,两者皆无→报错退出;删除 2 个对应单测;`npm run check` 移除 `gui/renderer/*` 条目。审计问题 #5 标**完全解决**。
 - **9.7 plan checkbox 与 roadmap 回写(P3):** 实施计划 checkbox 全未勾(完成状态只在 CHANGELOG),roadmap spec 未回写已发生的 pivot(Semi UI→手写、CodeMirror→Monaco、xterm→node-pty、D-0/D-G*→D-1~D-5)。**改法:** 文档维护动作 —— 勾掉已完成 plan 项或在 plan 头标「完成状态以 CHANGELOG 为准」;roadmap 补 pivot 注记。**风险:** 无(纯文档)。**✅ v1.2.0:** 51 份历史 plan 头部已标注,roadmap 已补 pivot 注记。
 
 ---

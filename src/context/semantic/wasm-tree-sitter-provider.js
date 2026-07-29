@@ -7,7 +7,7 @@ const EXT_LANG = new Map([
   [".ts", "ts"], [".tsx", "ts"],
   [".py", "py"]
 ]);
-const LANG_WASM = { js: "tree-sitter-javascript.wasm", ts: "tree-sitter-typescript.wasm", tsx: "tree-sitter-tsx.wasm", py: "tree-sitter-python.wasm" };
+const LANG_WASM = { js: "tree-sitter-javascript.wasm", ts: "tree-sitter-typescript.wasm", py: "tree-sitter-python.wasm" };
 
 export function createWasmTreeSitterProvider({ grammarsDir } = {}) {
   const baseDir = grammarsDir || path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "grammars");

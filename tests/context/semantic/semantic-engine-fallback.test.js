@@ -13,10 +13,10 @@ async function mkProject() {
 const records = () => new Map([["src/a.js", { path: "src/a.js", hash: "sha256:x" }]]);
 const ask = (engine) => engine.select({ message: "alpha", pinned: new Set(), warmed: new Map(), budget: 10000 });
 
-test("provider load failure -> degrade: no crash, no symbol events, select null", async () => {
+test("provider load failure -> degrade: degraded event exactly-once with reason, no symbol events, select null", async () => {
   const root = await mkProject();
   const events = [];
-  const eventBus = { publish: (t) => events.push(t) };
+  const eventBus = { publish: (t, d) => events.push(d ? `${t}:${d.reason}` : t) };
   const failing = {
     name: "failing-load",
     supports: () => true,
@@ -27,6 +27,14 @@ test("provider load failure -> degrade: no crash, no symbol events, select null"
   await engine.index(records());                       // must not throw
   assert.equal(events.includes("context:symbol_indexed"), false);
   assert.equal(events.includes("context:graph_built"), false);
+  // exactly-once degraded event with reason
+  const degraded = events.filter((e) => e.startsWith("context:semantic_degraded"));
+  assert.equal(degraded.length, 1);
+  assert.ok(degraded[0].includes("grammar unavailable"));
+  // second scan does NOT re-publish
+  await engine.index(records());
+  const degraded2 = events.filter((e) => e.startsWith("context:semantic_degraded"));
+  assert.equal(degraded2.length, 1);
   assert.equal(ask(engine), null);                     // -> caller falls back to file level
 });
 
