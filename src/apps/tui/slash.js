@@ -6,6 +6,8 @@ export const SLASH_COMMANDS = [
   { name: "changes", descKey: "slash.changes.desc" },
   { name: "mode", descKey: "slash.mode.desc" },
   { name: "lang", descKey: "slash.lang.desc" },
+  { name: "theme", descKey: "slash.theme.desc" },
+  { name: "shell", descKey: "slash.shell.desc" },
   { name: "clear", descKey: "slash.clear.desc" },
   { name: "recovery", descKey: "slash.recovery.desc" },
   { name: "quit", descKey: "slash.quit.desc" }

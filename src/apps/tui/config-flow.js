@@ -1,6 +1,6 @@
 // src/apps/tui/config-flow.js — /config 交互状态机(纯)。IO(读写存储/拉模型/测试/激活)全在 tui-app。
 import { truncateToWidth, displayWidth } from "./ansi.js";
-import { color } from "../../theme.js";
+import { tc as color } from "./theme.js";
 
 export const CONFIG_ACTIONS = ["activate", "edit", "models", "test", "delete"];
 export const CONFIG_FIELDS = ["name", "baseUrl", "apiKey", "model"];

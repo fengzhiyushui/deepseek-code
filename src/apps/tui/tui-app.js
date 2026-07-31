@@ -3,7 +3,7 @@
 import { createKernel } from "../../index.js";
 import { buildKernelOptions } from "../kernel-options.js";
 import { loadConfig } from "../../config.js";
-import { color } from "../../theme.js";
+import { tc as color } from "./theme.js";
 import { seq } from "./ansi.js";
 import { createKeyDecoder } from "./input.js";
 import { makeT } from "./tui-i18n.js";
@@ -12,6 +12,8 @@ import { QUIET, eventToLines } from "./event-cards.js";
 import { computeBottom, createPainter } from "./paint.js";
 import { loadTuiPrefs, saveTuiPrefs } from "./prefs.js";
 import { SLASH_COMMANDS, filterCommands, parseSlash } from "./slash.js";
+import { setTuiTheme, tuiThemeId, tuiThemeList } from "./theme.js";
+import { createSessionIndex } from "../session-index.js";
 import { showDiff } from "../../git.js";
 import { listChanges, formatChange } from "../../changes.js";
 import path from "node:path";
@@ -23,6 +25,7 @@ import { CONFIG_ACTIONS, CONFIG_FIELDS, initialConfigState, reduceConfig, render
 
 const CTRLC_WINDOW_MS = 3000;
 const HISTORY_CAP = 20; // 与 kernel-runner appendHistory 同语义:10 轮
+const SHELLS = ["pwsh", "powershell", "cmd", "git-bash"]; // v1.4.0 /shell 四宏(Windows)
 
 export function createTuiApp({
   root,
@@ -88,6 +91,30 @@ export function createTuiApp({
       tokens: usage.total_tokens || 0,
       cacheRate: usage.cache_hit_rate || 0
     } });
+  }
+
+  // v1.4.0 首页:品牌 + 单行 meta + 最近会话(消费 session-index)+ 快捷键提示。
+  async function pushHome() {
+    const list = tuiThemeList();
+    const themeName = (list.find((x) => x.id === tuiThemeId()) || {}).name || "";
+    const meta = [
+      color.bold("Inkstone"), "v1.4.0", T("home.tagline"),
+      `主题 ${themeName}`, `shell ${state.shell}`, state.lang === "zh" ? "中文" : "EN"
+    ].join(" · ");
+    const lines = ["", ` ${color.bold("Inkstone")}`, ` ${color.dim(meta)}`, ""];
+    try {
+      const idx = createSessionIndex({ sessionRoot: path.join(root, ".deepseek-code", "v2", "sessions") });
+      const byProj = await idx.listByProject();
+      const recent = byProj.slice(0, 3).flatMap((p) => p.sessions.slice(0, 2).map((s) => ({ proj: p.projectDir, sum: s.summary || "" })));
+      if (recent.length) {
+        lines.push(` ${color.dim(T("home.recent"))}`);
+        for (const r of recent) lines.push(`   ${color.cyan("·")} ${r.sum} ${color.dim(`(${r.proj})`)}`);
+        lines.push("");
+      }
+    } catch { /* 会话索引失败不阻塞 */ }
+    lines.push(` ${color.dim(T("home.hints"))}`, "");
+    pushLines(lines);
+    dispatch({ type: "screen_set", screen: "chat" }); // 首页内容入滚动区后即会话态
   }
 
   function appendHistory(list, user, assistant) {
@@ -287,6 +314,27 @@ export function createTuiApp({
       dispatch({ type: "mode", mode: next });
       pushLines([` ${T("msg.modeSet", { mode: next })}`, ""]);
     },
+    theme: async (arg) => {
+      const list = tuiThemeList();
+      const ids = list.map((x) => x.id);
+      let next;
+      if (arg) next = ids.includes(arg) ? arg : null;
+      else next = ids[(ids.indexOf(tuiThemeId()) + 1) % ids.length];
+      if (!next) { pushLines([` ${color.red(T("msg.themeInvalid"))}`, ""]); return; }
+      setTuiTheme(next);
+      dispatch({ type: "theme_set", theme: next });
+      try { const prefs = await loadTuiPrefs(root); await saveTuiPrefs(root, { ...prefs, theme: next }); } catch { /* 持久化失败不阻塞 */ }
+      const name = (list.find((x) => x.id === next) || {}).name || next;
+      pushLines([` ${T("msg.themeSet", { name, id: next })}`, ""]);
+      refreshStatus();
+    },
+    shell: async (arg) => {
+      let next = arg && SHELLS.includes(arg) ? arg : SHELLS[(SHELLS.indexOf(state.shell) + 1) % SHELLS.length];
+      dispatch({ type: "shell_set", shell: next });
+      try { const prefs = await loadTuiPrefs(root); await saveTuiPrefs(root, { ...prefs, shell: next }); } catch { /* 同上 */ }
+      pushLines([` ${T("msg.shellSet", { shell: next })}`, ""]);
+      refreshStatus();
+    },
     clear: async () => { history = []; pushLines([` ${T("msg.cleared")}`, ""]); },
     diff: async () => {
       try {
@@ -422,6 +470,11 @@ export function createTuiApp({
       apply({ type: "lang", lang: prefs.lang });
       t = makeT(prefs.lang);
     }
+    if (prefs.theme && tuiThemeList().some((x) => x.id === prefs.theme)) {
+      setTuiTheme(prefs.theme);
+      apply({ type: "theme_set", theme: prefs.theme });
+    }
+    if (SHELLS.includes(prefs.shell)) apply({ type: "shell_set", shell: prefs.shell });
     if (!kernel) {
       try {
         kernel = await createKernelImpl(root, await buildKernelOptionsImpl(root));
@@ -455,7 +508,8 @@ export function createTuiApp({
     spinTimer = setInterval(() => { if (state.busy) dispatch({ type: "spin" }); refreshStatus(); }, spinnerMs);
 
     subscribeKernel();
-    pushLines([` ${color.cyan(T(kernel ? "banner.ready" : "banner.offline"))}`, ""]);
+    if (kernel) void pushHome(); // v1.4.0 启动进首页
+    else pushLines([` ${color.yellow(T("banner.offline"))}`, ""]);
     refreshStatus();
     schedulePaint();
 

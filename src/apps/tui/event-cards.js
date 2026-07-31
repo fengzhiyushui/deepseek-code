@@ -1,6 +1,6 @@
 // src/apps/tui/event-cards.js — kernel 事件 → 已着色卡片行。纯函数;负载全部防御式读取。
 // user:message / agent:final / agent:error 静默:用户行与终态行由 app 从 send() 结果路径打印,避免重复。
-import { color } from "../../theme.js";
+import { tc as color } from "./theme.js";
 import { describeEvent } from "../event-contract.js";
 
 export const QUIET = new Set([

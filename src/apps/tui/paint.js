@@ -1,7 +1,7 @@
 // src/apps/tui/paint.js — 底部固定区计算(纯)+ painter(唯一写终端的地方,write 可注入)。
 import { seq, displayWidth, truncateToWidth } from "./ansi.js";
 import { statusLine } from "./tui-state.js";
-import { color } from "../../theme.js";
+import { tc as color } from "./theme.js";
 
 const MENU_MAX = 6;
 const STREAM_MAX = 3;
@@ -21,6 +21,9 @@ export function computeBottom(state, t, columns) {
   const streamLines = state.busy && state.stream
     ? state.stream.split("\n").slice(-STREAM_MAX).map((l) => ` ${truncateToWidth(l, width - 2)}`)
     : [];
+
+  // hint 独立行渲染(不随状态行截断;v1.4.0 状态行因 sh:/theme 变长后仍可见)
+  const hintLines = state.hint ? [` ${color.dim(`· ${state.hint}`)}`] : [];
 
   const menuLines = [];
   if (state.menu && state.menu.items.length) {
@@ -50,7 +53,7 @@ export function computeBottom(state, t, columns) {
     cursorCol = 4 + displayWidth(chars.slice(from, state.input.cursor).join(""));
   }
 
-  const lines = [...streamLines, sep, ...menuLines, inputLine, status];
+  const lines = [...streamLines, ...hintLines, sep, ...menuLines, inputLine, status];
   return { lines, cursorRow: lines.length - 2, cursorCol };
 }
 

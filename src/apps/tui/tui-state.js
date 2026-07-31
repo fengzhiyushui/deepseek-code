@@ -2,10 +2,13 @@
 export const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const HISTORY_CAP = 100; // 本地输入历史条数上限
 
-export function initialTuiState({ lang = "zh", mode = "gated" } = {}) {
+export function initialTuiState({ lang = "zh", mode = "gated", theme = "sumi", shell = "pwsh" } = {}) {
   return {
     lang,
     mode,
+    theme,
+    shell,
+    screen: "home", // v1.4.0:home 首页 / chat 会话
     busy: false,
     spin: 0,
     exit: false,
@@ -82,6 +85,9 @@ export function reduce(state, action = {}) {
     case "overlay": return { ...state, overlay: action.overlay || null };
     case "mode": return { ...state, mode: action.mode };
     case "lang": return { ...state, lang: action.lang };
+    case "theme_set": return { ...state, theme: action.theme };
+    case "shell_set": return { ...state, shell: action.shell };
+    case "screen_set": return { ...state, screen: action.screen };
     case "hint": return { ...state, hint: String(action.text || "") };
     case "status": {
       const patch = action.patch || {};
@@ -117,8 +123,9 @@ export function statusLine(state, t) {
     runState,
     `tokens ${formatTokens(state.status.tokens)}`,
     `cache ${Math.round((state.status.cacheRate || 0) * 100)}%`,
+    state.shell ? `sh:${state.shell}` : "",
     t("status.lang")
   ];
   const line = parts.join(" · ");
-  return state.hint ? `${line} — ${state.hint}` : line;
+  return line;
 }
