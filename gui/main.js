@@ -147,76 +147,7 @@ async function createWindow() {
           await fs.promises.mkdir(dir, { recursive: true });
           const desktop = await win.webContents.capturePage();
           await fs.promises.writeFile(path.join(dir, "shell-desktop.png"), desktop.toPNG());
-          // Switch to the Settings view (gear = last activity-bar button) and capture it.
-          try {
-            const opened = await win.webContents.executeJavaScript(`
-              new Promise((resolve) => {
-                const btns = document.querySelectorAll('.activity button[role="tab"]');
-                const gear = btns[btns.length - 1];
-                if (gear) gear.click();
-                let n = 0;
-                const iv = setInterval(() => {
-                  if (document.querySelector('.settings .settings-nav') || n++ > 30) { clearInterval(iv); resolve(Boolean(document.querySelector('.settings'))); }
-                }, 100);
-              })
-            `);
-            if (opened) {
-              const general = await win.webContents.capturePage();
-              await fs.promises.writeFile(path.join(dir, "settings-general.png"), general.toPNG());
-              // Model Access pane (API list + fetch/test) = 2nd second-level nav item.
-              await win.webContents.executeJavaScript(`(document.querySelectorAll('.settings-nav .snav-item')[1]||{}).click?.()`);
-              await new Promise((r) => setTimeout(r, 250));
-              const model = await win.webContents.capturePage();
-              await fs.promises.writeFile(path.join(dir, "settings-model.png"), model.toPNG());
-              // A config form (运行护栏 / limits) = 3rd nav item.
-              await win.webContents.executeJavaScript(`(document.querySelectorAll('.settings-nav .snav-item')[2]||{}).click?.()`);
-              await new Promise((r) => setTimeout(r, 250));
-              const form = await win.webContents.capturePage();
-              await fs.promises.writeFile(path.join(dir, "settings-form.png"), form.toPNG());
-            }
-            // Back to explorer for the narrow capture.
-            await win.webContents.executeJavaScript(`document.querySelector('.activity button[role="tab"]').click()`);
-          } catch (setErr) {
-            console.log("SMOKE_SETTINGS_SKIPPED:" + setErr.message);
-          }
-          // D-4: SCM Agent-Changes section + change diff (uses the seeded record).
-          try {
-            const scmReady = await win.webContents.executeJavaScript(`
-              new Promise((resolve) => {
-                const btns = document.querySelectorAll('.activity button[role="tab"]');
-                if (btns[2]) btns[2].click();
-                let n = 0;
-                const iv = setInterval(() => {
-                  if (document.querySelector('.side .chg-file') || n++ > 30) { clearInterval(iv); resolve(Boolean(document.querySelector('.side .chg-file'))); }
-                }, 100);
-              })
-            `);
-            if (scmReady) {
-              const scm = await win.webContents.capturePage();
-              await fs.promises.writeFile(path.join(dir, "scm-changes.png"), scm.toPNG());
-              const diffReady = await win.webContents.executeJavaScript(`
-                new Promise((resolve) => {
-                  const row = document.querySelector('.side .chg-file');
-                  if (row) row.click();
-                  let n = 0;
-                  const iv = setInterval(() => {
-                    if (document.querySelector('.diffview') || n++ > 50) { clearInterval(iv); resolve(Boolean(document.querySelector('.diffview'))); }
-                  }, 100);
-                })
-              `);
-              if (diffReady) {
-                await new Promise((r) => setTimeout(r, 400)); // let the DiffEditor paint
-                const cd = await win.webContents.capturePage();
-                await fs.promises.writeFile(path.join(dir, "change-diff.png"), cd.toPNG());
-              }
-              await win.webContents.executeJavaScript(`(document.querySelector('.diffview-head .ghost')||{}).click?.()`);
-              await win.webContents.executeJavaScript(`document.querySelector('.activity button[role="tab"]').click()`);
-            } else {
-              console.log("SMOKE_CHANGES_SKIPPED:no-entries");
-            }
-          } catch (chgErr) {
-            console.log("SMOKE_CHANGES_SKIPPED:" + chgErr.message);
-          }
+          // v1.4.0:旧 IDE 的 settings/changes 截图块已随组件删除移除,仅保留 desktop/narrow。
           win.setSize(800, 720);
           await new Promise((r) => setTimeout(r, 400));
           const narrow = await win.webContents.capturePage();
@@ -328,6 +259,7 @@ function registerIpcHandlers() {
   ipcMain.handle("orchestrator:state", () => host?.getState() || { current: "idle", channel: null });
   ipcMain.handle("projects:list", async () => { try { return await host.listProjects(); } catch (error) { return { error: error.message }; } });
   ipcMain.handle("projects:add", async (_event, root) => { try { return await host.addProject(root); } catch (error) { return { error: error.message }; } });
+  ipcMain.handle("projects:remove", async (_event, root) => { try { return await host.removeProject(root); } catch (error) { return { error: error.message }; } });
   ipcMain.handle("projects:switch", async (_event, root) => { try { return await host.switchProject(root); } catch (error) { return { error: error.message }; } });
   ipcMain.handle("sessions:list", async () => { try { return await host.listSessions(); } catch (error) { return { error: error.message }; } });
 }

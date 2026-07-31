@@ -499,6 +499,11 @@ function createKernelHost({
     const mod = await loadProjectMod();
     return mod.createProjectRegistry({ dir: registryDir }).touch(root);
   }
+  async function removeProject(root) {
+    const mod = await loadProjectMod();
+    await mod.createProjectRegistry({ dir: registryDir }).remove(root);
+    return { ok: true };
+  }
   async function switchProject(root) {
     const mod = await loadProjectMod();
     await mod.createProjectRegistry({ dir: registryDir }).touch(root); // 校验目录存在并置顶
@@ -520,7 +525,7 @@ function createKernelHost({
            listBranches, listCheckpoints, rewindPreview, rewindApply, getActiveBranch,
            getPreferences, setPreferences, listTree, readFile, writeFile, listChanges, describeChange,
            getSettings, setConfig, listApiProfiles, saveApiProfile, deleteApiProfile, activateApiProfile,
-           listModels, testConnection, activateBranch, listProjects, addProject, switchProject, listSessions, dispose };
+           listModels, testConnection, activateBranch, listProjects, addProject, removeProject, switchProject, listSessions, dispose };
 }
 
 module.exports = { createKernelHost, resolveProjectRoot, zeroUsage, buildKernelOptions,

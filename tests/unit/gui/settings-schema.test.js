@@ -6,7 +6,7 @@ import {
 
 test("groups cover the seven settings sections including model + about", () => {
   const ids = SETTINGS_GROUPS.map((g) => g.id);
-  assert.deepEqual(ids, ["general", "model", "limits", "orchestration", "context", "experience", "about"]);
+  assert.deepEqual(ids, ["general", "appearance", "statusDisplay", "model", "limits", "orchestration", "context", "experience", "about"]);
   assert.equal(SETTINGS_GROUPS.find((g) => g.id === "model").kind, "model");
   assert.equal(SETTINGS_GROUPS.find((g) => g.id === "about").kind, "about");
   // every config field carries a dot-path + a type

@@ -525,3 +525,23 @@
     .shell { grid-template-columns: 1fr; }
     .rail { display: none; }
   }
+
+/* ── 设置 › 外观:10 主题网格(theme 属性使卡片预览该主题真实 token)── */
+.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;max-width:720px;}
+.theme-card{display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--border);border-radius:var(--r-8);background:var(--bg-panel);cursor:pointer;text-align:left;}
+.theme-card:hover{border-color:var(--accent);}
+.theme-card.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);}
+.theme-card .sw{display:flex;gap:4px;height:22px;align-items:center;}
+.theme-card .sw i{width:18px;height:18px;border-radius:4px;background:var(--accent);}
+.theme-card .sw i:nth-child(2){background:var(--bg-base);border:1px solid var(--border);}
+.theme-card .sw i:nth-child(3){background:var(--text);}
+.theme-card .nm{font-weight:600;font-size:13px;color:var(--text);}
+.theme-card .f{font-size:11px;color:var(--text-mut);}
+
+/* ── 设置 › 状态显示:形态卡 + 开关网格 ── */
+.sd-form{display:grid;grid-template-columns:repeat(5,minmax(72px,1fr));gap:8px;max-width:520px;}
+.sd-card{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;border:1px solid var(--border);border-radius:var(--r-8);background:var(--bg-panel);cursor:pointer;font-size:12px;}
+.sd-card .ic{font-family:var(--font-mono);font-size:13px;color:var(--accent);}
+.sd-card:hover{border-color:var(--accent);}
+.sd-card.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);}
+.sd-toggles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:2px 16px;}

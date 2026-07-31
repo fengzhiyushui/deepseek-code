@@ -189,6 +189,13 @@ export function useKernel(dispatch) {
         else dispatch({ type: "projects_loaded", projects: await (api.listProjects ? api.listProjects() : []) });
         return r;
       },
+      removeProject: async (root) => {
+        if (!api?.removeProject) return;
+        const r = await api.removeProject(root);
+        if (r && r.error) dispatch(errorToAction("projects", new Error(r.error)));
+        else dispatch({ type: "projects_loaded", projects: await (api.listProjects ? api.listProjects() : []) });
+        return r;
+      },
       loadSessions: async () => {
         if (!api?.listSessions) return;
         try {

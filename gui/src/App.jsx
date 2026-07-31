@@ -86,8 +86,11 @@ export default function App() {
         <main className="pane">
           {view === "home" && <HomeView t={t} state={state} actions={actions} setView={setView} onSwitchProject={onSwitchProject} />}
           {view === "chat" && <ChatView t={t} state={state} actions={actions} kernel={kernel} metrics={state.metrics} />}
-          {view === "projects" && <ProjectsView t={t} state={state} onSwitchProject={onSwitchProject} />}
-          {view === "changes" && <ChangesView t={t} state={state} />}
+          {view === "projects" && <ProjectsView t={t} state={state} onSwitchProject={onSwitchProject} onRemoveProject={(root) => kernel.removeProject(root)} />}
+          {view === "changes" && <ChangesView t={t} state={state} theme={state.theme}
+            onOpenChange={(id, path) => kernel.openChangeDiff(id, path)}
+            onDismissDiff={() => kernel.dismissChangeDiff()}
+            onReveal={(p, line) => kernel.revealInEditor(p, line)} />}
           {view === "mcp" && <McpView t={t} />}
           {view === "plugins" && <PluginsView t={t} />}
           {view === "settings" && <Settings t={t} state={state} kernel={kernel} dispatch={dispatch} />}

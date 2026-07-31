@@ -6,6 +6,8 @@
 
 export const SETTINGS_GROUPS = [
   { id: "general", labelKey: "settings.general", kind: "prefs" },
+  { id: "appearance", labelKey: "settings.appearance", kind: "appearance" },
+  { id: "statusDisplay", labelKey: "settings.statusDisplay", kind: "statusDisplay" },
   { id: "model", labelKey: "settings.model", kind: "model" },       // API list + model fetch (custom UI)
   { id: "limits", labelKey: "settings.limits", kind: "config", fields: [
     { path: "limits.toolTimeoutMs", labelKey: "settings.f.toolTimeoutMs", type: "nullableInt", unit: "ms" },

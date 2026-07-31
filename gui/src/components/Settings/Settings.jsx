@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { SETTINGS_GROUPS, getByPath, applyFieldEdit, sanitizeConfigPatch } from "../../state/settings-schema.js";
 import ModelAccess from "./ModelAccess.jsx";
+import Appearance from "./Appearance.jsx";
+import StatusDisplayPanel from "./StatusDisplayPanel.jsx";
 
 function Field({ t, field, value, onChange }) {
   const label = t(field.labelKey);
@@ -130,6 +132,8 @@ export default function Settings({ t, state, kernel, dispatch }) {
         <h2>{t(group.labelKey)}</h2>
         {error && <div className="err set-error">{error}</div>}
         {group.kind === "prefs" && <General t={t} state={state} kernel={kernel} dispatch={dispatch} />}
+        {group.kind === "appearance" && <Appearance t={t} state={state} kernel={kernel} dispatch={dispatch} />}
+        {group.kind === "statusDisplay" && <StatusDisplayPanel t={t} state={state} kernel={kernel} dispatch={dispatch} />}
         {group.kind === "model" && (
           <ModelAccess t={t} kernel={kernel}
             profiles={settings?.apiProfiles || []} activeProfileId={settings?.activeProfileId || null}

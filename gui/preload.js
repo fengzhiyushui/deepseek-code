@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld("deepseek", {
   describeChange: (id, relPath) => ipcRenderer.invoke("changes:describe", id, relPath),
   listProjects: () => ipcRenderer.invoke("projects:list"),
   addProject: (root) => ipcRenderer.invoke("projects:add", root),
+  removeProject: (root) => ipcRenderer.invoke("projects:remove", root),
   switchProject: (root) => ipcRenderer.invoke("projects:switch", root),
   listSessions: () => ipcRenderer.invoke("sessions:list"),
 });
