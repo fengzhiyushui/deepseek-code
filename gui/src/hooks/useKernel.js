@@ -173,7 +173,32 @@ export function useKernel(dispatch) {
         }
       },
 
-      dismissRewind: () => dispatch({ type: "rewind_dismissed" })
+      dismissRewind: () => dispatch({ type: "rewind_dismissed" }),
+
+      // v1.4.0 项目/会话
+      switchProject: async (root) => {
+        if (!api?.switchProject) return;
+        const r = await api.switchProject(root);
+        if (r && r.error) dispatch(errorToAction("projects", new Error(r.error)));
+        return r;
+      },
+      addProject: async (root) => {
+        if (!api?.addProject) return;
+        const r = await api.addProject(root);
+        if (r && r.error) dispatch(errorToAction("projects", new Error(r.error)));
+        else dispatch({ type: "projects_loaded", projects: await (api.listProjects ? api.listProjects() : []) });
+        return r;
+      },
+      loadSessions: async () => {
+        if (!api?.listSessions) return;
+        try {
+          const r = await api.listSessions();
+          if (r && r.error) dispatch(errorToAction("sessions", new Error(r.error)));
+          else dispatch({ type: "sessions_loaded", sessions: Array.isArray(r) ? r : [] });
+        } catch (err) {
+          dispatch(errorToAction("sessions", err));
+        }
+      }
     };
   }, [api, dispatch]);
 }

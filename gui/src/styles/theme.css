@@ -29,7 +29,7 @@ body{
   font-family:"Segoe UI","Helvetica Neue",system-ui,sans-serif; font-size:13px;
   overflow:hidden; -webkit-font-smoothing:antialiased;
 }
-.ide{height:100vh; display:grid; grid-template-rows:var(--titlebar) 1fr var(--statusbar);}
+.ide{height:100vh; display:grid; grid-template-rows:var(--titlebar) 1fr;}
 :focus-visible{outline:1px solid var(--accent); outline-offset:-1px;}
 
 /* Title bar */

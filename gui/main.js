@@ -128,11 +128,11 @@ async function createWindow() {
             const ok = () => Boolean(
               document.querySelector(".ide") &&
               document.querySelector('header[role="banner"]') &&
-              document.querySelector(".editor") &&
-              document.querySelector('footer[role="contentinfo"]') &&
-              document.querySelector('.activity[role="tablist"] button[role="tab"][aria-label]') &&
-              document.querySelector('.agent [role="log"]') &&
-              document.querySelector('.acomposer textarea[aria-label]') &&
+              document.querySelector(".shell") &&
+              document.querySelector(".rail") &&
+              document.querySelector(".pane") &&
+              document.querySelector(".rail-fn") &&
+              document.querySelector(".cz-input") &&
               document.querySelector('.titlebar .actions .lang')
             );
             let n = 0;
@@ -326,6 +326,10 @@ function registerIpcHandlers() {
   });
   ipcMain.handle("config:get", () => host?.getConfig() || {});
   ipcMain.handle("orchestrator:state", () => host?.getState() || { current: "idle", channel: null });
+  ipcMain.handle("projects:list", async () => { try { return await host.listProjects(); } catch (error) { return { error: error.message }; } });
+  ipcMain.handle("projects:add", async (_event, root) => { try { return await host.addProject(root); } catch (error) { return { error: error.message }; } });
+  ipcMain.handle("projects:switch", async (_event, root) => { try { return await host.switchProject(root); } catch (error) { return { error: error.message }; } });
+  ipcMain.handle("sessions:list", async () => { try { return await host.listSessions(); } catch (error) { return { error: error.message }; } });
 }
 
 app.whenReady().then(createWindow);

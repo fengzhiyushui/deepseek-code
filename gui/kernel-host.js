@@ -1,7 +1,19 @@
 // gui/kernel-host.js
 const fs = require("fs/promises");
+const os = require("node:os");
 const path = require("path");
 const { pathToFileURL } = require("url");
+
+let projectModPromise = null;
+function loadProjectMod() {
+  if (!projectModPromise) projectModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "apps", "project-registry.js")).href);
+  return projectModPromise;
+}
+let sessionIndexModPromise = null;
+function loadSessionIndexMod() {
+  if (!sessionIndexModPromise) sessionIndexModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "apps", "session-index.js")).href);
+  return sessionIndexModPromise;
+}
 
 let apiProfilesModPromise = null;
 function loadApiProfilesMod() {
@@ -173,6 +185,7 @@ async function buildKernelOptions(projectRoot, overrides = {}, configLoader = lo
 
 function createKernelHost({
   projectRoot = resolveProjectRoot(),
+  projectRegistryDir = path.join(os.homedir(), ".deepseek-code"),
   kernelFactory = null,
   kernelOptions = {},
   configLoader = loadLegacyConfig,
@@ -182,6 +195,7 @@ function createKernelHost({
   let kernel = null;
   let subscription = null;
   let guiEditService = editService;
+  let registryDir = projectRegistryDir;
 
   async function init() {
     if (!kernelFactory) {
@@ -476,11 +490,37 @@ function createKernelHost({
     subscription = null;
   }
 
+  // v1.4.0 项目列表/会话列表(app 层;kernel 不感知)
+  async function listProjects() {
+    const mod = await loadProjectMod();
+    return mod.createProjectRegistry({ dir: registryDir }).list();
+  }
+  async function addProject(root) {
+    const mod = await loadProjectMod();
+    return mod.createProjectRegistry({ dir: registryDir }).touch(root);
+  }
+  async function switchProject(root) {
+    const mod = await loadProjectMod();
+    await mod.createProjectRegistry({ dir: registryDir }).touch(root); // 校验目录存在并置顶
+    // 重建 kernel(R1:先注销事件订阅再 dispose,避免泄漏)
+    subscription?.unsubscribe?.();
+    subscription = null;
+    if (kernel?.dispose) { try { kernel.dispose(); } catch { /* 尽力而为 */ } }
+    kernel = null;
+    projectRoot = root;
+    await init();
+    return { ok: true, root };
+  }
+  async function listSessions() {
+    const mod = await loadSessionIndexMod();
+    return mod.createSessionIndex({ sessionRoot: path.join(projectRoot, ".deepseek-code", "v2", "sessions") }).listByProject();
+  }
+
   return { init, ready, send, approve, interrupt, getTimeline, getSnapshot, getUsage, getConfig, getState,
            listBranches, listCheckpoints, rewindPreview, rewindApply, getActiveBranch,
            getPreferences, setPreferences, listTree, readFile, writeFile, listChanges, describeChange,
            getSettings, setConfig, listApiProfiles, saveApiProfile, deleteApiProfile, activateApiProfile,
-           listModels, testConnection, activateBranch, dispose };
+           listModels, testConnection, activateBranch, listProjects, addProject, switchProject, listSessions, dispose };
 }
 
 module.exports = { createKernelHost, resolveProjectRoot, zeroUsage, buildKernelOptions,

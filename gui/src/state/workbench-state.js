@@ -4,6 +4,7 @@
 import { normalizeStatusDisplay } from "./status-display.js";
 
 var RAIL_MODES = ["chat", "context", "branches", "timeline", "settings"];
+var VIEWS = ["home", "chat", "projects", "changes", "mcp", "plugins", "settings"]; // v1.4.0 七视图
 var RAIL_VIEWS = ["explorer", "search", "scm", "run", "ext", "agent", "settings"];
 var INSPECTOR_MODES = ["activity", "approval", "rewind", "details", "checkpoints", "branch"];
 var THEMES = ["paper", "dawn", "latte", "sumi", "mocha", "moon", "nord", "forest", "clay", "rose"]; // v1.4.0 token 主题(10)
@@ -40,6 +41,10 @@ export function createInitialState() {
     theme: "sumi",
     language: "zh",
     statusDisplay: normalizeStatusDisplay(null),
+    view: "home", // v1.4.0 七视图路由
+    projects: [], // 全局项目 MRU(project-registry)
+    sessions: [], // 当前项目会话(按项目分组,session-index)
+    currentProject: null,
     emptyStateVisible: true,
     degraded: false,
     errors: [],
@@ -189,6 +194,18 @@ export function applyWorkbenchAction(state, action) {
   }
   if (action.type === "status_display_changed") {
     return copy(current, { statusDisplay: normalizeStatusDisplay(action.display, current.statusDisplay) });
+  }
+  if (action.type === "view_changed") {
+    return copy(current, { view: normalize(action.view, VIEWS, "home") });
+  }
+  if (action.type === "projects_loaded") {
+    return copy(current, { projects: Array.isArray(action.projects) ? action.projects : [] });
+  }
+  if (action.type === "sessions_loaded") {
+    return copy(current, { sessions: Array.isArray(action.sessions) ? action.sessions : [] });
+  }
+  if (action.type === "project_switched") {
+    return copy(current, { currentProject: action.root || null, view: "chat" });
   }
   if (action.type === "language_changed") {
     return copy(current, { language: normalize(action.language, LANGUAGES, "zh") });

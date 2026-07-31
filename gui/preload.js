@@ -48,4 +48,8 @@ contextBridge.exposeInMainWorld("deepseek", {
   activateBranch: (id) => ipcRenderer.invoke("session:branch-activate", id),
   listChanges: (limit) => ipcRenderer.invoke("changes:list", limit),
   describeChange: (id, relPath) => ipcRenderer.invoke("changes:describe", id, relPath),
+  listProjects: () => ipcRenderer.invoke("projects:list"),
+  addProject: (root) => ipcRenderer.invoke("projects:add", root),
+  switchProject: (root) => ipcRenderer.invoke("projects:switch", root),
+  listSessions: () => ipcRenderer.invoke("sessions:list"),
 });

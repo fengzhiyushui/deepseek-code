@@ -52,7 +52,18 @@ const STRINGS = {
     "rewind.force": "强制回退(忽略未提交改动)", "rewind.apply": "回退", "rewind.done": "完成",
     "changes.section": "AGENT 改动", "changes.empty": "暂无改动记录",
     "changes.noBridge": "无内核桥接,改动不可用", "changes.manual": "手动", "changes.agent": "agent",
-    "changes.rolledBack": "已回滚", "changes.jump": "跳到编辑器", "changes.error": "改动读取失败"
+    "changes.rolledBack": "已回滚", "changes.jump": "跳到编辑器", "changes.error": "改动读取失败",
+    "rail.home": "主页", "rail.projects": "项目", "rail.changes": "改动", "rail.mcp": "MCP 服务", "rail.plugins": "插件",
+    "rail.newSession": "新会话", "rail.newWhere": "在哪里新建", "rail.current": "当前", "rail.inheritDir": "沿用该项目目录,无需再选文件夹",
+    "rail.standalone": "独立对话", "rail.noProject": "不绑定任何项目目录", "rail.openFolder": "打开新文件夹", "rail.onlyNew": "仅新增项目时需选目录",
+    "rail.searchPlaceholder": "搜索会话与项目…", "rail.noProjects": "暂无项目", "rail.newInProject": "在本项目中新建会话", "rail.noSessions": "暂无会话",
+    "rail.untitled": "未命名会话", "rail.allSessions": "显示全部 {n} 个会话 →",
+    "chat.title": "会话", "chat.placeholder": "给 Inkstone 发消息…(Ctrl/⌘+Enter 发送)", "chat.attach": "附件", "chat.mention": "提及文件",
+    "chat.autonomy": "权限档位", "chat.gated": "受控", "chat.send": "发送", "chat.empty": "还没有消息,开始对话吧",
+    "home.tagline": "面向 DeepSeek 的本地 AI 编程 Agent", "home.hkNew": "新建会话", "home.hkSend": "发送", "home.recent": "最近项目",
+    "metrics.context": "上下文", "metrics.cacheHit": "缓存命中", "metrics.retrievalHit": "检索命中",
+    "ev.plan": "执行计划", "ev.steps": "步", "ev.inProgress": "进行中", "ev.toolOk": "ok", "ev.error": "错误", "ev.diff": "改动", "ev.approval": "需要审批",
+    "concept.planning": "功能规划中 · 概念预览", "concept.mcp": "MCP(Model Context Protocol)服务接入点:用于挂载外部工具与数据源。", "concept.plugins": "插件市场:用于扩展命令、面板与自动化流程。"
   },
   en: {
     "menu.file": "File", "menu.edit": "Edit", "menu.selection": "Selection", "menu.view": "View",
@@ -106,7 +117,18 @@ const STRINGS = {
     "rewind.force": "Force rewind (discard uncommitted changes)", "rewind.apply": "Rewind", "rewind.done": "Done",
     "changes.section": "Agent Changes", "changes.empty": "No change records",
     "changes.noBridge": "No kernel bridge; changes unavailable", "changes.manual": "manual", "changes.agent": "agent",
-    "changes.rolledBack": "rolled back", "changes.jump": "Open in editor", "changes.error": "Failed to load change"
+    "changes.rolledBack": "rolled back", "changes.jump": "Open in editor", "changes.error": "Failed to load change",
+    "rail.home": "Home", "rail.projects": "Projects", "rail.changes": "Changes", "rail.mcp": "MCP Servers", "rail.plugins": "Plugins",
+    "rail.newSession": "New session", "rail.newWhere": "New where", "rail.current": "current", "rail.inheritDir": "Reuses this project's directory — no folder picker",
+    "rail.standalone": "Standalone chat", "rail.noProject": "Not bound to any project", "rail.openFolder": "Open a new folder", "rail.onlyNew": "Only pick a folder for a new project",
+    "rail.searchPlaceholder": "Search sessions & projects…", "rail.noProjects": "No projects yet", "rail.newInProject": "New session in this project", "rail.noSessions": "No sessions",
+    "rail.untitled": "Untitled session", "rail.allSessions": "Show all {n} sessions →",
+    "chat.title": "Session", "chat.placeholder": "Message Inkstone…  (Ctrl/⌘+Enter to send)", "chat.attach": "Attach", "chat.mention": "Mention file",
+    "chat.autonomy": "Autonomy", "chat.gated": "gated", "chat.send": "Send", "chat.empty": "No messages yet — start a conversation",
+    "home.tagline": "A local AI coding agent for DeepSeek", "home.hkNew": "new session", "home.hkSend": "send", "home.recent": "Recent projects",
+    "metrics.context": "Context", "metrics.cacheHit": "Cache", "metrics.retrievalHit": "Retrieval",
+    "ev.plan": "Plan", "ev.steps": "steps", "ev.inProgress": "running", "ev.toolOk": "ok", "ev.error": "error", "ev.diff": "diff", "ev.approval": "Approval needed",
+    "concept.planning": "Planned feature · concept preview", "concept.mcp": "MCP (Model Context Protocol) servers: mount external tools and data sources.", "concept.plugins": "Plugin marketplace: extend commands, panels and automation."
   }
 };
 

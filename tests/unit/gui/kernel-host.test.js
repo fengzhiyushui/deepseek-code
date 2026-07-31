@@ -329,3 +329,36 @@ test("kernel host exposes gui preference delegates", async () => {
   assert.equal((await host.getPreferences()).theme, "latte");
   assert.equal((await host.getPreferences()).railMode, "timeline");
 });
+
+test("kernel host exposes project registry + session index delegates", async () => {
+  const { createKernelHost } = require("../../../gui/kernel-host.js");
+  const { mkdtemp } = require("node:fs/promises");
+  const os = require("node:os");
+  const path = require("node:path");
+
+  const home = await mkdtemp(path.join(os.tmpdir(), "dsc-gui-host-reg-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "dsc-gui-host-proj-"));
+  const disposed = [];
+  const host = createKernelHost({
+    projectRoot: root,
+    projectRegistryDir: path.join(home, ".deepseek-code"),
+    kernelFactory: async () => ({
+      session: { subscribe: () => ({ unsubscribe() {} }) },
+      context: { snapshot: () => ({ units: [] }) },
+      config: { getPublicConfig: () => ({}) },
+      runtime: { getState: () => ({ current: "idle" }) },
+      dispose: () => disposed.push(true)
+    })
+  });
+  await host.init();
+
+  assert.deepEqual(await host.listProjects(), []);
+  await host.addProject(root);
+  const projects = await host.listProjects();
+  assert.equal(projects.length, 1);
+  assert.equal(projects[0].root, root);
+
+  await host.switchProject(root);
+  assert.equal(disposed.length, 1, "switchProject 应重建 kernel(dispose 一次)");
+  assert.equal((await host.listSessions()).length, 0);
+});
