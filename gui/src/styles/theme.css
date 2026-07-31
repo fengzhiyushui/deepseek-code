@@ -1,28 +1,25 @@
 /* Inkstone — VS Code-style design system (hand-built, no third-party UI kit).
-   Approved baseline: gui/mockups/deepseek-code-ide-mockup.html. */
+   Design tokens: ./tokens.css (single source, 10 themes via [theme="<id>"]).
+   Legacy variable names are aliased to tokens in the [theme] block below. */
+
+@import "./tokens.css";
 
 :root {
-  /* Dark+ (night) — default */
-  --bg-editor:#1e1e1e; --bg-side:#252526; --bg-activity:#333333; --bg-title:#323233;
-  --bg-tabbar:#252526; --bg-tab-active:#1e1e1e; --bg-tab-inactive:#2d2d2d;
-  --bg-panel:#181818; --bg-input:#3c3c3c; --bg-hover:#2a2d2e; --bg-active-list:#04395e;
-  --border:#2b2b2b; --border-2:#3c3c3c; --sash:#1e1e1e;
-  --text:#cccccc; --text-mut:#858585; --text-bright:#ffffff;
-  --accent:#4ea1ff; --status:#0a6fb8; --status-text:#eaf4fb;
-  --k:#569cd6; --k2:#c586c0; --str:#ce9178; --com:#6a9955; --fn:#dcdcaa; --var:#9cdcfe; --num:#b5cea8; --typ:#4ec9b0;
-  --js:#e8c33c; --json:#e5b567; --md:#519aba; --folder:#c09553;
-  --green:#4ec98a; --amber:#e0a72e; --red:#f14c4c;
+  /* Layout dimensions (theme-independent) */
   --rail:48px; --sidebar:300px; --agent:360px; --titlebar:30px; --statusbar:22px;
 }
-body:not([theme-mode="dark"]) {
-  /* Light (day) */
-  --bg-editor:#ffffff; --bg-side:#f3f3f3; --bg-activity:#2c2c2c; --bg-title:#dddddd;
-  --bg-tabbar:#ececec; --bg-tab-active:#ffffff; --bg-tab-inactive:#ececec;
-  --bg-panel:#ffffff; --bg-input:#ffffff; --bg-hover:#e8e8e8; --bg-active-list:#cce3f7;
-  --border:#e2e2e2; --border-2:#d4d4d4; --sash:#e7e7e7;
-  --text:#3b3b3b; --text-mut:#6e6e6e; --text-bright:#111111;
-  --accent:#0a72d4; --status:#0a6fb8; --status-text:#ffffff;
-  --k:#0000ff; --k2:#af00db; --str:#a31515; --com:#008000; --fn:#795e26; --var:#001080; --num:#098658; --typ:#267f99;
+
+/* Legacy aliases → new tokens. Resolves per element, so one block serves all 10 themes. */
+[theme] {
+  --bg-editor:var(--bg-base); --bg-side:var(--bg-panel); --bg-activity:var(--bg-panel); --bg-title:var(--bg-base);
+  --bg-tabbar:var(--bg-panel); --bg-tab-active:var(--bg-base); --bg-tab-inactive:var(--bg-element);
+  --bg-input:var(--bg-element); --bg-hover:var(--bg-element); --bg-active-list:var(--accent-soft);
+  --border-2:var(--border-strong); --sash:var(--border);
+  --text-bright:var(--text);
+  --status:var(--accent); --status-text:var(--accent-text);
+  --k:var(--accent); --k2:var(--info); --str:var(--ok); --com:var(--text-faint); --fn:var(--accent-hover); --var:var(--text); --num:var(--info); --typ:var(--accent);
+  --js:var(--warn); --json:var(--warn); --md:var(--info); --folder:var(--warn);
+  --green:var(--ok); --amber:var(--warn); --red:var(--err);
 }
 
 *{box-sizing:border-box; margin:0; padding:0;}
@@ -116,8 +113,7 @@ body{
 .agent .ahead .ttl{font-size:11px; letter-spacing:.06em; color:var(--text-mut); display:flex; align-items:center; gap:8px;}
 .agent .badge{font-size:10px; color:var(--accent); border:1px solid #35506e; background:#0e223322; border-radius:10px; padding:1px 8px;}
 .athread{overflow:auto; padding:12px; display:flex; flex-direction:column; gap:12px;}
-.msg.user{align-self:flex-end; max-width:88%; background:#0e3050; border:1px solid #1c4b74; color:#e7f0f8; border-radius:10px 10px 2px 10px; padding:8px 10px;}
-body:not([theme-mode="dark"]) .msg.user{background:#cce3f7; border-color:#a8cdf0; color:#123;}
+.msg.user{align-self:flex-end; max-width:88%; background:var(--accent-soft); border:1px solid var(--border-strong); color:var(--text); border-radius:10px 10px 2px 10px; padding:8px 10px;}
 .athread .empty{color:var(--text-mut);}
 .card{background:var(--bg-editor); border:1px solid var(--border-2); border-radius:8px; overflow:hidden;}
 .card .ch{display:flex; align-items:center; gap:8px; padding:8px 10px; color:var(--text); font-size:12px; border-bottom:1px solid var(--border);}
@@ -129,8 +125,7 @@ body:not([theme-mode="dark"]) .msg.user{background:#cce3f7; border-color:#a8cdf0
 .plan .run .box{border:1.5px solid var(--accent); color:var(--accent);}
 .plan .todo .box{border:1.5px solid var(--text-mut);}
 .diff{font-family:"Cascadia Code",monospace; font-size:11.5px; line-height:1.5;}
-.diff .add{background:#1b3226; color:#8fce9b;} .diff .del{background:#3a2020; color:#d99;}
-body:not([theme-mode="dark"]) .diff .add{background:#e6ffed; color:#227d3e;}
+.diff .add{background:var(--bg-inset); color:var(--ok);} .diff .del{background:var(--bg-inset); color:var(--err);}
 .spin{width:12px; height:12px; border:2px solid #3a5f80; border-top-color:var(--accent); border-radius:50%; display:inline-block; animation:spin 0.8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 @media (prefers-reduced-motion: reduce){ .spin{animation:none;} }

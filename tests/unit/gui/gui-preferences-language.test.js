@@ -13,7 +13,7 @@ test("normalizeGuiPreferences persists language (default zh)", () => {
 
 test("normalizeGuiPreferences keeps existing fields (no regression)", () => {
   const p = normalizeGuiPreferences({ theme: "day", railMode: "branches", contextCollapsed: true });
-  assert.equal(p.theme, "day");
+  assert.equal(p.theme, "latte");
   assert.equal(p.railMode, "branches");
   assert.equal(p.contextCollapsed, true);
   assert.equal(p.language, "zh");

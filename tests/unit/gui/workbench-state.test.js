@@ -15,7 +15,7 @@ test("createInitialState defines workbench defaults", () => {
   assert.equal(initial.railMode, "chat");
   assert.equal(initial.contextCollapsed, false);
   assert.equal(initial.inspectorMode, "activity");
-  assert.equal(initial.theme, "night");
+  assert.equal(initial.theme, "sumi");
   assert.equal(initial.emptyStateVisible, true);
 });
 
@@ -95,13 +95,13 @@ test("message activity and presentation actions update workbench state", () => {
   current = state.applyWorkbenchAction(current, { type: "rail_mode_changed", mode: "branches" });
   current = state.applyWorkbenchAction(current, { type: "context_collapsed_changed", collapsed: true });
   current = state.applyWorkbenchAction(current, { type: "inspector_mode_changed", mode: "checkpoints" });
-  current = state.applyWorkbenchAction(current, { type: "theme_changed", theme: "day" });
+  current = state.applyWorkbenchAction(current, { type: "theme_changed", theme: "mocha" });
 
   assert.equal(current.emptyStateVisible, false);
   assert.equal(current.railMode, "branches");
   assert.equal(current.contextCollapsed, true);
   assert.equal(current.inspectorMode, "checkpoints");
-  assert.equal(current.theme, "day");
+  assert.equal(current.theme, "mocha");
   assert.equal(state.statusSummary(current).runtime, "idle");
   assert.equal(state.statusSummary(current).branch, "br_main");
 });
@@ -140,9 +140,10 @@ test("invalid presentation choices fall back to safe defaults", () => {
 
   assert.equal(current.railMode, "chat");
   assert.equal(current.inspectorMode, "activity");
-  assert.equal(current.theme, "night");
-  assert.equal(state.themeLabel("day"), "Day Review");
-  assert.equal(state.themeLabel("night"), "Night Workbench");
+  assert.equal(current.theme, "sumi");
+  assert.equal(state.themeLabel("sumi"), "墨");
+  assert.equal(state.themeLabel("rose"), "黛");
+  assert.equal(state.themeLabel("nonsense"), "墨");
 });
 
 test("preferences_loaded hydrates only safe presentation fields", () => {
@@ -156,7 +157,7 @@ test("preferences_loaded hydrates only safe presentation fields", () => {
     }
   });
 
-  assert.equal(current.theme, "day");
+  assert.equal(current.theme, "latte");
   assert.equal(current.railMode, "timeline");
   assert.equal(current.contextCollapsed, true);
   assert.deepEqual(current.messages, []);

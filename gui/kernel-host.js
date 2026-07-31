@@ -71,10 +71,11 @@ function maskConfig(cfg) {
 
 const GUI_PREFERENCE_DEFAULTS = Object.freeze({
   schema: 1,
-  theme: "night",
+  theme: "sumi",
   language: "zh",
   railMode: "chat",
-  contextCollapsed: false
+  contextCollapsed: false,
+  statusDisplay: null
 });
 
 const GUI_RAIL_MODES = new Set(["chat", "context", "branches", "timeline", "settings"]);
@@ -126,14 +127,18 @@ function guiPreferencePath(projectRoot) {
   return path.join(projectRoot, ".deepseek-code", "gui-preferences.json");
 }
 
+const GUI_THEMES = new Set(["paper", "dawn", "latte", "sumi", "mocha", "moon", "nord", "forest", "clay", "rose"]); // v1.4.0 token 主题
+const LEGACY_GUI_THEME = { day: "latte", night: "sumi" }; // 旧 day/night → token 主题
+
 function normalizeGuiPreferences(value = {}) {
   const input = value && typeof value === "object" ? value : {};
   return {
     schema: 1,
-    theme: input.theme === "day" ? "day" : "night",
+    theme: GUI_THEMES.has(input.theme) ? input.theme : LEGACY_GUI_THEME[input.theme] || "sumi",
     language: input.language === "en" ? "en" : "zh",
     railMode: GUI_RAIL_MODES.has(input.railMode) ? input.railMode : "chat",
-    contextCollapsed: typeof input.contextCollapsed === "boolean" ? input.contextCollapsed : false
+    contextCollapsed: typeof input.contextCollapsed === "boolean" ? input.contextCollapsed : false,
+    statusDisplay: input.statusDisplay || null // 不透明透传;渲染侧 normalizeStatusDisplay 补默认
   };
 }
 

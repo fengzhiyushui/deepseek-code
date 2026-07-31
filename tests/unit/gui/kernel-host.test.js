@@ -273,10 +273,11 @@ test("gui preferences normalize invalid values to safe defaults", () => {
     transcript: "must not persist"
   }), {
     schema: 1,
-    theme: "night",
+    theme: "sumi",
     language: "zh",
     railMode: "chat",
-    contextCollapsed: false
+    contextCollapsed: false,
+    statusDisplay: null
   });
 });
 
@@ -287,22 +288,23 @@ test("gui preferences load missing corrupt and save sanitized values", async () 
   const path = require("node:path");
 
   const root = await mkdtemp(path.join(os.tmpdir(), "dsc-gui-pref-"));
-  assert.equal((await loadGuiPreferences(root)).theme, "night");
+  assert.equal((await loadGuiPreferences(root)).theme, "sumi");
 
   await saveGuiPreferences(root, { theme: "day", railMode: "branches", contextCollapsed: true, secret: "x" });
   assert.deepEqual(await loadGuiPreferences(root), {
     schema: 1,
-    theme: "day",
+    theme: "latte",
     language: "zh",
     railMode: "branches",
-    contextCollapsed: true
+    contextCollapsed: true,
+    statusDisplay: null
   });
 
   const raw = await readFile(path.join(root, ".deepseek-code", "gui-preferences.json"), "utf8");
   assert.equal(raw.includes("secret"), false);
 
   await writeFile(path.join(root, ".deepseek-code", "gui-preferences.json"), "{not json");
-  assert.equal((await loadGuiPreferences(root)).theme, "night");
+  assert.equal((await loadGuiPreferences(root)).theme, "sumi");
 });
 
 test("kernel host exposes gui preference delegates", async () => {
@@ -324,6 +326,6 @@ test("kernel host exposes gui preference delegates", async () => {
   await host.init();
 
   await host.setPreferences({ theme: "day", railMode: "timeline" });
-  assert.equal((await host.getPreferences()).theme, "day");
+  assert.equal((await host.getPreferences()).theme, "latte");
   assert.equal((await host.getPreferences()).railMode, "timeline");
 });

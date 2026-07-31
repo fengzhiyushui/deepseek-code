@@ -1,11 +1,20 @@
 // gui/src/state/workbench-state.js — Pure workbench state model (ESM; logic identical to
 // the legacy UMD gui/renderer/workbench-state.js, now consumed by React useReducer).
 
+import { normalizeStatusDisplay } from "./status-display.js";
+
 var RAIL_MODES = ["chat", "context", "branches", "timeline", "settings"];
 var RAIL_VIEWS = ["explorer", "search", "scm", "run", "ext", "agent", "settings"];
 var INSPECTOR_MODES = ["activity", "approval", "rewind", "details", "checkpoints", "branch"];
-var THEMES = ["night", "day"];
+var THEMES = ["paper", "dawn", "latte", "sumi", "mocha", "moon", "nord", "forest", "clay", "rose"]; // v1.4.0 token 主题(10)
+var LEGACY_THEME_MAP = { night: "sumi", day: "latte" }; // 旧 day/night → token 主题
 var LANGUAGES = ["zh", "en"];
+
+function normalizeTheme(value, fallback) {
+  if (THEMES.indexOf(value) >= 0) return value;
+  if (LEGACY_THEME_MAP[value]) return LEGACY_THEME_MAP[value];
+  return fallback;
+}
 
 export function createInitialState() {
   return {
@@ -28,8 +37,9 @@ export function createInitialState() {
     railView: "explorer",
     contextCollapsed: false,
     inspectorMode: "activity",
-    theme: "night",
+    theme: "sumi",
     language: "zh",
+    statusDisplay: normalizeStatusDisplay(null),
     emptyStateVisible: true,
     degraded: false,
     errors: [],
@@ -161,9 +171,10 @@ export function applyWorkbenchAction(state, action) {
   if (action.type === "preferences_loaded") {
     var prefs = action.preferences || {};
     return copy(current, {
-      theme: normalize(prefs.theme, THEMES, current.theme),
+      theme: normalizeTheme(prefs.theme, current.theme),
       language: normalize(prefs.language, LANGUAGES, current.language),
       railMode: normalize(prefs.railMode, RAIL_MODES, current.railMode),
+      statusDisplay: normalizeStatusDisplay(prefs.statusDisplay, current.statusDisplay),
       contextCollapsed: typeof prefs.contextCollapsed === "boolean" ? prefs.contextCollapsed : current.contextCollapsed
     });
   }
@@ -174,7 +185,10 @@ export function applyWorkbenchAction(state, action) {
     return copy(current, { inspectorMode: normalize(action.mode || action.tab, INSPECTOR_MODES, "activity") });
   }
   if (action.type === "theme_changed") {
-    return copy(current, { theme: normalize(action.theme, THEMES, "night") });
+    return copy(current, { theme: normalizeTheme(action.theme, "sumi") });
+  }
+  if (action.type === "status_display_changed") {
+    return copy(current, { statusDisplay: normalizeStatusDisplay(action.display, current.statusDisplay) });
   }
   if (action.type === "language_changed") {
     return copy(current, { language: normalize(action.language, LANGUAGES, "zh") });
@@ -339,8 +353,10 @@ export function trafficLabel(tone, state) {
   return "Ready";
 }
 
+const THEME_LABELS = { paper: "宣", dawn: "曦", latte: "瓷", sumi: "墨", mocha: "檀", moon: "霄", nord: "峡", forest: "苔", clay: "陶", rose: "黛" };
+
 export function themeLabel(theme) {
-  return theme === "day" ? "Day Review" : "Night Workbench";
+  return THEME_LABELS[theme] || "墨";
 }
 
 function normalize(value, allowed, fallback) {

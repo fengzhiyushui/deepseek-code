@@ -34,7 +34,7 @@ export default function App() {
   const sidebarView = railView === "agent" ? "explorer" : railView;
 
   useEffect(() => {
-    document.body.setAttribute("theme-mode", state.theme !== "day" ? "dark" : "light");
+    document.documentElement.setAttribute("theme", state.theme);
   }, [state.theme]);
   useEffect(() => {
     document.documentElement.lang = state.language;
@@ -42,7 +42,7 @@ export default function App() {
   useEffect(() => { kernel.refreshChanges(); }, [state.changesTick, kernel]);
 
   const toggleTheme = useCallback(() => {
-    const next = state.theme === "day" ? "night" : "day";
+    const next = state.theme === "sumi" ? "latte" : "sumi"; // 临时明暗切换;完整 10 主题选择在设置页(P1/P2)
     dispatch({ type: "theme_changed", theme: next });
     kernel.setPreferences({ theme: next });
   }, [state.theme, dispatch, kernel]);
