@@ -22,7 +22,7 @@ docs/
     architecture/           ← 跨端/仓库级实施计划(如品牌改名)
     backend/                ← 后端按特性的实施计划
     frontend/               ← 前端按特性的实施计划
-  prototypes/               ← 历史静态原型存档(不接运行时,v1.2.0 自仓库根迁入)
+  prototypes/               ← 历史静态原型存档(v1.2.0 自仓库根迁入);v1.4.0-redesign/ 为前端重设计稿(HTML,不接运行时,**终稿 = v4/**,索引见其 README)
 ```
 
 **specs 与 plans 的区别**:`specs/` 回答"要做成什么样、为什么这么设计";`plans/` 回答"分几步、每步怎么做、怎么验证"。一个特性通常先有 spec 再有 plan。
@@ -114,6 +114,7 @@ docs/
 - [v3-phase-d3 gui-full-functional](specs/frontend/2026-07-02-v3-phase-d3-gui-full-functional-design.md) — **D-3 GUI 全功能 + 设置页**:切视图/搜索 + 标题栏菜单 + 真状态栏 + 面板派生 + 分支切换/rewind + 可编辑保存(整文件 diff → editService)+ 设置页(7 组 + API 列表管理 + 模型获取无默认/失败报错);API Key 掩码不回明文,kernel 零改动
 - [v3-phase-d4 gui-change-tracking](specs/frontend/2026-07-02-v3-phase-d4-change-tracking-design.md) — **D-4 GUI agent 改动跟踪**:SCM「AGENT 改动」分区(来源标签 agent/手动 + 已回滚标)→ 主区「修改前 vs 修改后」对比(方案 C:记录内 before/after 直喂 DiffEditor,零 diff 反推)+ hunk chips 跳编辑器(行号 clamp);只读桥 `changes:list` 列表瘦身 / `changes:describe` 单文件切片;kernel 零改动
 - [v3-phase-d5 tui-redesign](specs/frontend/2026-07-06-v3-phase-d5-tui-redesign-design.md) — **D-5 TUI 重设计**:行内滚动流 agent 会话(原生滚动区 + 底部固定输入/状态栏)+ 流式 onDelta 透传 + 工具/diff/审批卡片 + slash 补全 + /config 共享 api-profiles(激活重建 kernel 保上下文);手写 ANSI,zh/en 双语,kernel 核心零改动
+- [v1.4.0 frontend-redesign](specs/frontend/2026-07-28-v1.4.0-frontend-redesign-design.md) — **v1.4.0 前端界面整体重做(✅ 设计定稿,终稿 = prototypes/v1.4.0-redesign/v4/)**:GUI 借鉴 Codex/Claude Desktop、TUI 仿 opencode;10 套主题(3 浅 7 深)单一 token 源,色值取自各方案官方定义源并通过 WCAG 对比度校验;五轮 HTML 稿迭代定型(侧栏=功能区/项目分区/独立对话,每项目独立分区内挂会话、新建会话继承项目目录;指标 5 形态可选;TUI 首页 opencode 构图 + /theme + /shell);实施方案见 plans/frontend 同名 plan;kernel 零改动
 
 ### plans/roadmap — 宏观阶段
 - [phase-0 kernel-foundation](plans/roadmap/2026-05-29-phase-0-kernel-foundation.md)
@@ -153,6 +154,7 @@ docs/
 - [v3-phase-d3 gui-full-functional](plans/frontend/2026-07-02-v3-phase-d3-gui-full-functional.md) — **D-3 实施计划**:M1–M11(配置桥+API 列表+listModels → 切视图/搜索 → 标题栏菜单 → 面板派生 → 保存 diff → 设置视图 → 标题/状态栏 → 分支切换 → rewind → 可编辑+diff → build/smoke/截图/文档)
 - [v3-phase-d4 gui-change-tracking](plans/frontend/2026-07-02-v3-phase-d4-change-tracking.md) — **D-4 实施计划**:M1–M5(只读改动桥 list/describe+IPC → changes-derive+reducer+卡片字段修复 → useKernel 桥+SCM 分区+i18n → ChangeDiffView+hunk 跳转+卡片可点 → 门控 smoke+全量回归+文档)
 - [v3-phase-d5 tui-redesign](plans/frontend/2026-07-06-v3-phase-d5-tui-redesign.md) — **D-5 实施计划**:T1–T15(ansi/input/i18n/reducer → 事件卡片 → painter → 组合根+薄入口替换 → slash 补全 → api-profiles 迁移+model-catalog+config-flow+/config 接线 → 门控 pty smoke+回归+文档)
+- [v1.4.0 frontend-redesign-plan](plans/frontend/2026-07-31-v1.4.0-frontend-redesign-plan.md) — **v1.4.0 前端重构实施方案(待批准,未开工)**:现状摸底(GUI 已带 React/Electron 依赖、TUI 主包零依赖、会话可枚举、项目注册表/MCP/插件为空洞)→ 技术决策(栈不换、渲染层原地重写、v4 tokens 单源、kernel 零改动、MCP/插件仅概念预览)→ P0 地基(token 管线+项目/会话数据层)→ P1 GUI 骨架(侧栏项目分区+会话视图+指标 5 形态)→ P2 二级界面 → P3 TUI(首页+/theme+/shell,可并行)→ P4 收口;R1–R6 风险对策(kernel 重建切项目、旧会话只读回放保底等)
 
 ---
 

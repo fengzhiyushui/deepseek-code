@@ -14,6 +14,7 @@
 > 下一个补丁 / 小版本的变更在此累积;发布时移入带版本号的小节。
 
 - **品牌改名**:产品名 **DeepSeek Code → Inkstone(砚)**。显示品牌全面替换(CLI/TUI banner、GUI 窗口与页面标题、system prompt 产品自称、User-Agent、README/docs/设计稿);结构层同步(package/bin 命令 `inkstone` + 保留 `dsc` 别名、gui 包名 `inkstone-gui`、conda 环境名)。**功能契约全部保留**:`.deepseek-code` 存储目录、`DEEPSEEK_*` 环境变量、`api.deepseek.com` 端点与 `deepseek-v4-*` 等模型 id 均不改。方案见 [`plans/architecture/2026-07-31-inkstone-rebrand.md`](plans/architecture/2026-07-31-inkstone-rebrand.md)。
+- **v1.4.0 前端界面重设计(进行中,`feat/v1.4.0`)**:GUI/TUI 界面全部重做。**设计已定稿(2026-07-31,五轮 HTML 稿迭代,终稿 = [`prototypes/v1.4.0-redesign/v4/`](prototypes/v1.4.0-redesign/v4/),存档索引见其 [README](prototypes/v1.4.0-redesign/README.md))**:10 套主题(3 浅 7 深,色值取自 Flexoki/Rosé Pine/Catppuccin/Kanagawa/Tokyo Night/Nord/Everforest/Gruvbox Material 官方定义源,WCAG 对比度 110 项校验全过,默认 `sumi` 墨)· GUI 会话优先布局(侧栏=功能区/每项目独立分区(内挂该项目会话,新建会话继承项目目录)/独立对话;指标 5 形态可选 + 全中文「状态显示」设置组)· TUI 仿 opencode(居中首页 + `/theme` + `/shell` 终端切换)。需求基线见 [`specs/frontend/2026-07-28-v1.4.0-frontend-redesign-design.md`](specs/frontend/2026-07-28-v1.4.0-frontend-redesign-design.md);实施方案见 [`plans/frontend/2026-07-31-v1.4.0-frontend-redesign-plan.md`](plans/frontend/2026-07-31-v1.4.0-frontend-redesign-plan.md)(P0–P4 分阶段)。kernel 零改动。
 
 **已挂账(待立项,方案见 [`specs/backend/2026-07-12-agent-findings-remediation.md`](specs/backend/2026-07-12-agent-findings-remediation.md)):** 明文变更记录脱敏方案(#9.3,需独立 design)、`agent-runtime.js` 可维护性重构(#10)。
 
