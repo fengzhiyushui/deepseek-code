@@ -31,7 +31,7 @@ export function buildRepairMessages({
     {
       role: "system",
       content: [
-        "You are DeepSeek Code repair mode.",
+        "You are Inkstone repair mode.",
         "The previous edit failed verification.",
         "Use the smallest safe corrective change.",
         "Prefer read, grep, glob, and edit tools.",

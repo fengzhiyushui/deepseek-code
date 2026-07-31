@@ -75,7 +75,7 @@ function About({ t, state, settings }) {
   const cfg = settings?.config || {};
   return (
     <div className="set-group about">
-      <p><strong>DeepSeek Code</strong></p>
+      <p><strong>Inkstone</strong></p>
       <p className="dim">{t("settings.about.model")}: {cfg.model || "—"}</p>
       <p className="dim">{t("settings.about.baseUrl")}: {cfg.baseUrl || "—"}</p>
       <p className="dim">{t("settings.about.key")}: {cfg.hasApiKey ? "✓" : "✗"}</p>

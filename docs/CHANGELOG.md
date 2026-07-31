@@ -1,6 +1,6 @@
 # Changelog
 
-本文件记录 DeepSeek Code 的版本演进。**自 v1.0.0 起采用[语义化版本](https://semver.org/lang/zh-CN/)** `major.minor.patch`,命名规则与升级判定见 [`docs/README.md` 版本命名规则](README.md#版本命名规则)。
+本文件记录 Inkstone 的版本演进。**自 v1.0.0 起采用[语义化版本](https://semver.org/lang/zh-CN/)** `major.minor.patch`,命名规则与升级判定见 [`docs/README.md` 版本命名规则](README.md#版本命名规则)。
 
 维护约定:
 - **每个大版本(major)**给出该版本交付能力的**总结**;其下每个**小版本(minor)/ 补丁(patch)**各追加一条**简要日志**。
@@ -13,7 +13,7 @@
 
 > 下一个补丁 / 小版本的变更在此累积;发布时移入带版本号的小节。
 
-- (暂无)
+- **品牌改名**:产品名 **DeepSeek Code → Inkstone(砚)**。显示品牌全面替换(CLI/TUI banner、GUI 窗口与页面标题、system prompt 产品自称、User-Agent、README/docs/设计稿);结构层同步(package/bin 命令 `inkstone` + 保留 `dsc` 别名、gui 包名 `inkstone-gui`、conda 环境名)。**功能契约全部保留**:`.deepseek-code` 存储目录、`DEEPSEEK_*` 环境变量、`api.deepseek.com` 端点与 `deepseek-v4-*` 等模型 id 均不改。方案见 [`plans/architecture/2026-07-31-inkstone-rebrand.md`](plans/architecture/2026-07-31-inkstone-rebrand.md)。
 
 **已挂账(待立项,方案见 [`specs/backend/2026-07-12-agent-findings-remediation.md`](specs/backend/2026-07-12-agent-findings-remediation.md)):** 明文变更记录脱敏方案(#9.3,需独立 design)、`agent-runtime.js` 可维护性重构(#10)。
 
@@ -59,7 +59,7 @@
 
 ## v1.0.0 — 2026-07-13 · 首个正式版本
 
-DeepSeek Code 的首个正式发布,**整合此前全部内部迭代**(V1 原型 → V2 干净运行时 → V3 三支柱)为一个统一版本。面向 DeepSeek 的**本地 AI 编程 Agent**:在你的项目目录里读代码、改代码、跑测试,并把每一步模型调用、工具执行、文件改动与审批记录成可回放、可分支、可回退的会话时间线。**CLI · TUI · 桌面 GUI 三端共用同一内核**,核心运行时零依赖(仅可选 WASM tree-sitter),Node ≥ 20 + 一个 API Key 即可运行。
+Inkstone 的首个正式发布,**整合此前全部内部迭代**(V1 原型 → V2 干净运行时 → V3 三支柱)为一个统一版本。面向 DeepSeek 的**本地 AI 编程 Agent**:在你的项目目录里读代码、改代码、跑测试,并把每一步模型调用、工具执行、文件改动与审批记录成可回放、可分支、可回退的会话时间线。**CLI · TUI · 桌面 GUI 三端共用同一内核**,核心运行时零依赖(仅可选 WASM tree-sitter),Node ≥ 20 + 一个 API Key 即可运行。
 
 ### 统一内核与三端
 - **一个内核门面** `createKernel()`:一条 Agent runtime、一条工具执行路径、一套编辑/回滚服务、一条会话时间线;三端只做输入 / 展示 / 审批,不碰 agent 业务逻辑。

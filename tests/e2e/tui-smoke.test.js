@@ -15,7 +15,7 @@ try { pty = require(path.join(repoRoot, "gui", "node_modules", "node-pty")); } c
 
 test("tui smoke: boots offline, /help renders, /quit restores terminal", { skip: !pty && "gui node-pty not installed" }, async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "dsc-tui-smoke-"));
-  const term = pty.spawn(process.execPath, [path.join(repoRoot, "bin", "deepseek-code.js"), "tui"], {
+  const term = pty.spawn(process.execPath, [path.join(repoRoot, "bin", "inkstone.js"), "tui"], {
     name: "xterm-256color", cols: 100, rows: 30, cwd: root,
     env: { ...process.env, NO_COLOR: "1" }
   });

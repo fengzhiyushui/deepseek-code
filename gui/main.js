@@ -80,7 +80,7 @@ async function createWindow() {
       contextIsolation: true,
       sandbox: true
     },
-    title: "DeepSeek Code"
+    title: "Inkstone"
   });
 
   host = createKernelHost({

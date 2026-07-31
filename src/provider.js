@@ -123,7 +123,7 @@ function formatApiError(status, text) {
     return [
       "DeepSeek API 认证失败：当前 API key 无效或已失效。",
       "请在 DeepSeek 控制台重新创建密钥，然后运行：",
-      "  deepseek-code config init --api-key <new-key>",
+      "  inkstone config init --api-key <new-key>",
       "也可以在 TUI 中选择“配置 API 密钥”。",
       detail ? `服务端信息：${detail}` : ""
     ].filter(Boolean).join("\n");

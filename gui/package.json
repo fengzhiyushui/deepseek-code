@@ -1,7 +1,7 @@
 {
-  "name": "deepseek-code-gui",
+  "name": "inkstone-gui",
   "version": "0.1.0",
-  "description": "DeepSeek Code Desktop",
+  "description": "Inkstone Desktop",
   "main": "main.js",
   "engines": {
     "node": ">=18"

@@ -103,7 +103,7 @@ export default function Explorer({ t, state, view = "explorer", onSelectBranch, 
 
       {(view === "explorer" || view === "search") && (
         <>
-          {view === "explorer" && <div className="project"><span>{"▾"}</span> DEEPSEEK-CODE</div>}
+          {view === "explorer" && <div className="project"><span>{"▾"}</span> INKSTONE</div>}
           <div className="tree" role="tree">
             {view === "search" && query.trim() && filtered.length === 0
               ? <div className="row" style={{ color: "var(--text-mut)" }}><span className="chev" />{t("search.noResults")}</div>

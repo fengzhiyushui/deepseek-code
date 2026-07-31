@@ -1,4 +1,4 @@
-export const BRAND = "DeepSeek Code";
+export const BRAND = "Inkstone";
 export const VERSION = "1.3.2";
 
 const supportsColor = process.stdout.isTTY && process.env.NO_COLOR === undefined;
@@ -16,7 +16,7 @@ export const color = {
 export function banner() {
   return [
     color.cyan(color.bold(`${BRAND} ${VERSION}`)),
-    color.dim("DeepSeek 专属本地编程助手")
+    color.dim("面向 DeepSeek 的本地 AI 编程 Agent")
   ].join("\n");
 }
 

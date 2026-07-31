@@ -6,7 +6,7 @@ import { createDeepSeekGateway } from "../../../src/deepseek/model-gateway.js";
 test("assembleReplyMessages uses stable system prefix and current user suffix", () => {
   const messages = assembleReplyMessages({ message: "What is this project?", classification: { task_type: "query" }, context: { summary: "Node project" } });
   assert.equal(messages[0].role, "system");
-  assert.match(messages[0].content, /DeepSeek Code/);
+  assert.match(messages[0].content, /Inkstone/);
   assert.match(messages[0].content, /Node project/);
   assert.deepEqual(messages.at(-1), { role: "user", content: "What is this project?" });
 });

@@ -1,4 +1,4 @@
-name: deepseek-code
+name: inkstone
 channels:
   - defaults
 dependencies:

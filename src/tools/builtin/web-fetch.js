@@ -24,7 +24,7 @@ export function createWebFetchTool({ fetchImpl = null, lookup } = {}) {
           method: "GET",
           redirect: "manual",
           headers: {
-            "User-Agent": "DeepSeek-Code/1.1",
+            "User-Agent": "inkstone/1.1",
             // pinnedFetch 当前返回原始字节;请求 identity 避免把压缩响应当文本。
             "Accept-Encoding": "identity"
           },

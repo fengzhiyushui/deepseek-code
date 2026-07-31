@@ -58,7 +58,7 @@ export async function runCli(argv) {
       await runResume(root);
       return;
     default:
-      throw new Error(`未知命令 "${command}"。运行 "deepseek-code help" 查看帮助。`);
+      throw new Error(`未知命令 "${command}"。运行 "inkstone help" 查看帮助。`);
   }
 }
 
@@ -334,23 +334,23 @@ function printHelp() {
   console.log(`${banner()}
 
 用法：
-${commandLine("deepseek-code tui", "打开交互式终端界面")}
-${commandLine("deepseek-code ask \"问题\"", "基于项目上下文提问")}
-${commandLine("deepseek-code chat [问题]", "连续对话，自动保存上下文")}
-${commandLine("deepseek-code ask \"问题\" --semantic-context", "启用符号级语义上下文")}
-${commandLine("deepseek-code ask \"问题\" --include-method-hints", "语义上下文 + 方法调用提示(probable)")}
-${commandLine("deepseek-code edit \"需求\" --file src/a.js", "生成补丁，确认后修改文件")}
-${commandLine("deepseek-code search \"TODO\"", "搜索项目代码")}
-${commandLine("deepseek-code scan", "扫描并打印项目上下文")}
-${commandLine("deepseek-code test [命令...]", "运行测试")}
-${commandLine("deepseek-code diff", "查看 Git 差异")}
-${commandLine("deepseek-code config init --api-key <key>", "写入本地配置")}
-${commandLine("deepseek-code config show", "查看当前生效配置")}
-${commandLine("deepseek-code config test", "测试 DeepSeek API 连接")}
-${commandLine("deepseek-code changes list", "查看修改记录")}
-${commandLine("deepseek-code changes show latest", "查看修改详情")}
-${commandLine("deepseek-code rollback latest", "回退最近修改")}
-${commandLine("deepseek-code resume", "查看最近会话记录")}
+${commandLine("inkstone tui", "打开交互式终端界面")}
+${commandLine("inkstone ask \"问题\"", "基于项目上下文提问")}
+${commandLine("inkstone chat [问题]", "连续对话，自动保存上下文")}
+${commandLine("inkstone ask \"问题\" --semantic-context", "启用符号级语义上下文")}
+${commandLine("inkstone ask \"问题\" --include-method-hints", "语义上下文 + 方法调用提示(probable)")}
+${commandLine("inkstone edit \"需求\" --file src/a.js", "生成补丁，确认后修改文件")}
+${commandLine("inkstone search \"TODO\"", "搜索项目代码")}
+${commandLine("inkstone scan", "扫描并打印项目上下文")}
+${commandLine("inkstone test [命令...]", "运行测试")}
+${commandLine("inkstone diff", "查看 Git 差异")}
+${commandLine("inkstone config init --api-key <key>", "写入本地配置")}
+${commandLine("inkstone config show", "查看当前生效配置")}
+${commandLine("inkstone config test", "测试 DeepSeek API 连接")}
+${commandLine("inkstone changes list", "查看修改记录")}
+${commandLine("inkstone changes show latest", "查看修改详情")}
+${commandLine("inkstone rollback latest", "回退最近修改")}
+${commandLine("inkstone resume", "查看最近会话记录")}
 
 环境变量：
   DEEPSEEK_API_KEY     如果本地配置没有 apiKey，则使用这里的密钥

@@ -1,4 +1,4 @@
-# DeepSeek Code
+# Inkstone
 
 [简体中文](./README.md) · **English**
 
@@ -9,7 +9,7 @@
 
 > A local AI coding agent for DeepSeek — **CLI · TUI · desktop GUI**, all sharing one kernel.
 
-DeepSeek Code runs inside your project directory: it reads code, edits code, runs tests, and records every model call, tool execution, file change, and approval as a replayable, branchable, rewindable session timeline. It talks to DeepSeek models directly. **The core runtime has zero dependencies.** Node ≥ 20 and an API key is all you need.
+Inkstone runs inside your project directory: it reads code, edits code, runs tests, and records every model call, tool execution, file change, and approval as a replayable, branchable, rewindable session timeline. It talks to DeepSeek models directly. **The core runtime has zero dependencies.** Node ≥ 20 and an API key is all you need.
 
 > ⚠️ **Disclaimer:** This is an **unofficial** third-party open-source project. "DeepSeek" is a trademark of its respective owner; the name is used here only to describe model compatibility.
 
@@ -61,23 +61,23 @@ Purpose-routed models (reply / act → flash; plan / review / repair → pro wit
 **Prerequisite:** Node.js ≥ 20.
 
 ```bash
-git clone <your-repo-url> deepseek-code
-cd deepseek-code
+git clone <your-repo-url> inkstone
+cd inkstone
 # The core CLI has no required dependencies — no npm install needed to run.
 
 # Configure your API key (pick one)
-node ./bin/deepseek-code.js config init --api-key sk-xxxx   # writes .deepseek-code/config.json
+node ./bin/inkstone.js config init --api-key sk-xxxx   # writes .deepseek-code/config.json
 # or: export DEEPSEEK_API_KEY="sk-xxxx"                     # environment variable (bash/zsh)
 
 # Try it out
-node ./bin/deepseek-code.js help
-node ./bin/deepseek-code.js ask "Explain this project's architecture"
-node ./bin/deepseek-code.js edit "Fix the typos in README" --dry-run
-node ./bin/deepseek-code.js edit "Fix the typos in README" --yes
-node ./bin/deepseek-code.js tui
+node ./bin/inkstone.js help
+node ./bin/inkstone.js ask "Explain this project's architecture"
+node ./bin/inkstone.js edit "Fix the typos in README" --dry-run
+node ./bin/inkstone.js edit "Fix the typos in README" --yes
+node ./bin/inkstone.js tui
 ```
 
-> After global install, use the short commands `deepseek-code` / `dsc`: `npm link` or `npm i -g .`.
+> After global install, use the short commands `inkstone` / `dsc`: `npm link` or `npm i -g .`.
 
 ---
 
@@ -98,7 +98,7 @@ node ./bin/deepseek-code.js tui
 | `rollback [id\|latest]` | Roll back a specific change |
 
 > `ask` / `chat` / `edit` also accept `--semantic-context` / `--include-method-hints`, `--no-stream`, `--max-files`, and `--max-bytes`.
-> `deepseek-code test` runs **your project's** tests; `npm test` runs DeepSeek Code's own test suite.
+> `inkstone test` runs **your project's** tests; `npm test` runs Inkstone's own test suite.
 
 ---
 
@@ -129,7 +129,7 @@ node ./bin/deepseek-code.js tui
 
 > `null` or `≤0` disables the guardrail. Full details: [`docs/project-overview.md` §7](docs/project-overview.md#7-运行护栏与配置).
 
-Use `config.orchestration` and `config.context.semantic` to tune multi-agent orchestration and semantic context. Set `config.recovery.enabled = true` to enable durable recovery. For a full key listing, run `node ./bin/deepseek-code.js config show` or see [`docs/project-overview.md`](docs/project-overview.md).
+Use `config.orchestration` and `config.context.semantic` to tune multi-agent orchestration and semantic context. Set `config.recovery.enabled = true` to enable durable recovery. For a full key listing, run `node ./bin/inkstone.js config show` or see [`docs/project-overview.md`](docs/project-overview.md).
 
 ---
 

@@ -1,4 +1,4 @@
-# DeepSeek Code
+# Inkstone
 
 **简体中文** · [English](./README.en.md)
 
@@ -9,7 +9,7 @@
 
 > 面向 DeepSeek 的本地 AI 编程 Agent —— **CLI · TUI · 桌面 GUI**,统一构建在同一个内核之上。
 
-DeepSeek Code 在你的项目目录里运行:它读代码、改代码、跑测试,每一步模型调用、工具执行、文件改动和审批都记录成可回放、可分支、可回退的会话时间线。它直连 DeepSeek 模型,**核心运行时零依赖**,Node ≥ 20 配一个 API Key 即可用。
+Inkstone 在你的项目目录里运行:它读代码、改代码、跑测试,每一步模型调用、工具执行、文件改动和审批都记录成可回放、可分支、可回退的会话时间线。它直连 DeepSeek 模型,**核心运行时零依赖**,Node ≥ 20 配一个 API Key 即可用。
 
 > ⚠️ **声明**:本项目为**非官方**第三方开源项目。"DeepSeek" 为其所有者商标,本项目仅在描述"适配该模型"的意义上使用该名称。
 
@@ -61,23 +61,23 @@ CLI、TUI、桌面 GUI 共用**同一个内核门面** `createKernel()`:一个 A
 **前置条件**:Node.js ≥ 20。
 
 ```bash
-git clone <your-repo-url> deepseek-code
-cd deepseek-code
+git clone <your-repo-url> inkstone
+cd inkstone
 # 核心 CLI 无必需依赖,无需 npm install 即可运行
 
 # 配置 API Key(二选一)
-node ./bin/deepseek-code.js config init --api-key sk-xxxx   # 写入 .deepseek-code/config.json
+node ./bin/inkstone.js config init --api-key sk-xxxx   # 写入 .deepseek-code/config.json
 # 或 export DEEPSEEK_API_KEY="sk-xxxx"                     # 环境变量(bash/zsh)
 
 # 跑起来
-node ./bin/deepseek-code.js help
-node ./bin/deepseek-code.js ask "解释这个项目的架构"
-node ./bin/deepseek-code.js edit "修复 README 里的拼写问题" --dry-run
-node ./bin/deepseek-code.js edit "修复 README 里的拼写问题" --yes
-node ./bin/deepseek-code.js tui
+node ./bin/inkstone.js help
+node ./bin/inkstone.js ask "解释这个项目的架构"
+node ./bin/inkstone.js edit "修复 README 里的拼写问题" --dry-run
+node ./bin/inkstone.js edit "修复 README 里的拼写问题" --yes
+node ./bin/inkstone.js tui
 ```
 
-> 全局安装后可用 `deepseek-code` / `dsc` 短命令:`npm link` 或 `npm i -g .`。
+> 全局安装后可用 `inkstone` / `dsc` 短命令:`npm link` 或 `npm i -g .`。
 
 ---
 
@@ -98,7 +98,7 @@ node ./bin/deepseek-code.js tui
 | `rollback [id\|latest]` | 回退指定变更 |
 
 > `ask` / `chat` / `edit` 支持 `--semantic-context` / `--include-method-hints`(语义上下文)、`--no-stream` / `--max-files` / `--max-bytes`。
-> `deepseek-code test` 跑的是**你项目**的测试;`npm test` 跑的是 DeepSeek Code 自身的测试套件。
+> `inkstone test` 跑的是**你项目**的测试;`npm test` 跑的是 Inkstone 自身的测试套件。
 
 ---
 
@@ -129,7 +129,7 @@ node ./bin/deepseek-code.js tui
 
 > `null` 或 `≤0` 表示关闭。完整说明见 [`docs/project-overview.md` §7](docs/project-overview.md#7-运行护栏与配置)。
 
-另外可通过 `config.orchestration` / `config.context.semantic` 配置多智能体调度与语义上下文的细节;`config.recovery.enabled = true` 开启持久化恢复。详细键名见 `node ./bin/deepseek-code.js config show` 或 [`docs/project-overview.md`](docs/project-overview.md)。
+另外可通过 `config.orchestration` / `config.context.semantic` 配置多智能体调度与语义上下文的细节;`config.recovery.enabled = true` 开启持久化恢复。详细键名见 `node ./bin/inkstone.js config show` 或 [`docs/project-overview.md`](docs/project-overview.md)。
 
 ---
 

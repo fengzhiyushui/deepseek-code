@@ -77,7 +77,7 @@ export default function App() {
 
   const activeTitle = showSettings
     ? t("rail.settings")
-    : (state.activeFile ? `${baseName(state.activeFile)}${state.dirty[state.activeFile] ? " ●" : ""} — deepseek-code` : "deepseek-code");
+    : (state.activeFile ? `${baseName(state.activeFile)}${state.dirty[state.activeFile] ? " ●" : ""} — inkstone` : "inkstone");
 
   const showSidebar = layout.sidebar && !showSettings;
   const cols = [

@@ -238,7 +238,7 @@ function TopBar() {
         </div>
         <div>
           <Title heading={5} className="ide-title-reset">
-            DeepSeek Code
+            Inkstone
           </Title>
           <Text type="tertiary" size="small">
             agent programming workspace
@@ -305,7 +305,7 @@ function Sidebar() {
             Workspace
           </Text>
           <div className="ide-project-title">
-            <Text strong>deepseek-code</Text>
+            <Text strong>inkstone</Text>
             <ChevronDown size={14} />
           </div>
         </div>
@@ -419,7 +419,7 @@ function BottomPanel() {
       </Tabs>
       <div className="ide-bottom-grid">
         <div className="ide-terminal">
-          <p><span className="ide-terminal-accent">deepseek-code</span><span className="ide-terminal-muted"> on </span>main</p>
+          <p><span className="ide-terminal-accent">inkstone</span><span className="ide-terminal-muted"> on </span>main</p>
           <p><span className="ide-terminal-muted">$ </span>pnpm test --run file-search</p>
           <p className="ide-terminal-muted">&gt; vitest run tests/unit/tools/file-search.test.js</p>
           <p><span className="ide-run-pill">RUN</span><span className="ide-terminal-muted"> 8 tests queued</span></p>
@@ -538,7 +538,7 @@ function ChatPanel() {
               </Avatar>
               <div className="ide-chat-bubble">
                 <div className="ide-chat-title">
-                  <Text strong>{message.role === "user" ? "You" : "DeepSeek Code"}</Text>
+                  <Text strong>{message.role === "user" ? "You" : "Inkstone"}</Text>
                   <Tag color={message.role === "user" ? "grey" : "light-blue"}>{message.meta}</Tag>
                 </div>
                 <Text className="ide-block">{message.content}</Text>

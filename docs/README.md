@@ -1,6 +1,6 @@
-# DeepSeek Code 文档中心
+# Inkstone 文档中心
 
-本目录收录 DeepSeek Code 的全部项目文档。所有文档按**类型**分目录,设计与计划再按**前端 / 后端 / 架构**细分,便于查阅与维护。
+本目录收录 Inkstone 的全部项目文档。所有文档按**类型**分目录,设计与计划再按**前端 / 后端 / 架构**细分,便于查阅与维护。
 
 > 根目录的 [`README.md`](../README.md) 是项目入口;本文件是文档索引与维护规范。
 
@@ -19,6 +19,7 @@ docs/
     frontend/               ← GUI / CLI / TUI 界面设计
   plans/                    ← 实施计划(implementation plans:分步落地)
     roadmap/                ← 宏观阶段(phase-0..5)与未来路线图
+    architecture/           ← 跨端/仓库级实施计划(如品牌改名)
     backend/                ← 后端按特性的实施计划
     frontend/               ← 前端按特性的实施计划
   prototypes/               ← 历史静态原型存档(不接运行时,v1.2.0 自仓库根迁入)
@@ -121,6 +122,9 @@ docs/
 - [phase-3 experience](plans/roadmap/2026-05-30-phase-3-experience.md)
 - [phase-4 gui](plans/roadmap/2026-05-30-phase-4-gui.md)
 - [phase-5 polish](plans/roadmap/2026-05-30-phase-5-polish.md)
+
+### plans/architecture — 仓库级/跨端实施计划
+- [inkstone-rebrand](plans/architecture/2026-07-31-inkstone-rebrand.md) — **Inkstone 改名实施方案(已实施,合入 main)**:DeepSeek Code → Inkstone;品牌暴露面全改(显示/结构/公开面),`.deepseek-code` 存储目录与 `DEEPSEEK_*` env 等契约保留,api 端点与模型 id 不动;P0–P6 分 commit 执行 + 收口 grep 允许清单
 
 ### plans/backend — 后端实施计划
 - [v3-phase-b semantic-context](plans/backend/2026-06-26-v3-phase-b-semantic-context.md) — **Phase B 实施计划**:15 任务 TDD(ParserProvider → extractor → indexer → dependency-graph → symbol-selector → 门面接线 → 文档)

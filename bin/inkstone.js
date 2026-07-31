@@ -4,6 +4,6 @@ import { runCli } from "../src/cli.js";
 
 runCli(process.argv.slice(2)).catch((error) => {
   const message = error?.message || String(error);
-  console.error(`deepseek-code: ${message}`);
+  console.error(`inkstone: ${message}`);
   process.exitCode = 1;
 });

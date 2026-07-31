@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { runKernelAgentCommand } from "../../src/apps/cli/kernel-runner.js";
 
 const repoRoot = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
-const binPath = path.join(repoRoot, "bin", "deepseek-code.js");
+const binPath = path.join(repoRoot, "bin", "inkstone.js");
 
 test("CLI test command propagates child process exit code", async () => {
   const testRoot = await mkdtemp(path.join(tmpdir(), "dsc-cli-smoke-test-"));
@@ -31,17 +31,17 @@ test("CLI ask runner can complete offline without JSON mode failure", async () =
     createKernelImpl: async () => ({
       session: {
         subscribe(handler) {
-          handler({ type: "agent:final", content: "你好，我是 DeepSeek Code。" });
+          handler({ type: "agent:final", content: "你好，我是 Inkstone。" });
           return { unsubscribe() {} };
         }
       },
       agent: {
-        send: async () => ({ status: "complete", content: "你好，我是 DeepSeek Code。" })
+        send: async () => ({ status: "complete", content: "你好，我是 Inkstone。" })
       }
     })
   });
 
   assert.equal(result.status, "complete");
   assert.equal(lines.some((line) => /response_format|json_object|Prompt must contain/i.test(line)), false);
-  assert.ok(lines.some((line) => line.includes("你好，我是 DeepSeek Code。")));
+  assert.ok(lines.some((line) => line.includes("你好，我是 Inkstone。")));
 });
