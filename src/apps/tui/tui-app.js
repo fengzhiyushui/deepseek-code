@@ -4,6 +4,7 @@ import { createKernel } from "../../index.js";
 import { buildKernelOptions } from "../kernel-options.js";
 import { loadConfig } from "../../config.js";
 import { tc as color } from "./theme.js";
+import { VERSION } from "../../theme.js";
 import { seq } from "./ansi.js";
 import { createKeyDecoder } from "./input.js";
 import { makeT } from "./tui-i18n.js";
@@ -94,25 +95,47 @@ export function createTuiApp({
   }
 
   // v1.4.0 首页:品牌 + 单行 meta + 最近会话(消费 session-index)+ 快捷键提示。
+  // v1.4.6:对齐设计稿 v4 —— 菱形标记 + 版本、单行 meta(模型 · 档位 · shell · 主题 · 语言)、
+  // 最近会话列表(会话恢复尚未实现,仅展示不承诺输入)、提示行。终端无矢量图标,只用几何字符。
   async function pushHome() {
     const list = tuiThemeList();
     const themeName = (list.find((x) => x.id === tuiThemeId()) || {}).name || "";
+    const cfg = kernel?.config || {};
     const meta = [
-      color.bold("Inkstone"), "v1.4.0", T("home.tagline"),
-      `主题 ${themeName}`, `shell ${state.shell}`, state.lang === "zh" ? "中文" : "EN"
-    ].join(" · ");
-    const lines = ["", ` ${color.bold("Inkstone")}`, ` ${color.dim(meta)}`, ""];
+      state.status.model || cfg.model || "-",
+      state.mode,
+      `sh ${state.shell}`,
+      `${tuiThemeId()} ${themeName}`,
+      state.lang === "zh" ? "中文" : "EN"
+    ].join(color.dim(" · "));
+
+    const lines = [
+      "",
+      `  ${color.cyan("◆")}  ${color.bold("Inkstone")} ${color.dim(`v${VERSION}`)}`,
+      `     ${color.dim(T("home.tagline"))}`,
+      "",
+      `     ${meta}`,
+      ""
+    ];
+
     try {
       const idx = createSessionIndex({ sessionRoot: path.join(root, ".deepseek-code", "v2", "sessions") });
       const byProj = await idx.listByProject();
-      const recent = byProj.slice(0, 3).flatMap((p) => p.sessions.slice(0, 2).map((s) => ({ proj: p.projectDir, sum: s.summary || "" })));
+      const recent = byProj
+        .flatMap((p) => p.sessions.map((s) => ({ ...s, proj: p.projectDir })))
+        .sort((a, b) => (b.mtime || 0) - (a.mtime || 0))
+        .slice(0, 3);
       if (recent.length) {
-        lines.push(` ${color.dim(T("home.recent"))}`);
-        for (const r of recent) lines.push(`   ${color.cyan("·")} ${r.sum} ${color.dim(`(${r.proj})`)}`);
+        lines.push(`  ${color.dim(T("home.recent"))}`);
+        for (const r of recent) {
+          const stamp = new Date(r.mtime || 0).toLocaleString();
+          lines.push(`  ${color.cyan("·")}  ${r.summary || T("home.untitled")} ${color.dim(stamp)}`);
+        }
         lines.push("");
       }
     } catch { /* 会话索引失败不阻塞 */ }
-    lines.push(` ${color.dim(T("home.hints"))}`, "");
+
+    lines.push(`  ${color.dim(T("home.hints"))}`, "");
     pushLines(lines);
     dispatch({ type: "screen_set", screen: "chat" }); // 首页内容入滚动区后即会话态
   }

@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { KeyRound, Play, PenLine, Trash2, RotateCcw, Plus } from "lucide-react";
+import { Row } from "./Form.jsx";
 
 const BLANK = { name: "", baseUrl: "https://api.deepseek.com", apiKey: "" };
 
@@ -59,68 +61,88 @@ export default function ModelAccess({ t, kernel, profiles, activeProfileId, onCh
   };
 
   return (
-    <div className="model-access">
-      <div className="set-row-head">
-        <h3>{t("settings.model.apis")}</h3>
-        <button type="button" className="btn accent" onClick={startAdd}>{t("settings.model.add")}</button>
-      </div>
+    <>
+      <div className="f-group">
+        <div className="fg-t">{t("settings.model.apis")}</div>
 
-      {(!profiles || profiles.length === 0) && !form && (
-        <p className="dim">{t("settings.model.empty")}</p>
-      )}
+        {(!profiles || profiles.length === 0) && !form && (
+          <div className="empty-note">
+            <span className="en-ic"><KeyRound size={22} /></span>
+            {t("settings.model.empty")}
+          </div>
+        )}
 
-      <div className="api-list">
         {(profiles || []).map((p) => {
           const active = p.id === activeProfileId;
           const mlist = models[p.id];
           const tr = test[p.id];
           return (
-            <div key={p.id} className={`api-card ${active ? "active" : ""}`}>
-              <div className="api-top">
-                <div className="api-name">
-                  {p.name} {active && <span className="pill">{t("settings.model.active")}</span>}
-                  {p.model && <span className="pill dim">{p.model}</span>}
+            <div key={p.id} className={`api-item ${active ? "cur" : ""}`} style={{ flexWrap: "wrap" }}>
+              <span className="ai-ic"><KeyRound size={16} /></span>
+              <div style={{ minWidth: 0 }}>
+                <div className="an">
+                  {p.name}
+                  {active && <span className="badge">{t("settings.model.active")}</span>}
+                  {p.model && <span className="mini">{p.model}</span>}
                 </div>
-                <div className="api-actions">
-                  {!active && <button type="button" className="btn" disabled={busy === "act:" + p.id} onClick={() => activate(p.id)}>{t("settings.model.activate")}</button>}
-                  <button type="button" className="btn" onClick={() => startEdit(p)}>{t("settings.edit")}</button>
-                  <button type="button" className="btn danger" disabled={busy === "del:" + p.id} onClick={() => del(p.id)}>{t("settings.delete")}</button>
-                </div>
+                <div className="ad">{p.baseUrl} · {p.keyMask || (p.hasKey ? "••••" : t("settings.model.noKey"))}</div>
               </div>
-              <div className="api-meta dim">{p.baseUrl} · {p.keyMask || (p.hasKey ? "••••" : t("settings.model.noKey"))}</div>
-              <div className="api-tools">
-                <button type="button" className="btn" disabled={busy === "models:" + p.id} onClick={() => fetchModels(p.id)}>{t("settings.model.fetch")}</button>
+              <div className="spacer" />
+              {!active && (
+                <button type="button" className="btn ghost" disabled={busy === "act:" + p.id} onClick={() => activate(p.id)}>
+                  <Play size={12} /> {t("settings.model.activate")}
+                </button>
+              )}
+              <button type="button" className="btn ghost" onClick={() => startEdit(p)}><PenLine size={12} /> {t("settings.edit")}</button>
+              <button type="button" className="btn ghost" disabled={busy === "del:" + p.id} onClick={() => del(p.id)}>
+                <Trash2 size={12} />
+              </button>
+
+              <div style={{ flexBasis: "100%", display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                <button type="button" className="btn ghost" disabled={busy === "models:" + p.id} onClick={() => fetchModels(p.id)}>
+                  <RotateCcw size={12} /> {t("settings.model.fetch")}
+                </button>
                 {Array.isArray(mlist) && (
-                  <select className="select" defaultValue={p.model || ""} onChange={(e) => chooseModel(p, e.target.value)} aria-label={t("settings.model.select")}>
+                  <select className="f-in mid" defaultValue={p.model || ""} onChange={(e) => chooseModel(p, e.target.value)}
+                    aria-label={t("settings.model.select")}>
                     <option value="" disabled>{t("settings.model.select")}</option>
                     {mlist.map((id) => <option key={id} value={id}>{id}</option>)}
                   </select>
                 )}
-                {mlist && mlist.error && <span className="err">{t("settings.model.fetchFailed")}: {mlist.error}</span>}
-                <button type="button" className="btn" disabled={busy === "test:" + p.id} onClick={() => testConn(p.id)}>{t("settings.model.test")}</button>
-                {tr && <span className={tr.ok ? "ok" : "err"}>{tr.message}</span>}
+                {mlist && mlist.error && <span className="mini err">{t("settings.model.fetchFailed")}: {mlist.error}</span>}
+                <button type="button" className="btn ghost" disabled={busy === "test:" + p.id} onClick={() => testConn(p.id)}>
+                  {t("settings.model.test")}
+                </button>
+                {tr && <span className={`mini ${tr.ok ? "ok" : "err"}`}>{tr.message}</span>}
               </div>
             </div>
           );
         })}
+
+        <button type="button" className="btn ghost" onClick={startAdd}><Plus size={12} /> {t("settings.model.add")}</button>
       </div>
 
       {form && (
-        <div className="api-form">
-          <h3>{form.id ? t("settings.model.editApi") : t("settings.model.newApi")}</h3>
-          <label className="field"><span>{t("settings.model.name")}</span>
-            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="deepseek" /></label>
-          <label className="field"><span>{t("settings.model.baseUrl")}</span>
-            <input value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder="https://api.deepseek.com" /></label>
-          <label className="field"><span>{t("settings.model.apiKey")}</span>
-            <input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
-              placeholder={form.id ? t("settings.model.keyKeep") : "sk-…"} autoComplete="off" /></label>
-          <div className="api-form-actions">
+        <div className="f-group">
+          <div className="fg-t">{form.id ? t("settings.model.editApi") : t("settings.model.newApi")}</div>
+          <Row title={t("settings.model.name")}>
+            <input className="f-in" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="deepseek" />
+          </Row>
+          <Row title={t("settings.model.baseUrl")}>
+            <input className="f-in" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder="https://api.deepseek.com" />
+          </Row>
+          <Row title={t("settings.model.apiKey")} desc={t("settings.model.keyLocal")}>
+            <input className="f-in" type="password" value={form.apiKey} autoComplete="off"
+              onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
+              placeholder={form.id ? t("settings.model.keyKeep") : "sk-…"} />
+          </Row>
+          <div className="f-row">
+            <div className="fl" />
             <button type="button" className="btn accent" disabled={busy === "save"} onClick={saveForm}>{t("settings.save")}</button>
-            <button type="button" className="btn" onClick={() => setForm(null)}>{t("settings.cancel")}</button>
+            <button type="button" className="btn ghost" onClick={() => setForm(null)}>{t("settings.cancel")}</button>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

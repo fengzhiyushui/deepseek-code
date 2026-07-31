@@ -46,3 +46,52 @@ test("empty activity → no cards", () => {
   assert.deepEqual(deriveAgentCards([]), []);
   assert.deepEqual(deriveAgentCards(null), []);
 });
+
+test("v1.4.6:工具卡带参数摘要,diff 卡带逐文件增删合计", () => {
+  const cards = deriveAgentCards([
+    { type: "tool:call", id: "t1", tool: "grep", args: { pattern: "form-inline" } },
+    { type: "file:diff_applied", change_id: "chg_7f2a",
+      summary: [{ path: "Login.jsx", status: "modify", added: 12, removed: 4 },
+                { path: "login.css", status: "modify", added: 28, removed: 2 }] }
+  ]);
+  assert.equal(cards[0].argHint, "form-inline");
+  const diff = cards.find((c) => c.kind === "diff");
+  assert.equal(diff.added, 40);
+  assert.equal(diff.removed, 6);
+  assert.equal(diff.files.length, 2);
+});
+
+test("v1.4.6:计划卡累积子任务清单,复核结果落到对应步骤", () => {
+  const [plan] = deriveAgentCards([
+    { type: "orchestration:planned", subtasks: 3, done_when: "tests green" },
+    { type: "orchestration:subtask_started", subtask_id: "s1", attempt: 1 },
+    { type: "orchestration:subtask_reviewed", subtask_id: "s1", pass: true },
+    { type: "orchestration:subtask_started", subtask_id: "s2", attempt: 1 }
+  ]);
+  assert.equal(plan.kind, "plan");
+  assert.equal(plan.subtasks, 3);
+  assert.equal(plan.doneWhen, "tests green");
+  assert.deepEqual(plan.steps.map((s) => [s.id, s.status]), [["s1", "done"], ["s2", "run"]]);
+});
+
+test("v1.4.6:审批卡带 id 与摘要,resolved 回填决策", () => {
+  const cards = deriveAgentCards([
+    { type: "approval:requested", approval: { id: "ap_1", summary: "npm test -- tests/login" } },
+    { type: "approval:resolved", decision: "approved" }
+  ]);
+  const ap = cards.find((c) => c.kind === "approval");
+  assert.equal(ap.id, "ap_1");
+  assert.equal(ap.summary, "npm test -- tests/login");
+  assert.equal(ap.decision, "approved");
+});
+
+test("v1.4.6:编排完成产出编排卡(轮次/完成/失败)", () => {
+  const cards = deriveAgentCards([
+    { type: "orchestration:planned", subtasks: 2 },
+    { type: "orchestration:completed", rounds: 2, completed: 2, failed: 0, status: "ok" }
+  ]);
+  const orch = cards.find((c) => c.kind === "orchestration");
+  assert.equal(orch.rounds, 2);
+  assert.equal(orch.completed, 2);
+  assert.equal(orch.failed, 0);
+});

@@ -4,19 +4,26 @@
 // it whole; these helpers coerce field values and read/write nested paths immutably.
 // Pure — node:test-covered. i18n happens in the component via label keys.
 
+// v1.4.6:分节顺序与命名对齐设计稿 v4 的设置页(通用/外观/状态显示/API/模型/权限/…/关于);
+// icon 为 lucide 组件名,由 Settings.jsx 映射,schema 层不引入 React 依赖。
 export const SETTINGS_GROUPS = [
-  { id: "general", labelKey: "settings.general", kind: "prefs" },
-  { id: "appearance", labelKey: "settings.appearance", kind: "appearance" },
-  { id: "statusDisplay", labelKey: "settings.statusDisplay", kind: "statusDisplay" },
-  { id: "model", labelKey: "settings.model", kind: "model" },       // API list + model fetch (custom UI)
-  { id: "limits", labelKey: "settings.limits", kind: "config", fields: [
+  { id: "general", labelKey: "settings.general", kind: "prefs", icon: "SlidersHorizontal" },
+  { id: "appearance", labelKey: "settings.appearance", kind: "appearance", icon: "Palette" },
+  { id: "statusDisplay", labelKey: "settings.statusDisplay", kind: "statusDisplay", icon: "Gauge" },
+  { id: "api", labelKey: "settings.api", kind: "model", icon: "KeyRound" },   // API 配置列表(自定义 UI)
+  { id: "model", labelKey: "settings.model", kind: "config", icon: "Cpu", fields: [
+    { path: "models.act", labelKey: "settings.f.modelAct", type: "text" },
+    { path: "models.think", labelKey: "settings.f.modelThink", type: "text" },
+    { path: "models.fim", labelKey: "settings.f.modelFim", type: "text" }
+  ] },
+  { id: "limits", labelKey: "settings.limits", kind: "config", icon: "ShieldCheck", fields: [
     { path: "limits.toolTimeoutMs", labelKey: "settings.f.toolTimeoutMs", type: "nullableInt", unit: "ms" },
     { path: "limits.modelTimeoutMs", labelKey: "settings.f.modelTimeoutMs", type: "nullableInt", unit: "ms" },
     { path: "limits.maxTurnTokens", labelKey: "settings.f.maxTurnTokens", type: "nullableInt" },
     { path: "limits.maxModelCalls", labelKey: "settings.f.maxModelCalls", type: "nullableInt" },
     { path: "limits.maxToolCallRepairs", labelKey: "settings.f.maxToolCallRepairs", type: "nullableInt" }
   ] },
-  { id: "orchestration", labelKey: "settings.orchestration", kind: "config", fields: [
+  { id: "orchestration", labelKey: "settings.orchestration", kind: "config", icon: "Workflow", fields: [
     { path: "orchestration.maxRounds", labelKey: "settings.f.maxRounds", type: "posInt" },
     { path: "orchestration.maxSubtasks", labelKey: "settings.f.maxSubtasks", type: "posInt" },
     { path: "orchestration.maxWorkerAttempts", labelKey: "settings.f.maxWorkerAttempts", type: "posInt" },
@@ -26,18 +33,18 @@ export const SETTINGS_GROUPS = [
     { path: "orchestration.router.model.enabled", labelKey: "settings.f.routerModelEnabled", type: "bool" },
     { path: "orchestration.crossTaskLearning", labelKey: "settings.f.crossTaskLearning", type: "enum", options: ["off", "on", "gated"] }
   ] },
-  { id: "context", labelKey: "settings.context", kind: "config", fields: [
+  { id: "context", labelKey: "settings.context", kind: "config", icon: "Layers", fields: [
     { path: "context.semantic.enabled", labelKey: "settings.f.semanticEnabled", type: "bool" },
     { path: "context.semantic.hops", labelKey: "settings.f.semanticHops", type: "posInt" },
     { path: "context.semantic.maxSymbols", labelKey: "settings.f.semanticMaxSymbols", type: "posInt" },
     { path: "context.semantic.includeMethodHints", labelKey: "settings.f.semanticMethodHints", type: "bool" }
   ] },
-  { id: "experience", labelKey: "settings.experience", kind: "config", fields: [
+  { id: "experience", labelKey: "settings.experience", kind: "config", icon: "Sparkles", fields: [
     { path: "orchestration.experience.retrieveK", labelKey: "settings.f.experienceRetrieveK", type: "posInt" },
     { path: "orchestration.experience.cap", labelKey: "settings.f.experienceCap", type: "posInt" },
     { path: "orchestration.experience.maxLessonsPerTask", labelKey: "settings.f.experienceMaxLessons", type: "posInt" }
   ] },
-  { id: "about", labelKey: "settings.about", kind: "about" }
+  { id: "about", labelKey: "settings.about", kind: "about", icon: "Info" }
 ];
 
 export function getByPath(obj, path) {

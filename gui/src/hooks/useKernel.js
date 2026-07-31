@@ -205,6 +205,22 @@ export function useKernel(dispatch) {
         } catch (err) {
           dispatch(errorToAction("sessions", err));
         }
+      },
+      // 在系统文件管理器中显示项目目录
+      revealProject: (root) => api?.revealProject?.(root),
+
+      // 「打开文件夹…」:选目录 → 登记 → 返回 root(取消返回 null,由调用方静默处理)
+      pickProjectFolder: async () => {
+        if (!api?.pickProjectFolder) return null;
+        try {
+          const r = await api.pickProjectFolder();
+          if (!r || r.canceled) return null;
+          if (r.error) { dispatch(errorToAction("projects", new Error(r.error))); return null; }
+          return r.root || null;
+        } catch (err) {
+          dispatch(errorToAction("projects", err));
+          return null;
+        }
       }
     };
   }, [api, dispatch]);

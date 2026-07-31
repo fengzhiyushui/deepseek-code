@@ -1,5 +1,5 @@
 // gui/main.js - Electron main process
-const { app, BrowserWindow, ipcMain, Menu, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, dialog, shell } = require("electron");
 const path = require("path");
 const fs = require("node:fs");
 const { createKernelHost, resolveProjectRoot } = require("./kernel-host.js");
@@ -141,17 +141,43 @@ async function createWindow() {
             }, 100);
           })
         `);
-        // Best-effort visual QA: desktop (1440) + settings view + narrow (800) (§11).
+        // Best-effort visual QA (§11):七视图逐个取景。capturePage 在无显示表面的 headless
+        // 环境下会间歇失败,故带退避重试;失败只记录,不影响 READY 判定。
         try {
           const dir = path.join(__dirname, "__screenshots__");
           await fs.promises.mkdir(dir, { recursive: true });
-          const desktop = await win.webContents.capturePage();
-          await fs.promises.writeFile(path.join(dir, "shell-desktop.png"), desktop.toPNG());
-          // v1.4.0:旧 IDE 的 settings/changes 截图块已随组件删除移除,仅保留 desktop/narrow。
+          const shoot = async (name) => {
+            for (let attempt = 0; attempt < 5; attempt += 1) {
+              try {
+                const img = await win.webContents.capturePage();
+                if (img && img.getSize().width > 0) {
+                  await fs.promises.writeFile(path.join(dir, `${name}.png`), img.toPNG());
+                  return true;
+                }
+              } catch { /* 下一轮重试 */ }
+              await new Promise((r) => setTimeout(r, 500));
+            }
+            console.log("SMOKE_SCREENSHOT_SKIPPED:" + name);
+            return false;
+          };
+          const click = async (selector) => {
+            await win.webContents.executeJavaScript(
+              `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (el) el.click(); return Boolean(el); })()`
+            );
+            await new Promise((r) => setTimeout(r, 350));
+          };
+
+          await shoot("shell-desktop");                                   // 首页
+          await click(".rail-new"); await shoot("shell-chat");            // 会话
+          await click(".rail-fn .fn-item:nth-child(3)"); await shoot("shell-changes");
+          await click(".rail-fn .fn-item:nth-child(2)"); await shoot("shell-projects");
+          await click(".rail-foot .iconbtn"); await shoot("shell-settings");
+          await click(".s-nav .sn-item:nth-child(3)"); await shoot("shell-appearance");
+          await click(".s-nav .sn-item:nth-child(4)"); await shoot("shell-status-display");
+          await click(".rail-fn .fn-item:nth-child(1)");                  // 回首页再截窄屏
           win.setSize(800, 720);
-          await new Promise((r) => setTimeout(r, 400));
-          const narrow = await win.webContents.capturePage();
-          await fs.promises.writeFile(path.join(dir, "shell-narrow.png"), narrow.toPNG());
+          await new Promise((r) => setTimeout(r, 500));
+          await shoot("shell-narrow");
         } catch (shotErr) {
           console.log("SMOKE_SCREENSHOT_SKIPPED:" + shotErr.message);
         }
@@ -262,6 +288,22 @@ function registerIpcHandlers() {
   ipcMain.handle("projects:remove", async (_event, root) => { try { return await host.removeProject(root); } catch (error) { return { error: error.message }; } });
   ipcMain.handle("projects:switch", async (_event, root) => { try { return await host.switchProject(root); } catch (error) { return { error: error.message }; } });
   ipcMain.handle("sessions:list", async () => { try { return await host.listSessions(); } catch (error) { return { error: error.message }; } });
+  // 在系统文件管理器中显示项目目录(设计稿的「在终端打开」在无终端面板时降级为此)。
+  ipcMain.handle("projects:reveal", async (_event, root) => {
+    try { const err = await shell.openPath(String(root || "")); return err ? { error: err } : { ok: true }; }
+    catch (error) { return { error: error.message }; }
+  });
+  // 「打开文件夹…」:唯一需要选目录的入口(新增项目)。取消时返回 { canceled: true },不改注册表。
+  ipcMain.handle("projects:pick", async () => {
+    try {
+      const win = BrowserWindow.getAllWindows()[0];
+      const result = win
+        ? await dialog.showOpenDialog(win, { properties: ["openDirectory"] })
+        : await dialog.showOpenDialog({ properties: ["openDirectory"] });
+      if (result.canceled || !result.filePaths || !result.filePaths.length) return { canceled: true };
+      return { root: result.filePaths[0] };
+    } catch (error) { return { error: error.message }; }
+  });
 }
 
 app.whenReady().then(createWindow);

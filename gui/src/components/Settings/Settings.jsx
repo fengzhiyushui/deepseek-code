@@ -1,92 +1,98 @@
 import React, { useCallback, useEffect, useState } from "react";
+import {
+  SlidersHorizontal, Palette, Gauge, KeyRound, Cpu, ShieldCheck, Workflow, Layers, Sparkles, Info
+} from "lucide-react";
 import { SETTINGS_GROUPS, getByPath, applyFieldEdit, sanitizeConfigPatch } from "../../state/settings-schema.js";
 import ModelAccess from "./ModelAccess.jsx";
 import Appearance from "./Appearance.jsx";
 import StatusDisplayPanel from "./StatusDisplayPanel.jsx";
+import { Row, Switch } from "./Form.jsx";
+
+// v1.4 设置页(设计稿 v4 视图 3):左导航 + 右内容,表单语言统一为 .f-group / .f-row / .f-in / .sw。
+const ICONS = { SlidersHorizontal, Palette, Gauge, KeyRound, Cpu, ShieldCheck, Workflow, Layers, Sparkles, Info };
 
 function Field({ t, field, value, onChange }) {
   const label = t(field.labelKey);
+  const desc = t(`${field.labelKey}.desc`);
+  const hint = desc === `${field.labelKey}.desc` ? "" : desc;
+
   if (field.type === "bool") {
-    return (
-      <label className="field checkbox">
-        <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(field, e.target.checked)} />
-        <span>{label}</span>
-      </label>
-    );
+    return <Row title={label} desc={hint}><Switch on={Boolean(value)} onChange={(v) => onChange(field, v)} label={label} /></Row>;
   }
   if (field.type === "enum") {
     return (
-      <label className="field">
-        <span>{label}</span>
-        <select className="select" value={value ?? field.options[0]} onChange={(e) => onChange(field, e.target.value)}>
+      <Row title={label} desc={hint}>
+        <select className="f-in" value={value ?? field.options[0]} onChange={(e) => onChange(field, e.target.value)}>
           {field.options.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
-      </label>
+      </Row>
     );
   }
-  // numeric / nullable — empty means "off/unlimited" for nullableInt
+  if (field.type === "text") {
+    return (
+      <Row title={label} desc={hint}>
+        <input className="f-in" value={value ?? ""} onChange={(e) => onChange(field, e.target.value)} />
+      </Row>
+    );
+  }
   return (
-    <label className="field">
-      <span>{label}{field.unit ? ` (${field.unit})` : ""}</span>
-      <input type="number" value={value === null || value === undefined ? "" : value}
+    <Row title={`${label}${field.unit ? ` (${field.unit})` : ""}`} desc={hint}>
+      <input className="f-in short" type="number" value={value === null || value === undefined ? "" : value}
         placeholder={field.type === "nullableInt" ? t("settings.off") : ""}
         onChange={(e) => onChange(field, e.target.value)} />
-    </label>
+    </Row>
   );
 }
 
 function ConfigGroup({ t, group, draft, setDraft, onSave, dirty, saving }) {
   const onChange = (field, raw) => setDraft((d) => applyFieldEdit(d, field, raw));
   return (
-    <div className="set-group">
-      <div className="set-fields">
-        {group.fields.map((f) => (
-          <Field key={f.path} t={t} field={f} value={getByPath(draft, f.path)} onChange={onChange} />
-        ))}
-      </div>
-      <div className="set-actions">
+    <div className="f-group">
+      <div className="fg-t">{t(group.labelKey)}</div>
+      {group.fields.map((f) => (
+        <Field key={f.path} t={t} field={f} value={getByPath(draft, f.path)} onChange={onChange} />
+      ))}
+      <div className="f-row">
+        <div className="fl">{dirty && <div className="fd">{t("settings.unsaved")}</div>}</div>
         <button type="button" className="btn accent" disabled={!dirty || saving} onClick={onSave}>{t("settings.save")}</button>
-        {dirty && <span className="dim">{t("settings.unsaved")}</span>}
       </div>
     </div>
   );
 }
 
 function General({ t, state, kernel, dispatch }) {
-  const setTheme = (theme) => { dispatch({ type: "theme_changed", theme }); kernel.setPreferences({ theme }); };
   const setLang = (language) => { dispatch({ type: "language_changed", language }); kernel.setPreferences({ language }); };
   return (
-    <div className="set-group">
-      <div className="set-fields">
-        <label className="field"><span>{t("settings.theme")}</span>
-          <select className="select" value={state.theme} onChange={(e) => setTheme(e.target.value)}>
-            <option value="night">{t("settings.theme.night")}</option>
-            <option value="day">{t("settings.theme.day")}</option>
-          </select></label>
-        <label className="field"><span>{t("settings.language")}</span>
-          <select className="select" value={state.language} onChange={(e) => setLang(e.target.value)}>
-            <option value="zh">中文</option>
-            <option value="en">English</option>
-          </select></label>
-      </div>
+    <div className="f-group">
+      <div className="fg-t">{t("settings.general.ui")}</div>
+      <Row title={t("settings.language")} desc={t("settings.language.desc")}>
+        <select className="f-in" value={state.language} onChange={(e) => setLang(e.target.value)}>
+          <option value="zh">中文(简体)</option>
+          <option value="en">English</option>
+        </select>
+      </Row>
+      <Row title={t("settings.theme")} desc={t("settings.theme.desc")}>
+        <span className="mini">{state.theme}</span>
+      </Row>
     </div>
   );
 }
 
-function About({ t, state, settings }) {
+function About({ t, settings, version }) {
   const cfg = settings?.config || {};
   return (
-    <div className="set-group about">
-      <p><strong>Inkstone</strong></p>
-      <p className="dim">{t("settings.about.model")}: {cfg.model || "—"}</p>
-      <p className="dim">{t("settings.about.baseUrl")}: {cfg.baseUrl || "—"}</p>
-      <p className="dim">{t("settings.about.key")}: {cfg.hasApiKey ? "✓" : "✗"}</p>
-      <p className="dim">{t("settings.about.blurb")}</p>
+    <div className="f-group">
+      <div className="fg-t">Inkstone</div>
+      <Row title={t("settings.about.version")}><span className="mini">v{version}</span></Row>
+      <Row title={t("settings.about.model")}><span className="mini">{cfg.model || "—"}</span></Row>
+      <Row title={t("settings.about.baseUrl")}><span className="mini">{cfg.baseUrl || "—"}</span></Row>
+      <Row title={t("settings.about.key")}><span className={`mini ${cfg.hasApiKey ? "ok" : "warn"}`}>{cfg.hasApiKey ? t("settings.about.keySet") : t("settings.about.keyMissing")}</span></Row>
+      <Row title={t("settings.about.kernel")}><span className="mini">createKernel() · {t("settings.about.shared")}</span></Row>
     </div>
   );
 }
 
-export default function Settings({ t, state, kernel, dispatch }) {
+export default function Settings({ t, state, kernel, dispatch, version }) {
   const [active, setActive] = useState("general");
   const [settings, setSettings] = useState(null);
   const [draft, setDraft] = useState({});
@@ -107,7 +113,7 @@ export default function Settings({ t, state, kernel, dispatch }) {
   useEffect(() => { reload(); }, [reload]);
 
   const group = SETTINGS_GROUPS.find((g) => g.id === active) || SETTINGS_GROUPS[0];
-  const dirty = settings && JSON.stringify(draft) !== JSON.stringify(settings.config || {});
+  const dirty = Boolean(settings) && JSON.stringify(draft) !== JSON.stringify(settings.config || {});
 
   const saveConfig = async () => {
     setSaving(true);
@@ -120,30 +126,42 @@ export default function Settings({ t, state, kernel, dispatch }) {
   };
 
   return (
-    <div className="settings" aria-label={t("rail.settings")}>
-      <nav className="settings-nav" aria-label={t("rail.settings")}>
-        <div className="settings-title">{t("rail.settings")}</div>
-        {SETTINGS_GROUPS.map((g) => (
-          <button key={g.id} type="button" className={`snav-item ${active === g.id ? "active" : ""}`}
-            aria-current={active === g.id} onClick={() => setActive(g.id)}>{t(g.labelKey)}</button>
-        ))}
-      </nav>
-      <div className="settings-main">
-        <h2>{t(group.labelKey)}</h2>
-        {error && <div className="err set-error">{error}</div>}
-        {group.kind === "prefs" && <General t={t} state={state} kernel={kernel} dispatch={dispatch} />}
-        {group.kind === "appearance" && <Appearance t={t} state={state} kernel={kernel} dispatch={dispatch} />}
-        {group.kind === "statusDisplay" && <StatusDisplayPanel t={t} state={state} kernel={kernel} dispatch={dispatch} />}
-        {group.kind === "model" && (
-          <ModelAccess t={t} kernel={kernel}
-            profiles={settings?.apiProfiles || []} activeProfileId={settings?.activeProfileId || null}
-            onChanged={reload} />
-        )}
-        {group.kind === "config" && (
-          <ConfigGroup t={t} group={group} draft={draft} setDraft={setDraft} onSave={saveConfig} dirty={dirty} saving={saving} />
-        )}
-        {group.kind === "about" && <About t={t} state={state} settings={settings} />}
+    <section className="view on">
+      <div className="settings">
+        <aside className="s-nav" aria-label={t("rail.settings")}>
+          <div className="sn-h">{t("rail.settings")}</div>
+          {SETTINGS_GROUPS.map((g) => {
+            const Icon = ICONS[g.icon] || SlidersHorizontal;
+            return (
+              <button type="button" key={g.id} className={`sn-item ${active === g.id ? "on" : ""}`}
+                aria-current={active === g.id} onClick={() => setActive(g.id)}>
+                <Icon size={14} /> {t(g.labelKey)}
+              </button>
+            );
+          })}
+        </aside>
+
+        <div className="s-body"><div className="s-in">
+          <div className="s-sec on">
+            <h2>{t(group.labelKey)}</h2>
+            <p className="sd">{t(`${group.labelKey}.sd`)}</p>
+            {error && <div className="f-group"><span className="mini err">{error}</span></div>}
+
+            {group.kind === "prefs" && <General t={t} state={state} kernel={kernel} dispatch={dispatch} />}
+            {group.kind === "appearance" && <Appearance t={t} state={state} kernel={kernel} dispatch={dispatch} />}
+            {group.kind === "statusDisplay" && <StatusDisplayPanel t={t} state={state} kernel={kernel} dispatch={dispatch} />}
+            {group.kind === "model" && (
+              <ModelAccess t={t} kernel={kernel}
+                profiles={settings?.apiProfiles || []} activeProfileId={settings?.activeProfileId || null}
+                onChanged={reload} />
+            )}
+            {group.kind === "config" && (
+              <ConfigGroup t={t} group={group} draft={draft} setDraft={setDraft} onSave={saveConfig} dirty={dirty} saving={saving} />
+            )}
+            {group.kind === "about" && <About t={t} settings={settings} version={version} />}
+          </div>
+        </div></div>
       </div>
-    </div>
+    </section>
   );
 }

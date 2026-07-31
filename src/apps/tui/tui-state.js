@@ -124,8 +124,9 @@ export function statusLine(state, t) {
     `tokens ${formatTokens(state.status.tokens)}`,
     `cache ${Math.round((state.status.cacheRate || 0) * 100)}%`,
     state.shell ? `sh:${state.shell}` : "",
+    state.theme ? `theme:${state.theme}` : "", // v1.4.6:与设计稿的 TUI 状态行一致
     t("status.lang")
-  ];
+  ].filter(Boolean);
   const line = parts.join(" · ");
   return line;
 }

@@ -1,7 +1,15 @@
 import React from "react";
+import { Type, Hash, ChartColumn, Blocks, EyeOff } from "lucide-react";
 import { STATUS_FORMS, STATUS_POSITIONS, STATUS_TOGGLES } from "../../state/status-display.js";
+import { Row, Switch } from "./Form.jsx";
 
-// 设置 › 状态显示:4 组 22 项全中文(形态/位置/显示哪些/数值格式),改动即写偏好。
+// 设置 › 状态显示(设计稿 §状态显示,4 组 22 项):形态 / 位置 / 显示哪些 / 数值与格式。
+// 改动即时写入偏好,与对话框底部状态行(MetricsLine)同一份 statusDisplay。
+const FORM_ICON = { text: Type, num: Hash, bar: ChartColumn, dots: Blocks, off: EyeOff };
+const PERCENT_DECIMALS = [0, 1, 2];
+const DOTS_COUNTS = [5, 10, 20];
+const WARN_RATIOS = [0.7, 0.8, 0.9, 1];
+
 export default function StatusDisplayPanel({ t, state, kernel, dispatch }) {
   const d = state.statusDisplay || { show: {}, format: {} };
   const apply = (patch) => {
@@ -15,55 +23,77 @@ export default function StatusDisplayPanel({ t, state, kernel, dispatch }) {
     kernel.setPreferences({ statusDisplay: next });
   };
 
-  const formIcons = { text: "T", num: "123", bar: "▂▄▆", dots: "⬜⬛", off: "–" };
-  const toggleLabel = {
-    branch: "settings.sd.branch", checkpoint: "settings.sd.checkpoint", connection: "settings.sd.connection",
-    context: "settings.sd.context", cacheHit: "settings.sd.cacheHit", retrievalHit: "settings.sd.retrievalHit",
-    turnTime: "settings.sd.turnTime", turnChanges: "settings.sd.turnChanges", model: "settings.sd.model",
-    theme: "settings.sd.theme", language: "settings.sd.language"
-  };
-
   return (
-    <div className="set-group">
-      <h3>{t("settings.sd.form")}</h3>
-      <div className="sd-form">
-        {STATUS_FORMS.map((f) => (
-          <button key={f} type="button" className={`sd-card ${d.form === f ? "on" : ""}`} onClick={() => apply({ form: f })}>
-            <span className="ic">{formIcons[f]}</span><span>{t(`settings.sd.form.${f}`)}</span>
-          </button>
-        ))}
+    <>
+      <div className="f-group">
+        <div className="fg-t">{t("settings.sd.form")}</div>
+        <div className="mv-grid">
+          {STATUS_FORMS.map((f) => {
+            const Icon = FORM_ICON[f];
+            return (
+              <button type="button" key={f} className={`mv-card ${d.form === f ? "on" : ""}`}
+                aria-pressed={d.form === f} onClick={() => apply({ form: f })}>
+                <span className="demo"><Icon size={16} /></span>
+                <span className="nm">{t(`settings.sd.form.${f}`)}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="f-row" style={{ paddingTop: 10 }}>
+          <div className="fl"><div className="fd">{t("settings.sd.formNote")}</div></div>
+        </div>
       </div>
 
-      <h3>{t("settings.sd.position")}</h3>
-      <div className="set-fields">
-        <label className="field"><span>{t("settings.sd.positionLabel")}</span>
-          <select className="select" value={d.position} onChange={(e) => apply({ position: e.target.value })}>
+      <div className="f-group">
+        <div className="fg-t">{t("settings.sd.position")}</div>
+        <Row title={t("settings.sd.positionLabel")} desc={t("settings.sd.positionDesc")}>
+          <select className="f-in" value={d.position} onChange={(e) => apply({ position: e.target.value })}>
             {STATUS_POSITIONS.map((p) => <option key={p} value={p}>{t(`settings.sd.pos.${p}`)}</option>)}
-          </select></label>
-        <label className="field checkbox"><input type="checkbox" checked={Boolean(d.fadeIdle)} onChange={(e) => apply({ fadeIdle: e.target.checked })} /><span>{t("settings.sd.fadeIdle")}</span></label>
-        <label className="field checkbox"><input type="checkbox" checked={Boolean(d.compact)} onChange={(e) => apply({ compact: e.target.checked })} /><span>{t("settings.sd.compact")}</span></label>
+          </select>
+        </Row>
+        <Row title={t("settings.sd.fadeIdle")} desc={t("settings.sd.fadeIdleDesc")}>
+          <Switch on={d.fadeIdle} onChange={(v) => apply({ fadeIdle: v })} label={t("settings.sd.fadeIdle")} />
+        </Row>
+        <Row title={t("settings.sd.compact")} desc={t("settings.sd.compactDesc")}>
+          <Switch on={d.compact} onChange={(v) => apply({ compact: v })} label={t("settings.sd.compact")} />
+        </Row>
       </div>
 
-      <h3>{t("settings.sd.show")}</h3>
-      <div className="set-fields sd-toggles">
+      <div className="f-group">
+        <div className="fg-t">{t("settings.sd.show")}</div>
         {STATUS_TOGGLES.map((key) => (
-          <label key={key} className="field checkbox">
-            <input type="checkbox" checked={Boolean(d.show[key])} onChange={(e) => apply({ show: { [key]: e.target.checked } })} />
-            <span>{t(toggleLabel[key])}</span>
-          </label>
+          <Row key={key} title={t(`settings.sd.${key}`)} desc={t(`settings.sd.${key}.desc`)}>
+            <Switch on={d.show[key]} onChange={(v) => apply({ show: { [key]: v } })} label={t(`settings.sd.${key}`)} />
+          </Row>
         ))}
       </div>
 
-      <h3>{t("settings.sd.format")}</h3>
-      <div className="set-fields">
-        <label className="field"><span>{t("settings.sd.percentDecimals")}</span>
-          <input type="number" min="0" max="4" value={d.format.percentDecimals ?? 0} onChange={(e) => apply({ format: { percentDecimals: Number(e.target.value) } })} /></label>
-        <label className="field checkbox"><input type="checkbox" checked={Boolean(d.format.bigUnits)} onChange={(e) => apply({ format: { bigUnits: e.target.checked } })} /><span>{t("settings.sd.bigUnits")}</span></label>
-        <label className="field"><span>{t("settings.sd.warnRatio")}</span>
-          <input type="number" min="0" max="1" step="0.05" value={d.format.contextWarnRatio ?? 0.8} onChange={(e) => apply({ format: { contextWarnRatio: Number(e.target.value) } })} /></label>
-        <label className="field"><span>{t("settings.sd.dotsCount")}</span>
-          <input type="number" min="4" max="24" value={d.format.dotsCount ?? 10} onChange={(e) => apply({ format: { dotsCount: Number(e.target.value) } })} /></label>
+      <div className="f-group">
+        <div className="fg-t">{t("settings.sd.format")}</div>
+        <Row title={t("settings.sd.percentDecimals")} desc={t("settings.sd.percentDecimalsDesc")}>
+          <select className="f-in mid" value={d.format.percentDecimals ?? 0}
+            onChange={(e) => apply({ format: { percentDecimals: Number(e.target.value) } })}>
+            {PERCENT_DECIMALS.map((n) => <option key={n} value={n}>{t("settings.sd.decimals").replace("{n}", n)}</option>)}
+          </select>
+        </Row>
+        <Row title={t("settings.sd.bigUnits")} desc={t("settings.sd.bigUnitsDesc")}>
+          <Switch on={d.format.bigUnits} onChange={(v) => apply({ format: { bigUnits: v } })} label={t("settings.sd.bigUnits")} />
+        </Row>
+        <Row title={t("settings.sd.warnRatio")} desc={t("settings.sd.warnRatioDesc")}>
+          <select className="f-in mid" value={d.format.contextWarnRatio ?? 0.8}
+            onChange={(e) => apply({ format: { contextWarnRatio: Number(e.target.value) } })}>
+            {WARN_RATIOS.map((r) => (
+              <option key={r} value={r}>{r >= 1 ? t("settings.sd.noWarn") : `${Math.round(r * 100)}%`}</option>
+            ))}
+          </select>
+        </Row>
+        <Row title={t("settings.sd.dotsCount")} desc={t("settings.sd.dotsCountDesc")}>
+          <select className="f-in mid" value={d.format.dotsCount ?? 10}
+            onChange={(e) => apply({ format: { dotsCount: Number(e.target.value) } })}>
+            {DOTS_COUNTS.map((n) => <option key={n} value={n}>{t("settings.sd.cells").replace("{n}", n)}</option>)}
+          </select>
+        </Row>
       </div>
-    </div>
+    </>
   );
 }

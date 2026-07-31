@@ -1,4 +1,5 @@
 import React from "react";
+import { X, RotateCcw } from "lucide-react";
 import DiffView from "./DiffView.jsx";
 import { shortTime } from "../state/changes-derive.js";
 
@@ -9,7 +10,7 @@ export default function ChangeDiffView({ t, theme, changeDiff, onClose, onReveal
     return (
       <div className="changediff-error" role="alert">
         <span>{t("changes.error")}: {changeDiff.error}</span>
-        <button type="button" className="ghost" onClick={onClose} aria-label={t("diff.close")}>✕</button>
+        <button type="button" className="ghost" onClick={onClose} aria-label={t("diff.close")}><X size={13} /></button>
       </div>
     );
   }
@@ -17,7 +18,7 @@ export default function ChangeDiffView({ t, theme, changeDiff, onClose, onReveal
   const starts = file.status === "delete" ? [] : (file.hunkStarts || []);
   const actions = (
     <span className="chg-actions">
-      {meta.rolledBack && <span title={t("changes.rolledBack")}>↺</span>}
+      {meta.rolledBack && <span title={t("changes.rolledBack")}><RotateCcw size={12} /></span>}
       {starts.map((n) => (
         <button key={n} type="button" className="bc-btn" title={`${t("changes.jump")} @@ ${n}`}
           onClick={() => onReveal(file.path, n)}>@@ {n}</button>

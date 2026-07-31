@@ -12,10 +12,10 @@ export const STATUS_DISPLAY_DEFAULTS = {
   position: "composer",    // 默认嵌入对话框(.cz-meta)
   fadeIdle: false,         // 空闲淡出
   compact: false,          // 紧凑模式
-  show: {
+  show: {                  // 与设计稿的开关默认一致:本轮耗时/本轮改动数默认关(状态行已足够长)
     branch: true, checkpoint: true, connection: true, context: true,
-    cacheHit: true, retrievalHit: true, turnTime: true, turnChanges: true,
-    model: true, theme: true, language: true
+    cacheHit: true, retrievalHit: true, turnTime: false, turnChanges: false,
+    model: false, theme: true, language: true
   },
   format: {                // 数值与格式
     percentDecimals: 0,    // 百分比小数位

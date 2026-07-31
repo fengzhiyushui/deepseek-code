@@ -6,10 +6,12 @@ import {
 
 test("groups cover the seven settings sections including model + about", () => {
   const ids = SETTINGS_GROUPS.map((g) => g.id);
-  assert.deepEqual(ids, ["general", "appearance", "statusDisplay", "model", "limits", "orchestration", "context", "experience", "about"]);
-  assert.equal(SETTINGS_GROUPS.find((g) => g.id === "model").kind, "model");
+  assert.deepEqual(ids, ["general", "appearance", "statusDisplay", "api", "model", "limits", "orchestration", "context", "experience", "about"]);
+  assert.equal(SETTINGS_GROUPS.find((g) => g.id === "api").kind, "model");
+  assert.equal(SETTINGS_GROUPS.find((g) => g.id === "model").kind, "config");
   assert.equal(SETTINGS_GROUPS.find((g) => g.id === "about").kind, "about");
-  // every config field carries a dot-path + a type
+  // 每个分节都带 lucide 图标名(设计稿的左导航图标),config 字段都带 dot-path 与类型
+  for (const g of SETTINGS_GROUPS) assert.ok(typeof g.icon === "string" && g.icon.length > 0);
   for (const g of SETTINGS_GROUPS.filter((g) => g.kind === "config")) {
     for (const f of g.fields) { assert.ok(f.path.includes(".")); assert.ok(f.type); }
   }

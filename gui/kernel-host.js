@@ -516,9 +516,37 @@ function createKernelHost({
     await init();
     return { ok: true, root };
   }
+  // 会话枚举:侧栏要「每个项目分区内挂自己的会话」,所以跨全部已登记项目扫描各自的会话目录,
+  // 再按 proj_<hash> 归并(同 hash 的组合并、会话按 mtime 倒序)。未登记项目的会话仍会出现,
+  // 由渲染层归入「独立对话」。单项目扫描失败不影响其余项目。
   async function listSessions() {
     const mod = await loadSessionIndexMod();
-    return mod.createSessionIndex({ sessionRoot: path.join(projectRoot, ".deepseek-code", "v2", "sessions") }).listByProject();
+    const roots = new Set([projectRoot]);
+    try {
+      const projectMod = await loadProjectMod();
+      for (const p of await projectMod.createProjectRegistry({ dir: registryDir }).list()) {
+        if (p && p.root) roots.add(p.root);
+      }
+    } catch { /* 注册表不可读时只扫当前项目 */ }
+
+    const merged = new Map();
+    for (const root of roots) {
+      let groups = [];
+      try {
+        groups = await mod.createSessionIndex({
+          sessionRoot: path.join(root, ".deepseek-code", "v2", "sessions")
+        }).listByProject();
+      } catch { continue; }
+      for (const group of groups) {
+        const prev = merged.get(group.projectDir);
+        if (prev) prev.sessions = prev.sessions.concat(group.sessions);
+        else merged.set(group.projectDir, { projectDir: group.projectDir, sessions: group.sessions.slice() });
+      }
+    }
+    return [...merged.values()].map((g) => ({
+      projectDir: g.projectDir,
+      sessions: g.sessions.sort((a, b) => (b.mtime || 0) - (a.mtime || 0))
+    }));
   }
 
   return { init, ready, send, approve, interrupt, getTimeline, getSnapshot, getUsage, getConfig, getState,

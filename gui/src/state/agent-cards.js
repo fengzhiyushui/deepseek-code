@@ -1,37 +1,82 @@
 // Fold the workbench activity event stream into agent-panel card view-models.
 // Pure — node:test-covered. 字段归一走共享事件展示契约(src/apps/event-contract.js),避免第 4 份并行读法。
+// v1.4.6:卡片补齐设计稿 v4 的展示需要 —— 工具卡带参数摘要、diff 卡带逐文件增删、
+// 计划卡带子任务清单与状态、审批卡带命令与 id、编排卡带轮次与完成度。
 import { describeEvent } from "../../../src/apps/event-contract.js";
 
 export function deriveAgentCards(activity) {
   const cards = [];
   const toolIndex = new Map();
+  const subtaskIndex = new Map();
   let planCard = null;
+  let orchCard = null;
+
+  const ensurePlan = () => {
+    if (!planCard) { planCard = { kind: "plan", subtasks: 0, round: 0, steps: [] }; cards.push(planCard); }
+    return planCard;
+  };
+
   for (const e of activity || []) {
     const type = e && e.type;
     const f = describeEvent(e).fields;
+
     if (type === "orchestration:planned" || type === "orchestration:round_started" || type === "orchestration:replanned") {
-      if (!planCard) { planCard = { kind: "plan", subtasks: 0, round: 0 }; cards.push(planCard); }
-      if (typeof f.subtasks === "number") planCard.subtasks = f.subtasks;
-      if (typeof f.newSubtasks === "number") planCard.subtasks = f.newSubtasks;
-      if (typeof f.round === "number") planCard.round = f.round;
+      const plan = ensurePlan();
+      if (typeof f.subtasks === "number") plan.subtasks = f.subtasks;
+      if (typeof f.newSubtasks === "number") plan.subtasks = f.newSubtasks;
+      if (typeof f.round === "number") plan.round = f.round;
+      if (f.doneWhen) plan.doneWhen = f.doneWhen;
+    } else if (type === "orchestration:subtask_started") {
+      const plan = ensurePlan();
+      const id = f.subtaskId || `sub_${plan.steps.length + 1}`;
+      let step = subtaskIndex.get(id);
+      if (!step) { step = { id, status: "run", attempt: f.attempt || 1 }; subtaskIndex.set(id, step); plan.steps.push(step); }
+      else { step.status = "run"; step.attempt = f.attempt || step.attempt; }
+    } else if (type === "orchestration:subtask_reviewed") {
+      const plan = ensurePlan();
+      const id = f.subtaskId || "";
+      let step = subtaskIndex.get(id);
+      if (!step) { step = { id, status: "todo", attempt: 1 }; subtaskIndex.set(id, step); plan.steps.push(step); }
+      step.status = f.pass ? "done" : "failed";
+      step.severity = f.reviewSeverity || null;
+    } else if (type === "orchestration:completed") {
+      orchCard = {
+        kind: "orchestration",
+        rounds: f.rounds || 0,
+        completed: f.completed || 0,
+        failed: f.failed || 0,
+        status: f.status || null,
+        steps: planCard ? planCard.steps : []
+      };
+      cards.push(orchCard);
     } else if (type === "tool:call") {
-      const card = { kind: "tool", id: e.id, tool: f.name || "tool", status: "running" };
+      const card = { kind: "tool", id: e.id, tool: f.name || "tool", argHint: f.argHint || "", status: "running" };
       toolIndex.set(e.id, card);
       cards.push(card);
     } else if (type === "tool:result") {
       const card = toolIndex.get(e.id);
       if (card) card.status = f.status === "error" ? "error" : "ok";
     } else if (type === "file:diff_applied" || type === "file:diff_preview") {
-      const paths = (f.files || []).map((x) => x.path).filter(Boolean);
+      const files = (f.files || []).filter((x) => x && x.path);
+      const paths = files.map((x) => x.path);
       cards.push({
         kind: "diff",
         changeId: f.changeId,
         path: paths[0] || "",
         fileCount: paths.length,
+        files,
+        added: files.reduce((n, x) => n + (x.added || 0), 0),
+        removed: files.reduce((n, x) => n + (x.removed || 0), 0),
         applied: type === "file:diff_applied"
       });
+    } else if (type === "approval:requested") {
+      cards.push({ kind: "approval", id: f.id || null, summary: f.summary || "" });
+    } else if (type === "approval:resolved") {
+      for (let i = cards.length - 1; i >= 0; i -= 1) {
+        if (cards[i].kind === "approval" && !cards[i].decision) { cards[i].decision = f.decision || "resolved"; break; }
+      }
     } else if (type === "verification:result") {
-      cards.push({ kind: "test", pass: Boolean(f.pass) });
+      cards.push({ kind: "test", pass: Boolean(f.pass), status: f.status || null });
     }
   }
   return cards;

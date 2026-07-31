@@ -14,6 +14,13 @@
 > 下一个补丁 / 小版本的变更在此累积;发布时移入带版本号的小节。
 
 - **品牌改名**:产品名 **DeepSeek Code → Inkstone(砚)**。显示品牌全面替换(CLI/TUI banner、GUI 窗口与页面标题、system prompt 产品自称、User-Agent、README/docs/设计稿);结构层同步(package/bin 命令 `inkstone` + 保留 `dsc` 别名、gui 包名 `inkstone-gui`、conda 环境名)。**功能契约全部保留**:`.deepseek-code` 存储目录、`DEEPSEEK_*` 环境变量、`api.deepseek.com` 端点与 `deepseek-v4-*` 等模型 id 均不改。方案见 [`plans/architecture/2026-07-31-inkstone-rebrand.md`](plans/architecture/2026-07-31-inkstone-rebrand.md)。
+- **v1.4.6 设计稿细节还原(feat/v1.4 分支)**:在 P0–P4 基础上对照 v4 设计稿逐项补齐 ——
+  **图标规范**:GUI 全部改用 lucide-react 矢量图标(新增 `lucide-react` 依赖),移除残留的 emoji/几何字形(📎 ⚡ ◆ 等),删除十个旧版 IDE 组件(ActivityBar/AgentPanel/DiffView/EditorGroup/Explorer/Icons/Placeholder/RewindDialog/StatusBar/Terminal)与 `panels-derive` 死模块;
+  **七视图还原**:首页改为问候语+输入胶囊+四张快捷卡+最近会话、侧栏项目分区内挂日期分组会话(今天/昨天/本周/更早)+搜索过滤(新 `session-groups.js`)、会话视图补齐五类事件卡(计划带子任务清单/工具带参数/diff 带逐文件增删/审批卡接批准与拒绝/编排卡)、设置页对齐设计稿表单语言(s-nav/f-group/f-row/.sw/主题网格/5 形态卡);
+  **状态行还原**:`.cz-meta` 完整实现——分支/检查点/连接标签 + 5 形态比例指标(文字/数值/进度条/点阵/关闭,点按钮可轮换)+ 模型/主题/语言标签,由「状态显示」偏好驱动,空闲淡出;
+  **能力补齐**:「打开文件夹…」原生目录选择 IPC(`projects:pick`)、项目页「在文件管理器中显示」(shell.openPath)、会话枚举跨全部登记项目(侧栏每项目分区各自挂载);
+  **TUI 对齐**:启动首页菱形品牌行(版本/模型/档位/shell/主题 meta)+ 最近会话列表,状态行加 `th:` 主题标签。
+  全量回归 1006 单测 + e2e ×4 通过;GUI 冒烟截图随 smoke 落 `gui/__screenshots__/`。
 - **v1.4.0 前端界面重设计(已实现,`feat/v1.4` 分支)**:GUI/TUI 界面全部重做,按 [`plans/frontend/2026-07-31-v1.4.0-frontend-redesign-plan.md`](plans/frontend/2026-07-31-v1.4.0-frontend-redesign-plan.md) 的 P0–P4 落地。**设计定稿**(五轮 HTML 稿,终稿 = [`prototypes/v1.4.0-redesign/v4/`](prototypes/v1.4.0-redesign/v4/)):**10 套主题**(3 浅 7 深,色值取自 Flexoki/Rosé Pine/Catppuccin/Kanagawa/Tokyo Night/Nord/Everforest/Gruvbox Material 官方定义源,WCAG 110 项校验全过,默认 `sumi` 墨)——GUI `tokens.css` 单源 + 设置页外观 10 主题网格,TUI 经 `gen-tui-theme` 生成 xterm-256 调色板 + `/theme`。**GUI 会话优先布局**:rail 功能区(主页/项目/改动/MCP/插件)+ 每项目独立分区(内挂该项目会话,新建会话继承项目目录)+ 独立对话;七视图路由;`.cz-meta` 指标 5 形态(文字/数值/进度条/点阵/关闭)+ 全中文「状态显示」设置组;全局项目 MRU + 会话枚举(kernel 零改动)。**TUI**:opencode 式启动首页(垂直居中/单行 meta/最近会话)+ `/theme` + `/shell`(pwsh/powershell/cmd/git-bash)。
 
 **已挂账(待立项,方案见 [`specs/backend/2026-07-12-agent-findings-remediation.md`](specs/backend/2026-07-12-agent-findings-remediation.md)):** 明文变更记录脱敏方案(#9.3,需独立 design)、`agent-runtime.js` 可维护性重构(#10)。

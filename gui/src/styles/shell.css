@@ -1,7 +1,17 @@
-  /* ════════ v2 GUI 专属样式(质感升级:少边框、多留白、字阶分层) ════════ */
+  /* ════════ v1.4 GUI 壳层样式(源自 v4 设计稿:少边框、多留白、字阶分层) ════════
+     图标一律由 lucide-react 渲染为 <svg>,界面不出现表情符号或几何字形。 */
   body { overflow: hidden; }
 
-  .shell { display: grid; grid-template-columns: 272px 1fr; grid-template-rows: 1fr; height: 100vh; }
+  /* .ide 是 titlebar + 1fr 两行栅格;壳层填满第二行即可(不能写 100vh,否则底部被裁) */
+  .shell { display: grid; grid-template-columns: 272px 1fr; grid-template-rows: 1fr; height: 100%; min-height: 0; }
+
+  /* 图标槽:lucide 的 svg 统一不参与压缩、随文字基线对齐 */
+  .rail svg, .pane svg, .settings svg { flex: none; }
+  .rail-brand .lg svg, .cz-send svg, .iconbtn svg, .pnew svg { display: block; }
+
+  /* 视图切换的克制入场(prefers-reduced-motion 下取消) */
+  @keyframes viewIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .view.on { animation: none !important; } }
 
   /* ── 侧栏(四轮:上=功能区/中=项目/下=独立对话;五轮:项目改为每项目独立分区)── */
   .rail {
@@ -184,7 +194,7 @@
   /* ── 主区视图容器 ── */
   .pane { grid-row: 1; min-width: 0; min-height: 0; position: relative; background: var(--bg-base); }
   .view { position: absolute; inset: 0; display: none; flex-direction: column; min-height: 0; }
-  .view.on { display: flex; }
+  .view.on { display: flex; animation: viewIn .18s ease both; }
 
   /* 主区头部(会话/改动共用) */
   .pane-head {
@@ -274,12 +284,28 @@
   .ev-h .r { margin-left: auto; display: flex; align-items: center; gap: 6px; }
   .ev-b { border-top: 1px solid var(--border); padding: 10px 12px; }
   .mini {
+    display: inline-flex; align-items: center; gap: 4px;
     font-size: var(--fs-11); padding: 1px 7px; border-radius: 4px;
     background: var(--bg-element); color: var(--text-mut); font-family: var(--font-mono);
   }
   .mini.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
   .mini.err { color: var(--err); background: color-mix(in srgb, var(--err) 12%, transparent); }
   .mini.run { color: var(--accent); background: var(--accent-soft); }
+  .mini.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+
+  /* 头像 / 转圈(自 tokens.css 迁入,基础层不再放组件样式) */
+  .avatar {
+    width: 24px; height: 24px; border-radius: 50%; flex: none;
+    background: var(--accent); color: var(--accent-text);
+    display: grid; place-items: center; font-size: 11px; font-weight: 700;
+  }
+  .spin {
+    width: 12px; height: 12px; border-radius: 50%; flex: none;
+    border: 2px solid var(--border-strong); border-top-color: var(--accent);
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
 
   /* 计划卡 */
   .pl { display: flex; flex-direction: column; gap: 1px; }
@@ -295,19 +321,14 @@
   .df { font-family: var(--font-mono); font-size: var(--fs-12); line-height: 1.6; }
   .df .ln { display: flex; gap: 14px; padding: 0 12px; white-space: pre; }
   .df .no { width: 2.4em; text-align: right; color: var(--text-faint); user-select: none; flex: none; }
-  .df .add { background: color-mix(in srgb, var(--ok) 13%, transparent); }
-  .df .add .tx { color: var(--ok); }
-  .df .del { background: color-mix(in srgb, var(--err) 11%, transparent); }
-  .df .del .tx { color: var(--err); }
-  .df .hk { color: var(--text-mut); padding: 4px 12px; font-size: var(--fs-11); }
 
   /* 审批卡 */
   .ap { border-color: color-mix(in srgb, var(--warn) 45%, transparent); background: color-mix(in srgb, var(--warn) 7%, var(--bg-panel)); }
   .ap .ev-h { color: var(--warn); cursor: default; }
   .ap .ev-b { display: flex; align-items: center; gap: 10px; border-top-color: color-mix(in srgb, var(--warn) 22%, transparent); }
   .ap .cmd { font-family: var(--font-mono); font-size: var(--fs-12); flex: 1; color: var(--text); }
-  .btn { padding: 6px 15px; border-radius: var(--r-6); font-size: var(--fs-12); font-weight: 600; background: var(--accent); color: var(--accent-text); }
-  .btn:hover { background: var(--accent-hover); }
+  /* .btn 基色在 theme.css(legacy 面板共用);此处只补设计稿的 ghost 变体,避免三层同名互覆 */
+  .btn { display: inline-flex; align-items: center; gap: 6px; }
   .btn.ghost { background: none; border: 1px solid var(--border-strong); color: var(--text-mut); font-weight: 400; }
   .btn.ghost:hover { color: var(--text); border-color: var(--text-mut); }
 
@@ -520,28 +541,77 @@
   .c-view .df .ln { padding: 0 22px; }
   .c-view .df .hk { padding: 6px 22px; }
 
-  .preview-note { position: fixed; top: 10px; right: 14px; z-index: 60; }
   @media (max-width: 900px) {
     .shell { grid-template-columns: 1fr; }
     .rail { display: none; }
   }
 
-/* ── 设置 › 外观:10 主题网格(theme 属性使卡片预览该主题真实 token)── */
-.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;max-width:720px;}
-.theme-card{display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--border);border-radius:var(--r-8);background:var(--bg-panel);cursor:pointer;text-align:left;}
-.theme-card:hover{border-color:var(--accent);}
-.theme-card.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);}
-.theme-card .sw{display:flex;gap:4px;height:22px;align-items:center;}
-.theme-card .sw i{width:18px;height:18px;border-radius:4px;background:var(--accent);}
-.theme-card .sw i:nth-child(2){background:var(--bg-base);border:1px solid var(--border);}
-.theme-card .sw i:nth-child(3){background:var(--text);}
-.theme-card .nm{font-weight:600;font-size:13px;color:var(--text);}
-.theme-card .f{font-size:11px;color:var(--text-mut);}
+/* ════════ v1.4.6 还原补充(设计稿有形、原实现缺的样式钩子)════════ */
 
-/* ── 设置 › 状态显示:形态卡 + 开关网格 ── */
-.sd-form{display:grid;grid-template-columns:repeat(5,minmax(72px,1fr));gap:8px;max-width:520px;}
-.sd-card{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;border:1px solid var(--border);border-radius:var(--r-8);background:var(--bg-panel);cursor:pointer;font-size:12px;}
-.sd-card .ic{font-family:var(--font-mono);font-size:13px;color:var(--accent);}
-.sd-card:hover{border-color:var(--accent);}
-.sd-card.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);}
-.sd-toggles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:2px 16px;}
+/* 状态行:形态按钮是真实 button;空闲淡出与紧凑模式由 statusDisplay 偏好驱动。
+   标签多时允许换行,单个标签本身永不折行(否则会被压成竖排)。 */
+.cz-meta { flex-wrap: wrap; row-gap: 7px; }
+.cz-meta > *, .cz-meta .sg, .cz-meta .mv-btn { white-space: nowrap; }
+.cz-meta .m-bar .mt, .cz-meta .m-dots .mt, .cz-meta .m-num .kv, .cz-meta .m-text { white-space: nowrap; }
+.mv-btn { display: inline-flex; align-items: center; gap: 5px; border: none; }
+.cz-meta .sg { border: none; }
+.cz-meta .spacer { flex: 1; min-width: 0; }
+.cz-meta.fade { opacity: .55; transition: opacity .25s ease; }
+.cz-meta.fade:hover, .cz-meta.fade:focus-within { opacity: 1; }
+.cz-meta.compact .m-bar .lb, .cz-meta.compact .m-dots .lb { display: none; }
+@media (max-width: 1180px) { .cz-meta.compact .sg.opt { display: none; } }
+@media (prefers-reduced-motion: reduce) { .cz-meta.fade { transition: none; } }
+
+/* 首页:品牌行改为图标 + 文字,标语独立字阶 */
+.home .hello { display: flex; align-items: center; gap: 10px; }
+.home .hello .lg { color: var(--accent); margin: 0; display: grid; place-items: center; }
+.q-card .qt { display: flex; align-items: center; gap: 8px; }
+.q-card .qt svg { color: var(--accent); }
+.rc-item .ric { color: var(--text-faint); display: grid; place-items: center; }
+.rc-item:hover .ric { color: var(--accent); }
+
+/* 侧栏:分区头的「＋」是按钮;折叠箭头随 .closed 旋转 */
+.sec-head .add { display: grid; place-items: center; width: 18px; height: 18px; border-radius: var(--r-4); color: inherit; }
+.sec-head .chev, .proj-h .chev { display: inline-grid; place-items: center; }
+.rail-foot .who .nmx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.r-item .ric { color: var(--text-faint); display: grid; place-items: center; }
+.r-item.on .ric { color: var(--accent); }
+
+/* 事件卡:折叠箭头 + 工具行的等宽参数 */
+.ev-h .car { display: inline-grid; place-items: center; }
+.ev-h .arg { font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ev-h .ttl { color: var(--text); }
+.pl .st .bx svg { display: block; }
+
+/* 空态:各视图统一的弱提示块 */
+.empty-note { padding: 28px 4px; color: var(--text-faint); font-size: var(--fs-12); text-align: center; }
+.empty-note .en-ic { display: grid; place-items: center; color: var(--text-faint); margin-bottom: 10px; }
+
+/* 改动视图:右栏承载 Monaco diff 时需要可伸展的列 */
+.c-view { display: flex; flex-direction: column; min-height: 0; }
+.c-view .cv-body { flex: 1; min-height: 0; }
+.c-list .c-item { border: none; background: none; }
+
+/* 概念预览视图(MCP / 插件):卡片列表复用 .api-item */
+.api-item .ai-ic { color: var(--accent); display: grid; place-items: center; flex: none; }
+.api-item.off .ai-ic { color: var(--text-faint); }
+.api-item .an { display: flex; align-items: center; gap: 6px; }
+.dotline { display: inline-flex; align-items: center; gap: 5px; }
+.dotline .d { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex: none; }
+.dotline.off .d { background: var(--text-faint); }
+
+/* 设置:分节导航图标 + 表单行内的图标按钮 */
+.sn-item svg { color: currentColor; }
+.f-row .fh { display: flex; align-items: center; gap: 8px; }
+.f-in.short { min-width: 0; width: 92px; }
+.f-in.mid { min-width: 0; width: 148px; }
+.sw { cursor: pointer; }
+.th-card .pv { background: var(--bg-base); }
+.th-card .pv i:first-child { width: 62%; }
+.th-card .pv i:last-child { width: 38%; opacity: .5; }
+
+/* 主题预览卡在自身 theme 属性下取真实 token 色(标题也必须取卡内主题色,否则浅色卡上是浅字) */
+.th-card[theme] .pv { background: var(--bg-base); }
+.th-card[theme] .pv i { background: var(--accent); }
+.th-card[theme] .nm { color: var(--text); background: var(--bg-panel); }
+.th-card.on .nm { color: var(--accent); font-weight: 600; }

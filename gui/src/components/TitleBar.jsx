@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import Icon from "./Icons.jsx";
+import { Check, Minus, Square, X, Moon, Sun, Diamond } from "lucide-react";
 import { menuModel } from "../state/menu-model.js";
 
 export default function TitleBar({ t, language, theme, title, railView, onToggleTheme, onToggleLang, menuActions = {} }) {
@@ -25,7 +25,7 @@ export default function TitleBar({ t, language, theme, title, railView, onToggle
 
   return (
     <header className="titlebar" role="banner">
-      <div className="logo" style={{ color: "var(--accent)" }}><Icon name="logo" size={16} /></div>
+      <div className="logo" style={{ color: "var(--accent)" }}><Diamond size={15} /></div>
       <nav className="menu" aria-label="menu" ref={barRef}>
         {model.map((group, gi) => (
           <div key={group.label} className="menu-group">
@@ -43,7 +43,7 @@ export default function TitleBar({ t, language, theme, title, railView, onToggle
                     : <button key={it.id} type="button" role="menuitem" disabled={it.enabled === false}
                         className="menu-item" onClick={() => runAction(it.id)}>
                         <span className="mi-label">{it.label}</span>
-                        {(railView && it.id === `view.${railView}`) ? <span className="mi-check">✓</span> : null}
+                        {(railView && it.id === `view.${railView}`) ? <span className="mi-check"><Check size={12} /></span> : null}
                       </button>
                 ))}
               </div>
@@ -57,13 +57,13 @@ export default function TitleBar({ t, language, theme, title, railView, onToggle
           {language === "zh" ? "中" : "EN"}
         </button>
         <button type="button" className="ib" aria-label={t("toggle.theme")} onClick={onToggleTheme}>
-          <Icon name={dark ? "moon" : "sun"} size={15} />
+          {dark ? <Moon size={14} /> : <Sun size={14} />}
         </button>
       </div>
       <div className="winctl">
-        <button type="button" aria-label="minimize" onClick={() => window.deepseek?.minimize?.()}>&#9472;</button>
-        <button type="button" aria-label="maximize" onClick={() => window.deepseek?.maximizeToggle?.()}>&#9723;</button>
-        <button type="button" className="close" aria-label="close" onClick={() => window.deepseek?.closeWindow?.()}>&#10005;</button>
+        <button type="button" aria-label="minimize" onClick={() => window.deepseek?.minimize?.()}><Minus size={13} /></button>
+        <button type="button" aria-label="maximize" onClick={() => window.deepseek?.maximizeToggle?.()}><Square size={11} /></button>
+        <button type="button" className="close" aria-label="close" onClick={() => window.deepseek?.closeWindow?.()}><X size={13} /></button>
       </div>
     </header>
   );

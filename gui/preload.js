@@ -53,4 +53,6 @@ contextBridge.exposeInMainWorld("deepseek", {
   removeProject: (root) => ipcRenderer.invoke("projects:remove", root),
   switchProject: (root) => ipcRenderer.invoke("projects:switch", root),
   listSessions: () => ipcRenderer.invoke("sessions:list"),
+  pickProjectFolder: () => ipcRenderer.invoke("projects:pick"),
+  revealProject: (root) => ipcRenderer.invoke("projects:reveal", root),
 });

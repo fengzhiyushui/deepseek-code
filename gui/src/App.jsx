@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useWorkbench } from "./hooks/useWorkbench.js";
 import { useKernel } from "./hooks/useKernel.js";
-import { layoutForWidth } from "./state/layout.js";
 import { makeT } from "./i18n/strings.js";
+import { trafficTone, formatLatency } from "./state/workbench-state.js";
+import { themeLabel, GUI_THEMES } from "./state/themes.js";
 import TitleBar from "./components/TitleBar.jsx";
 import Rail from "./components/v4/Rail.jsx";
 import HomeView from "./components/v4/HomeView.jsx";
@@ -10,29 +11,18 @@ import ChatView from "./components/v4/ChatView.jsx";
 import { ProjectsView, ChangesView, McpView, PluginsView } from "./components/v4/SecondaryViews.jsx";
 import Settings from "./components/Settings/Settings.jsx";
 
-function useViewportLayout() {
-  const [w, setW] = useState(typeof window !== "undefined" ? window.innerWidth : 1440);
-  useEffect(() => {
-    const on = () => setW(window.innerWidth);
-    window.addEventListener("resize", on);
-    return () => window.removeEventListener("resize", on);
-  }, []);
-  return layoutForWidth(w);
-}
+const VERSION = "1.4.6";
 
 export default function App() {
   const [state, dispatch] = useWorkbench();
   const kernel = useKernel(dispatch);
-  const layout = useViewportLayout();
   const t = makeT(state.language);
   const view = state.view;
 
   useEffect(() => { document.documentElement.setAttribute("theme", state.theme); }, [state.theme]);
   useEffect(() => { document.documentElement.lang = state.language; }, [state.language]);
   useEffect(() => { kernel.refreshChanges(); }, [state.changesTick, kernel]);
-  useEffect(() => {
-    if (state.currentProject) kernel.loadSessions().catch(() => {});
-  }, [state.currentProject, kernel]);
+  useEffect(() => { kernel.loadSessions().catch(() => {}); }, [state.currentProject, kernel]);
 
   const setView = useCallback((v) => dispatch({ type: "view_changed", view: v }), [dispatch]);
 
@@ -43,8 +33,16 @@ export default function App() {
         dispatch({ type: "project_switched", root });
         return kernel.loadSessions().catch(() => {});
       })
-      .catch(() => { /* 目录不存在等:静默 */ });
+      .catch(() => { /* 目录不存在等:错误已进 errors,视图保持 */ });
   }, [kernel, dispatch]);
+
+  // 「打开文件夹…」:选目录 → 登记 → 切换。取消则什么都不做。
+  const onOpenFolder = useCallback(async () => {
+    const root = await kernel.pickProjectFolder();
+    if (!root) return;
+    await kernel.addProject(root);
+    onSwitchProject(root);
+  }, [kernel, onSwitchProject]);
 
   const onNewSession = useCallback((root) => {
     if (root && root !== state.currentProject) onSwitchProject(root);
@@ -52,22 +50,58 @@ export default function App() {
     setView("chat");
   }, [state.currentProject, onSwitchProject, dispatch, setView]);
 
-  const actions = {
+  const actions = useMemo(() => ({
     send: (text) => { dispatch({ type: "message_added", message: { role: "user", text } }); kernel.send(text); },
-    approve: (id, d) => kernel.approve(id, d),
+    approve: (id, decision) => kernel.approve(id, decision),
     interrupt: () => kernel.interrupt()
-  };
+  }), [dispatch, kernel]);
+
+  const cycleTheme = useCallback(() => {
+    const ids = GUI_THEMES.map((x) => x.id);
+    const next = ids[(ids.indexOf(state.theme) + 1) % ids.length];
+    dispatch({ type: "theme_changed", theme: next });
+    kernel.setPreferences({ theme: next });
+  }, [state.theme, dispatch, kernel]);
 
   const toggleTheme = useCallback(() => {
     const next = state.theme === "sumi" ? "latte" : "sumi";
     dispatch({ type: "theme_changed", theme: next });
     kernel.setPreferences({ theme: next });
   }, [state.theme, dispatch, kernel]);
+
   const toggleLang = useCallback(() => {
     const next = state.language === "zh" ? "en" : "zh";
     dispatch({ type: "language_changed", language: next });
     kernel.setPreferences({ language: next });
   }, [state.language, dispatch, kernel]);
+
+  // 对话框状态行:一份数据两处复用(首页胶囊 + 会话胶囊)。
+  const statusLine = useMemo(() => ({
+    display: state.statusDisplay,
+    usage: state.usage,
+    status: {
+      branch: state.activeBranchId,
+      checkpoints: (state.checkpoints || []).length,
+      connection: trafficTone(state) === "error" ? "error" : trafficTone(state) === "offline" ? "offline" : trafficTone(state) === "working" ? "working" : "ready",
+      busy: trafficTone(state) === "working",
+      model: state.config?.model,
+      theme: state.theme,
+      themeLabel: `${state.theme} ${themeLabel(state.theme)}`,
+      language: state.language,
+      turnTime: state.usage ? formatLatency(state.usage) : "",
+      turnChanges: (state.changes || []).length
+    },
+    actions: {
+      onCycleForm: (form) => {
+        const next = { ...state.statusDisplay, form };
+        dispatch({ type: "status_display_changed", display: next });
+        kernel.setPreferences({ statusDisplay: next });
+      },
+      onCycleTheme: cycleTheme,
+      onToggleLang: toggleLang
+    }
+  }), [state, dispatch, kernel, cycleTheme, toggleLang]);
+
   const menuActions = {
     "view.home": () => setView("home"),
     "view.settings": () => setView("settings"),
@@ -81,19 +115,30 @@ export default function App() {
       <TitleBar t={t} language={state.language} theme={state.theme} title="Inkstone"
         railView={view} onToggleTheme={toggleTheme} onToggleLang={toggleLang} menuActions={menuActions} />
       <div className="shell">
-        <Rail t={t} state={state} kernel={kernel} setView={setView}
-          onSwitchProject={onSwitchProject} onNewSession={onNewSession} />
+        <Rail t={t} state={state} version={VERSION} setView={setView}
+          onSwitchProject={onSwitchProject} onNewSession={onNewSession} onOpenFolder={onOpenFolder} />
         <main className="pane">
-          {view === "home" && <HomeView t={t} state={state} actions={actions} setView={setView} onSwitchProject={onSwitchProject} />}
-          {view === "chat" && <ChatView t={t} state={state} actions={actions} kernel={kernel} metrics={state.metrics} />}
-          {view === "projects" && <ProjectsView t={t} state={state} onSwitchProject={onSwitchProject} onRemoveProject={(root) => kernel.removeProject(root)} />}
-          {view === "changes" && <ChangesView t={t} state={state} theme={state.theme}
-            onOpenChange={(id, path) => kernel.openChangeDiff(id, path)}
-            onDismissDiff={() => kernel.dismissChangeDiff()}
-            onReveal={(p, line) => kernel.revealInEditor(p, line)} />}
+          {view === "home" && (
+            <HomeView t={t} state={state} actions={actions} setView={setView}
+              onSwitchProject={onSwitchProject} statusLine={statusLine} />
+          )}
+          {view === "chat" && (
+            <ChatView t={t} state={state} actions={actions} kernel={kernel} setView={setView} statusLine={statusLine} />
+          )}
+          {view === "projects" && (
+            <ProjectsView t={t} state={state} onSwitchProject={onSwitchProject} onOpenFolder={onOpenFolder}
+              onRemoveProject={(root) => kernel.removeProject(root)}
+              onReveal={(root) => kernel.revealProject(root)} />
+          )}
+          {view === "changes" && (
+            <ChangesView t={t} state={state} theme={state.theme}
+              onOpenChange={(id, path) => kernel.openChangeDiff(id, path)}
+              onDismissDiff={() => kernel.dismissChangeDiff()}
+              onReveal={(p, line) => kernel.revealInEditor(p, line)} />
+          )}
           {view === "mcp" && <McpView t={t} />}
           {view === "plugins" && <PluginsView t={t} />}
-          {view === "settings" && <Settings t={t} state={state} kernel={kernel} dispatch={dispatch} />}
+          {view === "settings" && <Settings t={t} state={state} kernel={kernel} dispatch={dispatch} version={VERSION} />}
         </main>
       </div>
     </div>
