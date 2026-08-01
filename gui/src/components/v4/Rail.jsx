@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   Home, FolderKanban, GitCompare, Network, Puzzle, Plus, ChevronDown, ChevronRight,
-  FolderPlus, MessageSquare, Diamond, Settings
+  FolderPlus, MessageSquare, Diamond, Settings, PanelLeftClose, PanelLeftOpen
 } from "lucide-react";
 import { filterProjectTree, groupSessionsByDate, sessionStamp } from "../../state/session-groups.js";
 
@@ -10,15 +10,18 @@ import { filterProjectTree, groupSessionsByDate, sessionStamp } from "../../stat
 //   中 = 每个项目一个独立分区,分区体内挂该项目自己的会话(按今天/昨天/本周/更早分段)
 //   下 = 独立对话 + 页脚(用户 + 设置入口)
 // 图标全部 lucide;搜索同时过滤项目与会话。
+// 折叠态(.rail.collapsed,偏好 railCollapsed 持久化):缩成 52px 图标轨,
+// 仅保留品牌标 + 功能区图标 + 页脚(展开/设置),文本与分区体全部隐藏。
 
 export default function Rail({
-  t, state, version, setView, onSwitchProject, onNewSession, onOpenFolder
+  t, state, version, setView, onSwitchProject, onNewSession, onOpenFolder,
+  collapsed = false, onToggleCollapse
 }) {
   const view = state.view;
   const projects = state.projects || [];
   const currentRoot = state.currentProject;
   const [newMenu, setNewMenu] = useState(false);
-  const [collapsed, setCollapsed] = useState({});   // 分区折叠(projects / standalone)
+  const [collapsedSections, setCollapsedSections] = useState({});   // 分区折叠(projects / standalone)
   const [closedProject, setClosedProject] = useState({}); // 项目分区折叠(默认展开)
   const [query, setQuery] = useState("");
   const now = Date.now();
@@ -47,9 +50,9 @@ export default function Rail({
   const openSession = (root) => { if (root && root !== currentRoot) onSwitchProject(root); else setView("chat"); };
 
   const SectionHead = ({ id, label, count, onAdd, addTitle }) => (
-    <div className={`sec-head ${collapsed[id] ? "closed" : ""}`}
-      onClick={() => setCollapsed((p) => ({ ...p, [id]: !p[id] }))}>
-      <span className="chev">{collapsed[id] ? <ChevronRight size={11} /> : <ChevronDown size={11} />}</span>
+    <div className={`sec-head ${collapsedSections[id] ? "closed" : ""}`}
+      onClick={() => setCollapsedSections((p) => ({ ...p, [id]: !p[id] }))}>
+      <span className="chev">{collapsedSections[id] ? <ChevronRight size={11} /> : <ChevronDown size={11} />}</span>
       {label}
       {onAdd
         ? <button type="button" className="add" title={addTitle} onClick={(e) => { e.stopPropagation(); onAdd(); }}><FolderPlus size={13} /></button>
@@ -58,7 +61,7 @@ export default function Rail({
   );
 
   return (
-    <aside className="rail">
+    <aside className={`rail ${collapsed ? "collapsed" : ""}`}>
       <div className="rail-brand">
         <span className="lg"><Diamond size={14} /></span>
         <span className="nm">Inkstone</span>
@@ -115,7 +118,7 @@ export default function Rail({
 
       <div className="rail-scroll">
         <SectionHead id="projects" label={t("rail.projects")} onAdd={onOpenFolder} addTitle={t("rail.openFolder")} />
-        <div className={`sec-body ${collapsed.projects ? "closed" : ""}`}>
+        <div className={`sec-body ${collapsedSections.projects ? "closed" : ""}`}>
           {tree.length === 0 && (
             <div className="proj-empty">{query.trim() ? t("rail.noMatch") : t("rail.noProjects")}</div>
           )}
@@ -159,7 +162,7 @@ export default function Rail({
         </div>
 
         <SectionHead id="standalone" label={t("rail.standalone")} count={standalone.length} />
-        <div className={`sec-body ${collapsed.standalone ? "closed" : ""}`}>
+        <div className={`sec-body ${collapsedSections.standalone ? "closed" : ""}`}>
           {standalone.length === 0 && <div className="proj-empty">{t("rail.noStandalone")}</div>}
           {standalone.slice(0, 8).map((s) => (
             <button type="button" key={s.id} className="r-item" onClick={() => setView("chat")}>
@@ -180,6 +183,12 @@ export default function Rail({
           <span className="avatar" style={{ width: 22, height: 22 }}><FolderKanban size={12} /></span>
           <span className="nmx">{state.currentProject ? state.currentProject.split(/[\\/]/).filter(Boolean).pop() : t("rail.noProjects")}</span>
         </span>
+        <button type="button" className={`iconbtn rail-toggle ${collapsed ? "on" : ""}`}
+          title={collapsed ? t("rail.expand") : t("rail.collapse")}
+          aria-label={collapsed ? t("rail.expand") : t("rail.collapse")}
+          onClick={onToggleCollapse}>
+          {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+        </button>
         <button type="button" className={`iconbtn ${view === "settings" ? "on" : ""}`}
           title={t("rail.settings")} onClick={() => setView("settings")}><Settings size={15} /></button>
       </div>

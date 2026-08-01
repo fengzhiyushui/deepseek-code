@@ -24,6 +24,7 @@ export default function HomeView({ t, state, actions, setView, onSwitchProject, 
   const [draft, setDraft] = useState("");
   const now = Date.now();
   const recent = recentSessions(state.projects, state.sessions, 3);
+  const busy = Boolean(state.runtime && ["acting", "thinking", "verifying", "repairing"].includes(state.runtime.current));
 
   const send = (text) => {
     setDraft("");
@@ -42,12 +43,12 @@ export default function HomeView({ t, state, actions, setView, onSwitchProject, 
         <div className="home-in">
           <div className="hello">
             <span className="lg"><Diamond size={22} /></span>
-            {t(greetingKey(new Date(now).getHours()))}
+            <span className="hello-txt">{t(greetingKey(new Date(now).getHours()))}</span>
           </div>
           <p className="hint">{t("home.tagline")}</p>
 
           <Composer t={t} flat draft={draft} setDraft={setDraft} onSend={send}
-            onInterrupt={actions.interrupt} busy={Boolean(state.runtime && state.runtime.busy)}
+            onInterrupt={actions.interrupt} busy={busy}
             model={state.config?.model} statusLine={statusLine} />
 
           <div className="quick">

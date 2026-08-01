@@ -16,3 +16,7 @@ export function themeLabel(theme) {
   const found = GUI_THEMES.find((x) => x.id === theme);
   return found ? found.name : "墨";
 }
+
+export function isLightTheme(theme) {
+  return GUI_THEMES.find((x) => x.id === theme)?.group === "light";
+}

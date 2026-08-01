@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  SlidersHorizontal, Palette, Gauge, KeyRound, Cpu, ShieldCheck, Workflow, Layers, Sparkles, Info
+  SlidersHorizontal, Palette, Gauge, KeyRound, Cpu, ShieldCheck, Workflow, Layers, Sparkles, Info,
+  ChevronLeft, X
 } from "lucide-react";
 import { SETTINGS_GROUPS, getByPath, applyFieldEdit, sanitizeConfigPatch } from "../../state/settings-schema.js";
 import ModelAccess from "./ModelAccess.jsx";
@@ -92,7 +93,7 @@ function About({ t, settings, version }) {
   );
 }
 
-export default function Settings({ t, state, kernel, dispatch, version }) {
+export default function Settings({ t, state, kernel, dispatch, version, onClose }) {
   const [active, setActive] = useState("general");
   const [settings, setSettings] = useState(null);
   const [draft, setDraft] = useState({});
@@ -127,6 +128,15 @@ export default function Settings({ t, state, kernel, dispatch, version }) {
 
   return (
     <section className="view on">
+      <header className="pane-head">
+        <button type="button" className="btn ghost settings-back" onClick={onClose}>
+          <ChevronLeft size={14} /> {t("settings.back")}
+        </button>
+        <div className="spacer" />
+        <button type="button" className="iconbtn" title={t("settings.close")} aria-label={t("settings.close")} onClick={onClose}>
+          <X size={15} />
+        </button>
+      </header>
       <div className="settings">
         <aside className="s-nav" aria-label={t("rail.settings")}>
           <div className="sn-h">{t("rail.settings")}</div>

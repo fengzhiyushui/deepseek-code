@@ -14,6 +14,7 @@ test("createInitialState defines workbench defaults", () => {
   assert.equal(initial.forceRewind, false);
   assert.equal(initial.railMode, "chat");
   assert.equal(initial.contextCollapsed, false);
+  assert.equal(initial.railCollapsed, false);
   assert.equal(initial.inspectorMode, "activity");
   assert.equal(initial.theme, "sumi");
   assert.equal(initial.emptyStateVisible, true);
@@ -153,6 +154,7 @@ test("preferences_loaded hydrates only safe presentation fields", () => {
       theme: "day",
       railMode: "timeline",
       contextCollapsed: true,
+      railCollapsed: true,
       messages: [{ role: "user", content: "ignored" }]
     }
   });
@@ -160,7 +162,23 @@ test("preferences_loaded hydrates only safe presentation fields", () => {
   assert.equal(current.theme, "latte");
   assert.equal(current.railMode, "timeline");
   assert.equal(current.contextCollapsed, true);
+  assert.equal(current.railCollapsed, true);
   assert.deepEqual(current.messages, []);
+});
+
+test("rail_collapsed_changed toggles the sidebar and persists via preferences round-trip", () => {
+  const initial = state.createInitialState();
+  const folded = state.applyWorkbenchAction(initial, { type: "rail_collapsed_changed", collapsed: true });
+  assert.equal(folded.railCollapsed, true);
+  assert.notEqual(folded, initial);
+  const restored = state.applyWorkbenchAction(folded, {
+    type: "preferences_loaded",
+    preferences: { railCollapsed: false }
+  });
+  assert.equal(restored.railCollapsed, false);
+  const nonBoolean = state.applyWorkbenchAction(initial, { type: "rail_collapsed_changed", collapsed: "yes" });
+  assert.equal(nonBoolean.railCollapsed, true); // Boolean("yes") === true
+  assert.equal(state.applyWorkbenchAction(initial, { type: "rail_collapsed_changed", collapsed: null }).railCollapsed, false);
 });
 
 test("inspector_closed returns to activity without clearing selected checkpoint", () => {

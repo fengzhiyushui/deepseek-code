@@ -87,6 +87,7 @@ const GUI_PREFERENCE_DEFAULTS = Object.freeze({
   language: "zh",
   railMode: "chat",
   contextCollapsed: false,
+  railCollapsed: false,
   statusDisplay: null
 });
 
@@ -150,6 +151,7 @@ function normalizeGuiPreferences(value = {}) {
     language: input.language === "en" ? "en" : "zh",
     railMode: GUI_RAIL_MODES.has(input.railMode) ? input.railMode : "chat",
     contextCollapsed: typeof input.contextCollapsed === "boolean" ? input.contextCollapsed : false,
+    railCollapsed: typeof input.railCollapsed === "boolean" ? input.railCollapsed : false,
     statusDisplay: input.statusDisplay || null // 不透明透传;渲染侧 normalizeStatusDisplay 补默认
   };
 }

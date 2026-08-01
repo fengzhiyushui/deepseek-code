@@ -52,12 +52,12 @@ async function createWindow() {
     ".deepseek-code", "changes", "20990101000000-smoke0.json"
   );
   if (smoke) {
-    // Deterministic first entry for the SCM changes capture (2099 sorts first, removed on quit).
+    // Deterministic first entry for the SCM changes capture (unique id, removed on quit).
     try {
       fs.mkdirSync(path.dirname(seededChangePath), { recursive: true });
       fs.writeFileSync(seededChangePath, JSON.stringify({
         id: "20990101000000-smoke0",
-        time: "2099-01-01T00:00:00.000Z",
+        time: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
         prompt: "smoke: sample agent change",
         diff: "--- a/src/smoke-sample.js\n+++ b/src/smoke-sample.js\n@@ -1,2 +1,3 @@\n line1\n-old\n+new\n+added\n",
         summary: [{ path: "src/smoke-sample.js", status: "modify" }],
@@ -143,11 +143,16 @@ async function createWindow() {
         `);
         // Best-effort visual QA (§11):七视图逐个取景。capturePage 在无显示表面的 headless
         // 环境下会间歇失败,故带退避重试;失败只记录,不影响 READY 判定。
+        // v1.4.7:截图阶段加 8s 总预算——并行跑 e2e 时 capturePage 偶发超时,逐张重试
+        // 会耗尽进程预算,导致 READY 迟迟不打印而被测试的 kill 定时器误杀。
         try {
           const dir = path.join(__dirname, "__screenshots__");
           await fs.promises.mkdir(dir, { recursive: true });
+          const shotDeadline = Date.now() + 8000;
           const shoot = async (name) => {
+            if (Date.now() > shotDeadline) { console.log("SMOKE_SCREENSHOT_SKIPPED:" + name + "(budget)"); return false; }
             for (let attempt = 0; attempt < 5; attempt += 1) {
+              if (Date.now() > shotDeadline) { console.log("SMOKE_SCREENSHOT_SKIPPED:" + name + "(budget)"); return false; }
               try {
                 const img = await win.webContents.capturePage();
                 if (img && img.getSize().width > 0) {
@@ -155,7 +160,7 @@ async function createWindow() {
                   return true;
                 }
               } catch { /* 下一轮重试 */ }
-              await new Promise((r) => setTimeout(r, 500));
+              await new Promise((r) => setTimeout(r, 350));
             }
             console.log("SMOKE_SCREENSHOT_SKIPPED:" + name);
             return false;
@@ -171,10 +176,10 @@ async function createWindow() {
           await click(".rail-new"); await shoot("shell-chat");            // 会话
           await click(".rail-fn .fn-item:nth-child(3)"); await shoot("shell-changes");
           await click(".rail-fn .fn-item:nth-child(2)"); await shoot("shell-projects");
-          await click(".rail-foot .iconbtn"); await shoot("shell-settings");
+          await click(".rail-foot .iconbtn:last-child"); await shoot("shell-settings");
           await click(".s-nav .sn-item:nth-child(3)"); await shoot("shell-appearance");
           await click(".s-nav .sn-item:nth-child(4)"); await shoot("shell-status-display");
-          await click(".rail-fn .fn-item:nth-child(1)");                  // 回首页再截窄屏
+          await click(".settings-back");                                  // 回首页再截窄屏
           win.setSize(800, 720);
           await new Promise((r) => setTimeout(r, 500));
           await shoot("shell-narrow");

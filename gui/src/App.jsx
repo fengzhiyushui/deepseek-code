@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkbench } from "./hooks/useWorkbench.js";
 import { useKernel } from "./hooks/useKernel.js";
 import { makeT } from "./i18n/strings.js";
@@ -24,7 +24,15 @@ export default function App() {
   useEffect(() => { kernel.refreshChanges(); }, [state.changesTick, kernel]);
   useEffect(() => { kernel.loadSessions().catch(() => {}); }, [state.currentProject, kernel]);
 
-  const setView = useCallback((v) => dispatch({ type: "view_changed", view: v }), [dispatch]);
+  // 设置页全窗打开时记住来源视图,关闭后回到原处。
+  const returnRef = useRef("home");
+  const setView = useCallback((v) => {
+    if (v === "settings" && state.view !== "settings") returnRef.current = state.view;
+    dispatch({ type: "view_changed", view: v });
+  }, [dispatch, state.view]);
+  const closeSettings = useCallback(() => {
+    setView(returnRef.current && returnRef.current !== "settings" ? returnRef.current : "home");
+  }, [setView]);
 
   const onSwitchProject = useCallback((root) => {
     if (!root) return;
@@ -75,6 +83,29 @@ export default function App() {
     kernel.setPreferences({ language: next });
   }, [state.language, dispatch, kernel]);
 
+  const toggleRail = useCallback(() => {
+    const next = !state.railCollapsed;
+    dispatch({ type: "rail_collapsed_changed", collapsed: next });
+    kernel.setPreferences({ railCollapsed: next });
+  }, [state.railCollapsed, dispatch, kernel]);
+
+  // 全局快捷键:Ctrl/⌘+N 新建会话(侧栏按钮的 kbd 提示由此兑现)、Ctrl/⌘+B 收放侧栏。
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === "n") {
+        e.preventDefault();
+        onNewSession(state.currentProject);
+      } else if (k === "b") {
+        e.preventDefault();
+        toggleRail();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onNewSession, toggleRail, state.currentProject]);
+
   // 对话框状态行:一份数据两处复用(首页胶囊 + 会话胶囊)。
   const statusLine = useMemo(() => ({
     display: state.statusDisplay,
@@ -114,9 +145,12 @@ export default function App() {
     <div className="ide">
       <TitleBar t={t} language={state.language} theme={state.theme} title="Inkstone"
         railView={view} onToggleTheme={toggleTheme} onToggleLang={toggleLang} menuActions={menuActions} />
-      <div className="shell">
-        <Rail t={t} state={state} version={VERSION} setView={setView}
-          onSwitchProject={onSwitchProject} onNewSession={onNewSession} onOpenFolder={onOpenFolder} />
+      <div className={`shell${state.railCollapsed ? " rail-off" : ""}${view === "settings" ? " shell-settings" : ""}`}>
+        {view !== "settings" && (
+          <Rail t={t} state={state} version={VERSION} setView={setView}
+            collapsed={state.railCollapsed} onToggleCollapse={toggleRail}
+            onSwitchProject={onSwitchProject} onNewSession={onNewSession} onOpenFolder={onOpenFolder} />
+        )}
         <main className="pane">
           {view === "home" && (
             <HomeView t={t} state={state} actions={actions} setView={setView}
@@ -138,7 +172,7 @@ export default function App() {
           )}
           {view === "mcp" && <McpView t={t} />}
           {view === "plugins" && <PluginsView t={t} />}
-          {view === "settings" && <Settings t={t} state={state} kernel={kernel} dispatch={dispatch} version={VERSION} />}
+          {view === "settings" && <Settings t={t} state={state} kernel={kernel} dispatch={dispatch} version={VERSION} onClose={closeSettings} />}
         </main>
       </div>
     </div>

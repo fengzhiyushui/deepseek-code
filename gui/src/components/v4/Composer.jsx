@@ -27,7 +27,7 @@ export default function Composer({
     <div className="cz" style={flat ? { padding: 0 } : undefined}>
       <div className="cz-in">
         <textarea ref={ref} className="cz-input" rows={2} placeholder={placeholder || t("chat.placeholder")}
-          value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={onKey} />
+          autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={onKey} />
         <div className="cz-row">
           <button type="button" className="cz-tool" title={t("chat.attach")} onClick={() => insert("@")}>
             <Paperclip size={14} />

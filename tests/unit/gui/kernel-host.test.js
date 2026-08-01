@@ -270,6 +270,7 @@ test("gui preferences normalize invalid values to safe defaults", () => {
     theme: "neon",
     railMode: "unknown",
     contextCollapsed: "yes",
+    railCollapsed: "yes",
     transcript: "must not persist"
   }), {
     schema: 1,
@@ -277,6 +278,7 @@ test("gui preferences normalize invalid values to safe defaults", () => {
     language: "zh",
     railMode: "chat",
     contextCollapsed: false,
+    railCollapsed: false,
     statusDisplay: null
   });
 });
@@ -290,13 +292,14 @@ test("gui preferences load missing corrupt and save sanitized values", async () 
   const root = await mkdtemp(path.join(os.tmpdir(), "dsc-gui-pref-"));
   assert.equal((await loadGuiPreferences(root)).theme, "sumi");
 
-  await saveGuiPreferences(root, { theme: "day", railMode: "branches", contextCollapsed: true, secret: "x" });
+  await saveGuiPreferences(root, { theme: "day", railMode: "branches", contextCollapsed: true, railCollapsed: true, secret: "x" });
   assert.deepEqual(await loadGuiPreferences(root), {
     schema: 1,
     theme: "latte",
     language: "zh",
     railMode: "branches",
     contextCollapsed: true,
+    railCollapsed: true,
     statusDisplay: null
   });
 

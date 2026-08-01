@@ -5,6 +5,14 @@ import {
 } from "lucide-react";
 import ChangeDiffView from "../ChangeDiffView.jsx";
 
+function formatChangeTime(time) {
+  if (!time) return "";
+  const d = new Date(time);
+  if (Number.isNaN(d.getTime())) return String(time);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 // v1.4 次级视图(设计稿 v4 视图 4/5/6/7)。
 // 概念预览(MCP / 插件)只保留设计稿的版式与说明,不虚构服务条目 —— 没有数据就给空态。
 
@@ -73,7 +81,7 @@ export function ChangesView({ t, state, theme, onOpenChange, onDismissDiff, onRe
   const openPath = openDiff && openDiff.file ? openDiff.file.path : null;
 
   const rows = changes.map((c) => ({
-    change: c,
+    change: { ...c, time: formatChangeTime(c.time) },
     files: (c.files || []).map((f) => (typeof f === "string" ? { path: f } : f))
   }));
   const totalFiles = rows.reduce((n, r) => n + r.files.length, 0);

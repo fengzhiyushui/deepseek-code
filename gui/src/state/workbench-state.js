@@ -37,6 +37,7 @@ export function createInitialState() {
     railMode: "chat",
     railView: "explorer",
     contextCollapsed: false,
+    railCollapsed: false,
     inspectorMode: "activity",
     theme: "sumi",
     language: "zh",
@@ -173,6 +174,9 @@ export function applyWorkbenchAction(state, action) {
   if (action.type === "context_collapsed_changed") {
     return copy(current, { contextCollapsed: Boolean(action.collapsed) });
   }
+  if (action.type === "rail_collapsed_changed") {
+    return copy(current, { railCollapsed: Boolean(action.collapsed) });
+  }
   if (action.type === "preferences_loaded") {
     var prefs = action.preferences || {};
     return copy(current, {
@@ -180,7 +184,8 @@ export function applyWorkbenchAction(state, action) {
       language: normalize(prefs.language, LANGUAGES, current.language),
       railMode: normalize(prefs.railMode, RAIL_MODES, current.railMode),
       statusDisplay: normalizeStatusDisplay(prefs.statusDisplay, current.statusDisplay),
-      contextCollapsed: typeof prefs.contextCollapsed === "boolean" ? prefs.contextCollapsed : current.contextCollapsed
+      contextCollapsed: typeof prefs.contextCollapsed === "boolean" ? prefs.contextCollapsed : current.contextCollapsed,
+      railCollapsed: typeof prefs.railCollapsed === "boolean" ? prefs.railCollapsed : current.railCollapsed
     });
   }
   if (action.type === "inspector_closed") {

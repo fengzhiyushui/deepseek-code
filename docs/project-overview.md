@@ -213,7 +213,7 @@ ToolCall
 .deepseek-code/
   config.json                  本地配置(含 API Key)
   gui-api-profiles.json        API 接入列表(GUI/TUI 共享,文件名历史遗留)
-  gui-preferences.json         GUI 偏好(语言等)
+  gui-preferences.json         GUI 偏好(语言/主题/状态显示/railCollapsed 等)
   tui-prefs.json               TUI 偏好(/lang 等)
   changes/<id>.json            变更记录
   rollbacks.jsonl              回滚记录
@@ -258,7 +258,7 @@ src/
   apps/           kernel-options · api-profiles(GUI/TUI 共享 API 列表)· model-catalog · event-contract(三端共享事件展示契约,见 §16)· cli/(render-events · kernel-runner)· tui/(D-5 行内滚动流 TUI 十模块,见 §16)
   shared/         id · time · event-bus
   (顶层)         cli.js · config.js · context.js · git.js · patch.js · changes.js · provider.js · search.js · theme.js · tui.js(D-5 薄入口)
-gui/              Electron:main.js · preload.js · kernel-host.js(+ 文件桥 listTree/readFile)· pty-host.js(node-pty)· src/(React+Vite 手写 VS Code 风格渲染层:components/hooks/state/i18n,Monaco 可编辑(`Ctrl/⌘+S` 经 editService)+ xterm 终端,无第三方 UI 套件,中英双语)· renderer/*(旧原生,休眠回退)· mockups/(设计基准)· vite.renderer.config.mjs
+gui/              Electron:main.js · preload.js · kernel-host.js(+ 文件桥 listTree/readFile)· pty-host.js(node-pty)· src/(React+Vite v1.4 会话优先渲染层:components/v4/ + hooks/state/i18n,lucide-react 图标,Monaco 只读 diff + xterm 终端,无第三方 UI 套件,中英双语)· styles/(tokens.css v4 十套主题 + shell.css)· renderer-dist/(构建产物,gitignore)· vite.renderer.config.mjs
 docs/             specs/ · plans/ · CHANGELOG.md · README.md(文档中心)
 tests/ + test/    单元 / 集成 / e2e
 preview-deepseek-code/ · DeepSeekCodeIDE.jsx   前端原型(V3 Phase D,未接入运行时)
@@ -425,16 +425,17 @@ C5 的**同进程**编排续跑之上,增加**跨进程**恢复:崩溃/重启后
 - 5 边界钉死:孤儿 blocked / 不存 raw options / 版本指纹门 / approval 归属校验 / 预算续扣。
 - 组件:[`src/core/orchestration/orchestration-recovery-contract.js`](../src/core/orchestration/orchestration-recovery-contract.js)(纯契约:serialize/deserialize/validate/fingerprint/ownership 门)· [`src/core/recovery/orchestration-persistence.js`](../src/core/recovery/orchestration-persistence.js)(原子写 + 隔离);接线 `orchestrator`(`resumeDurable`/`serializeState`)· `dispatch-loop`(`__orchestration` 标记)· `recovery-service`(扫描 + 孤儿 blocked)· `cost-budget`(续扣种子)· `index.js`(共享 store + 注入 + durable approve 路由)。
 
-## 15. 前端 GUI(V3 Phase D · 手写 VS Code 风格 + 双语)
+## 15. 前端 GUI(v1.4.0 会话优先 · v4 tokens + lucide + 双语)
 
-Electron 桌面端(`gui/`),React + Vite 渲染层,**原创手写 VS Code 风格 CSS 设计系统 + 内联 SVG 图标**(不引 Semi 等成品 UI 套件;第三方库只用引擎 Monaco / xterm / node-pty)。**双语 zh/en 默认中文**,经 `gui-preferences.json` 持久化。**kernel(`src/`)零改动**:GUI 只经 `gui/kernel-host.js`(CommonJS,动态 import 复用 `src` 工具)+ preload IPC 白名单接内核。
+Electron 桌面端(`gui/`),React + Vite 渲染层,**v1.4 会话优先布局**:左侧 Rail(功能区/项目分区/独立对话)可收放为 272px⇄52px 图标轨(`Ctrl/⌘+B`,偏好 `railCollapsed` 持久化),主区七视图(首页/会话/项目/改动/MCP/插件/设置)。**原创 v4 CSS 设计系统 + lucide-react 图标**(界面零 emoji;第三方库只用引擎 Monaco / xterm / node-pty)。**双语 zh/en 默认中文**,经 `gui-preferences.json` 持久化。**kernel(`src/`)零改动**:GUI 只经 `gui/kernel-host.js`(CommonJS,动态 import 复用 `src` 工具)+ preload IPC 白名单接内核。
 
-- **外壳与状态**:四栏 IDE(TitleBar / ActivityBar / Explorer / EditorGroup / AgentPanel / StatusBar)+ 无原生标题栏(`titleBarStyle:"hidden"` + `Menu.setApplicationMenu(null)`,自绘窗口控件经 IPC)。状态是纯 reducer `workbench-state.js`(`useReducer`,不可变返回,node:test 全测);取数/派生/过滤/归一全抽纯函数。
-- **文件与编辑(D-2/D-3)**:真文件树(`listTree`/`readFile` 复用 `path-safety.js` realpath 边界,拒目录/超大/二进制/symlink 逃逸)+ Monaco 编辑器(本地 worker 离线,不走 CDN)。**D-3 起可编辑**:改动标脏,`Ctrl/⌘+S` 经 `kernel-host.writeFile` = 整文件 unified diff → **独立 `editService.apply`**(事务 + 回滚 + change 记录 + workspace 边界,不复用内核那只带 recoveryJournal 的实例,agent 回合不受影响);`DiffView` 看原↔改。真终端 `node-pty` + xterm(N-API 预编译免重编译)。
+- **外壳与状态**:自绘标题栏(菜单/语言/主题/窗口控件经 IPC)+ 会话优先 Rail;`Ctrl/⌘+N` 新建会话、`Ctrl/⌘+B` 收放侧栏。状态是纯 reducer `workbench-state.js`(`useReducer`,不可变返回,node:test 全测);取数/派生/过滤/归一全抽纯函数。
+- **文件与编辑(D-2/D-3)**:真文件树(`listTree`/`readFile` 复用 `path-safety.js` realpath 边界,拒目录/超大/二进制/symlink 逃逸)+ Monaco 编辑器(本地 worker 离线,不走 CDN)。**D-3 起可编辑**:改动标脏,`Ctrl/⌘+S` 经 `kernel-host.writeFile` = 整文件 unified diff → **独立 `editService.apply`**(事务 + 回滚 + change 记录 + workspace 边界,不复用内核那只带 recoveryJournal 的实例,agent 回合不受影响);`DiffView`(v1.4.7 自历史恢复)与 `ChangeDiffView` 看原↔改。真终端 `node-pty` + xterm(N-API 预编译免重编译)。
 - **设置页(D-3,活动栏齿轮 → 主区)**:七组二级菜单(通用/模型接入/运行护栏/多智能体/语义上下文/经验与恢复/关于)。`settings-schema.js` 纯定义字段 + 归一;config 表单整段回写 `configureProject`。**模型接入 = API 列表管理**(增/删/改/激活,经 `src/apps/api-profiles.js`(D-5 起 GUI/TUI 共享,kernel-host 动态 import)原子存 `.deepseek-code/`;激活写 `config.json` 供内核读)+ **模型获取**(`GET {baseUrl}/models`,不设默认、失败报错)+ 连接测试。
 - **改动跟踪(D-4,源代码管理视图内「AGENT 改动」分区)**:看 agent(及 GUI 手动保存)改了哪些文件/位置 → 点文件行看该次改动「修改前 vs 修改后」→ 从对比里跳编辑器对应行。数据经**只读桥** `changes:list` / `changes:describe`(`kernel-host` 动态 import 复用 `src/edits/change-store.js` 的 `list`/`describe` + `src/patch.js` 的 `parseUnifiedDiff`,**kernel 零改动**):列表**主进程瘦身**(剥 `before/after` 与 diff 全文,只回 `id/time/prompt/rolledBack` + 每文件 `added/removed/hunkStarts`);`describe` 单文件切片才回 `before/after` 全文(**方案 C**:记录里 `captureChangePlan`/`finalizeChange` 已持久化前后全文,直喂 `DiffView` 的 Monaco DiffEditor,零反推、时点精确)。来源标签(prompt 前缀 `"GUI edit "` → 手动,否则 agent)、已回滚标(读 `.deepseek-code/rollbacks.jsonl`)。`ChangeDiffView` 头部 hunk chips(`@@ 12`)+「跳到编辑器」→ `openFile` + `revealLineInCenter`(行号 clamp,越界不崩);Agent 面板 diff 卡片带 `change_id` 可点开同一对比。实时刷新:reducer 收 `file:diff_applied`/`file:rollback_applied` 自增 `changesTick` 触发重拉(历史为底、`change_id` 对齐)。**并修**:`file:diff_applied` 事件真实字段是 `{change_id, summary, files}`,旧派生读不存在的 `e.path/e.added` 使卡片恒显空路径 +0−0,已改。
 - **安全不变量**:**API Key 绝不回渲染层明文**——只回 `hasKey` / 掩码(`sk-…abcd`);明文仅落盘 `.deepseek-code/`(随仓忽略)。保存经 `editService`(非裸 fs 写)且过 workspace 边界。改动跟踪对 `changes/` 与 `rollbacks.jsonl` 只读且列表不回大文本。GUI 进程 `nodeIntegration:false` + `contextIsolation:true` + `sandbox:true` + IPC 白名单(见 §8)。
 - **测试策略**:纯逻辑(reducer / `settings-schema` / `file-filter` / `menu-model` / `panels-derive` / `save-diff` / `api-profiles` / `changes-derive` / `kernel-host` 桥与 `writeFile`/`listChanges`/`describeChange`)全 node:test;React 组件 / Monaco / 真切换走 `vite build` + **门控 Electron smoke**(装 gui deps 才跑,硬断言外壳渲染;设置页 + **SCM 改动分区与前后对比**为截图留档、未渲染记 `SKIPPED` 日志不判红),无 gui deps 时优雅 skip,核心 `npm test` 不受影响。**注**:IPC 频道注册属主进程接线,单测不覆盖,靠门控 smoke 把关——核截图与 `SKIPPED` 日志(D-4 即由 smoke 逮出 `changes:list` 漏注册)。
+- **v1.4.7 收口**:Rail 分区折叠改引用 `collapsedSections`、折叠态页脚适配 52px 轨;HomeView busy 判定与 ChatView 对齐;TitleBar 明暗图标按 `themes.js` group 判定;DiffView 恢复 + Ctrl+N;**设置页全窗化**(不渲染 Rail,顶部返回/关闭按钮,返回原视图)+ **窄窗口 Rail 不再消失**(900px 以下强制 52px 图标轨);renderer build / Electron 冒烟加固;mimo-v2.5 截图复核 8 视图全绿(修复 smoke 设置选择器、窄屏 rail-off 空列、改动时间格式化);全量回归 1012 单测 + Electron 冒烟通过。
 
 ## 16. 终端 TUI(V3 Phase D-5 · 行内滚动流 agent 会话)
 
@@ -449,5 +450,3 @@ Electron 桌面端(`gui/`),React + Vite 渲染层,**原创手写 VS Code 风格 
 ### 16.1 三端共享事件展示契约(D-G4)
 
 `src/apps/event-contract.js` 的 `describeEvent(event)` 是**内核事件 → 展示语义**的唯一映射源(明确**非** core 的事件生产契约,后者由 `src/sessions/event-types.js` 负责),输出归一化描述符 `{ kind, sourceType, severity, quiet, fields }`:`kind` 为展示类别(编排类带 `orchestration-` 前缀)、`sourceType` 保原始 `type` 供 `other` 忠实回退、`quiet` 是默认可见性提示(非丢弃)、`fields` 按 kind 区分且缺失一律 `null`。三端渲染器(CLI `render-events`、TUI `event-cards`、GUI `agent-cards`)均降为薄适配层,只读描述符字段、各自决定措辞/颜色/i18n——所有 `call?.name || tool?.name`、`change_id || record?.id`、`files ?? summary` 的防御式读法收敛一处。CLI 由此补齐此前缺失的多 agent(orchestration/experience)摘要;TUI `/recovery` 补 `clear` 与 CLI 平齐。**边界**:纯函数、任意输入不抛错、`src/core`/`src/index.js` 零改动;休眠 UMD 渲染层 `gui/renderer/` 未纳入契约(不消费编排事件,列后续项)。
-
-

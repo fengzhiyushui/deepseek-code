@@ -3,7 +3,11 @@
   body { overflow: hidden; }
 
   /* .ide 是 titlebar + 1fr 两行栅格;壳层填满第二行即可(不能写 100vh,否则底部被裁) */
-  .shell { display: grid; grid-template-columns: 272px 1fr; grid-template-rows: 1fr; height: 100%; min-height: 0; }
+  .shell { display: grid; grid-template-columns: 272px 1fr; grid-template-rows: 1fr; height: 100%; min-height: 0;
+    transition: grid-template-columns .24s cubic-bezier(.4,0,.2,1); }
+  /* 侧栏收起(偏好 railCollapsed):272px → 52px 图标轨,主区随之让位 */
+  .shell.rail-off { grid-template-columns: 52px 1fr; }
+  .shell.shell-settings { grid-template-columns: 1fr; }
 
   /* 图标槽:lucide 的 svg 统一不参与压缩、随文字基线对齐 */
   .rail svg, .pane svg, .settings svg { flex: none; }
@@ -18,7 +22,19 @@
     grid-row: 1; display: flex; flex-direction: column; min-height: 0;
     background: var(--bg-panel);
     border-right: 1px solid var(--border);
+    overflow: hidden;
   }
+  /* ── 收起态(52px 图标轨):文字与分区体隐藏,功能区与页脚居中 ── */
+  .rail.collapsed .rail-brand { padding: 14px 0 10px; justify-content: center; }
+  .rail.collapsed .rail-brand .nm, .rail.collapsed .rail-brand .vv { display: none; }
+  .rail.collapsed .newwrap, .rail.collapsed .rail-search,
+  .rail.collapsed .rail-scroll, .rail.collapsed .rail-div { display: none; }
+  .rail.collapsed .rail-fn { padding: 2px 8px 8px; }
+  .rail.collapsed .fn-item { justify-content: center; padding: 7px 0; }
+  .rail.collapsed .fn-item .tt, .rail.collapsed .fn-item .badge { display: none; }
+  .rail.collapsed .rail-foot { justify-content: center; padding: 10px 0; gap: 4px; }
+  .rail.collapsed .rail-foot .iconbtn { width: 22px; height: 22px; }
+  .rail.collapsed .rail-foot .who { display: none; }
   .rail-brand {
     display: flex; align-items: center; gap: 9px;
     padding: 14px 16px 10px;
@@ -542,8 +558,18 @@
   .c-view .df .hk { padding: 6px 22px; }
 
   @media (max-width: 900px) {
-    .shell { grid-template-columns: 1fr; }
-    .rail { display: none; }
+    .shell, .shell.rail-off { grid-template-columns: 52px 1fr; }
+    .shell.shell-settings { grid-template-columns: 1fr; }
+    .rail { display: flex; }
+    .rail .rail-brand { padding: 14px 0 10px; justify-content: center; }
+    .rail .rail-brand .nm, .rail .rail-brand .vv { display: none; }
+    .rail .newwrap, .rail .rail-search, .rail .rail-scroll, .rail .rail-div { display: none; }
+    .rail .rail-fn { padding: 2px 8px 8px; }
+    .rail .fn-item { justify-content: center; padding: 7px 0; }
+    .rail .fn-item .tt, .rail .fn-item .badge { display: none; }
+    .rail .rail-foot { justify-content: center; padding: 10px 0; gap: 4px; }
+    .rail .rail-foot .iconbtn { width: 22px; height: 22px; }
+    .rail .rail-foot .who { display: none; }
   }
 
 /* ════════ v1.4.6 还原补充(设计稿有形、原实现缺的样式钩子)════════ */
@@ -615,3 +641,44 @@
 .th-card[theme] .pv i { background: var(--accent); }
 .th-card[theme] .nm { color: var(--text); background: var(--bg-panel); }
 .th-card.on .nm { color: var(--accent); font-weight: 600; }
+
+/* ════════ v1.4.7 打磨(对标设计稿 Awwwards 气质:排版对比 / 微动效 / 焦点反馈)════════ */
+
+/* 滚动条:细轨 + 圆头滑块,10 主题通吃 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong); border-radius: 6px;
+  border: 3px solid transparent; background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); border: 3px solid transparent; background-clip: padding-box; }
+
+/* 首页问候:品牌渐变字(仅文字,图标保持实色) */
+.home .hello .hello-txt {
+  background: linear-gradient(92deg, var(--accent) 10%, color-mix(in srgb, var(--accent) 45%, var(--ok)) 90%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 快捷卡:悬停轻微上浮 + 主题色柔光 */
+.q-card { transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
+.q-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* 消息进场:轻上滑淡入 */
+.u-msg, .a-msg { animation: msgIn .22s ease both; }
+@keyframes msgIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* 发送键:悬停微放大;收起键激活态沿用 .iconbtn.on */
+.cz-send { transition: background .15s ease, transform .12s ease; }
+.cz-send:hover { transform: scale(1.07); }
+.rail-toggle { transition: background .12s ease, color .12s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .shell { transition: none; }
+  .u-msg, .a-msg { animation: none !important; }
+  .q-card, .cz-send { transition: none; }
+  .q-card:hover, .cz-send:hover { transform: none; }
+}

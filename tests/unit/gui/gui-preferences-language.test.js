@@ -18,3 +18,9 @@ test("normalizeGuiPreferences keeps existing fields (no regression)", () => {
   assert.equal(p.contextCollapsed, true);
   assert.equal(p.language, "zh");
 });
+
+test("normalizeGuiPreferences persists railCollapsed (default false)", () => {
+  assert.equal(normalizeGuiPreferences({}).railCollapsed, false);
+  assert.equal(normalizeGuiPreferences({ railCollapsed: true }).railCollapsed, true);
+  assert.equal(normalizeGuiPreferences({ railCollapsed: "yes" }).railCollapsed, false);
+});

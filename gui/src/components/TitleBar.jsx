@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Check, Minus, Square, X, Moon, Sun, Diamond } from "lucide-react";
 import { menuModel } from "../state/menu-model.js";
+import { isLightTheme } from "../state/themes.js";
 
 export default function TitleBar({ t, language, theme, title, railView, onToggleTheme, onToggleLang, menuActions = {} }) {
-  const dark = theme !== "day";
+  const dark = !isLightTheme(theme);
   const model = menuModel(t);
   const [open, setOpen] = useState(null); // index of open top-level menu
   const barRef = useRef(null);

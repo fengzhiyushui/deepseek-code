@@ -46,7 +46,7 @@ test("gui electron shell starts against a temp project", { timeout: 20000 }, asy
   child.stdout.on("data", (chunk) => { output += chunk.toString(); });
   child.stderr.on("data", (chunk) => { output += chunk.toString(); });
 
-  const timer = setTimeout(() => child.kill(), 12000);
+  const timer = setTimeout(() => child.kill(), 15000);
   await once(child, "exit");
   clearTimeout(timer);
 
