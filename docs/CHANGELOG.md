@@ -9,6 +9,18 @@
 
 ---
 
+## v1.5.1 — 2026-08-07 · 内核超时/预算修复 + GUI 死代码清理
+
+- **流式/响应超时真正生效(#深读核实)**:`model-gateway.stream` / `invoke` 原在 `fetch` resolve 后立刻 `timeout.cleanup()`(清定时器 + 摘 caller abort),但 SSE body 读取与 `response.json()` 都在其后——超时不再约束 body 读取、调用方 abort 也不传播。现把 cleanup 移到 body 读完后的最外层 `finally`:SSE 流读或 JSON 解析悬挂时按 `MODEL_TIMEOUT` 终止,调用方 abort 以 `ABORT_ERR` 传播;新增 4 条回归测试。
+- **每回合预算跨审批续扣(#深读核实)**:`agent-runtime.approve` 续跑时新建的 `createCostBudget` 不带 initial 值,暂停前已耗的 token/调用次数被清零(回合可实际超 `maxTurnTokens`),与 orchestrator 的 `makeResumedBudget` 续扣语义不一致。现 `executor-loop` 在暂停点把 `budget.snapshot()` 写入 `resume_state.budget_spent`,`approve` 续跑时按 spent 做 initial 种子;re-pause 链与 durable 恢复路径自动继承。新增回归测试;旧 sidecar 缺字段则退化为 0(兼容)。
+- **GUI 死代码清理**:
+  - **xterm/pty 死路径**:删除 `@xterm/xterm` + `@xterm/addon-fit` 依赖、`gui/pty-host.js`、preload `pty*` / `onPtyData` 与 `pty:*` IPC 处理器、`tests/unit/gui/pty-host.test.js`(渲染层从不 import xterm,终端从未接出);`node-pty` 保留供门控 TUI smoke。
+  - **遗留 `theme.css` 剪枝**:235→82 行,仅保留 v4 仍引用的标题栏/下拉菜单/按钮/Diff 视图/状态色与全局 reset(被 v1.4.6 删除组件的 Explorer/Editor/Agent/底部面板/modal 等遗留样式已清理);tokens 仍经其 `@import` 加载。
+  - **IPC 白名单强制生效**:`IPC_CHANNELS` 从文档常量改为唯一权威清单(补上此前漏登记的 `projects:*` / `sessions:list` / `projects:reveal` / `projects:pick`),`registerIpcHandlers` 内未登记 channel 的 `handle` 注册启动即抛错。
+- 版本同步为 `1.5.1`(`package.json` / `package-lock.json` / CLI-TUI banner / GUI App.jsx);全量回归 **1014 单测** + `npm run check` + renderer build + Electron/TUI smoke 通过。
+
+---
+
 ## v1.4.8 — 2026-08-07 · 前端重设计收官(feat/v1.4 → main)
 
 > v1.4 系列(前端重设计)v1.4.0–v1.4.7 八个提交一次合入 main。以下为各阶段交付内容与品牌改名。

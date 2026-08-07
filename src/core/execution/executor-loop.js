@@ -104,7 +104,9 @@ export async function runExecutorLoop({
       executeTool,
       createPolicyContext
     });
-    if (next.status === "awaiting_approval") return next;
+    if (next.status === "awaiting_approval") {
+      return { ...next, resume_state: withBudgetSpent(next.resume_state, budget) };
+    }
     messages = [
       ...messages,
       assistantToolCallMessage(modelResult, rawToolCalls),
@@ -113,6 +115,14 @@ export async function runExecutorLoop({
   }
 
   throw new Error(`maximum tool iterations exceeded: ${maxIterations}`);
+}
+
+// 暂停时把已消耗的预算(不计 max)写入 resume_state,续跑时按 spent 续扣,
+// 避免审批暂停/续跑重置每回合 token/调用次数预算。
+function withBudgetSpent(resumeState, budget) {
+  if (!resumeState || !budget?.snapshot) return resumeState;
+  const spent = budget.snapshot();
+  return { ...resumeState, budget_spent: { tokens: spent.tokens, model_calls: spent.model_calls } };
 }
 
 async function continueToolIteration({
@@ -297,7 +307,9 @@ export async function resumeExecutorLoop({
       executeTool,
       createPolicyContext
     });
-    if (next.status === "awaiting_approval") return next;
+    if (next.status === "awaiting_approval") {
+      return { ...next, resume_state: withBudgetSpent(next.resume_state, budget) };
+    }
     messages = [...messages, assistantToolCallMessage(modelResult, rawToolCalls), ...toolResultsToMessages(next.iterationResults)];
   }
 

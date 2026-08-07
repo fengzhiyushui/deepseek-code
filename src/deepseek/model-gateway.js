@@ -23,43 +23,62 @@ export function createDeepSeekGateway({ apiKey = process.env.DEEPSEEK_API_KEY ||
     const request = buildChatRequest(messages, { ...options, stream: false });
     const started = Date.now();
     const timeout = withTimeout(options.signal, options.timeoutMs);
-    let response;
     try {
-      response = await fetchImpl(request.url, { method: "POST", headers: authHeaders(apiKey), body: JSON.stringify(request.body), signal: timeout.signal });
-    } catch (error) {
-      if (timeout.didTimeout()) throw modelTimeoutError(options.timeoutMs);
-      throw error;
+      let response;
+      try {
+        response = await fetchImpl(request.url, { method: "POST", headers: authHeaders(apiKey), body: JSON.stringify(request.body), signal: timeout.signal });
+      } catch (error) {
+        if (timeout.didTimeout()) throw modelTimeoutError(options.timeoutMs);
+        throw error;
+      }
+      const latencyMs = Date.now() - started;
+      if (!response.ok) throw createDeepSeekApiError(response.status, await response.text().catch(() => ""));
+      let payload;
+      try {
+        payload = await response.json();
+      } catch (error) {
+        if (timeout.didTimeout()) throw modelTimeoutError(options.timeoutMs);
+        throw error;
+      }
+      const processed = processChatPayload(payload, request.route, latencyMs);
+      usageTracker.recordUsage({ usage: processed.usage, channel: request.route.channel, model: request.body.model, latency_ms: latencyMs });
+      if (isRetryableDeepSeekError({ finish_reason: processed.finish_reason })) processed.retryable = true;
+      return processed;
     } finally {
       timeout.cleanup();
     }
-    const latencyMs = Date.now() - started;
-    if (!response.ok) throw createDeepSeekApiError(response.status, await response.text().catch(() => ""));
-    const payload = await response.json();
-    const processed = processChatPayload(payload, request.route, latencyMs);
-    usageTracker.recordUsage({ usage: processed.usage, channel: request.route.channel, model: request.body.model, latency_ms: latencyMs });
-    if (isRetryableDeepSeekError({ finish_reason: processed.finish_reason })) processed.retryable = true;
-    return processed;
   }
 
   async function stream(messages, options = {}) {
     const request = buildChatRequest(messages, { ...options, stream: true });
     const started = Date.now();
     const timeout = withTimeout(options.signal, options.timeoutMs);
-    let response;
     try {
-      response = await fetchImpl(request.url, { method: "POST", headers: authHeaders(apiKey), body: JSON.stringify(request.body), signal: timeout.signal });
-    } catch (error) {
-      if (timeout.didTimeout()) throw modelTimeoutError(options.timeoutMs);
-      throw error;
+      let response;
+      try {
+        response = await fetchImpl(request.url, { method: "POST", headers: authHeaders(apiKey), body: JSON.stringify(request.body), signal: timeout.signal });
+      } catch (error) {
+        if (timeout.didTimeout()) throw modelTimeoutError(options.timeoutMs);
+        throw error;
+      }
+      const latencyMs = Date.now() - started;
+      if (!response.ok) throw createDeepSeekApiError(response.status, await response.text().catch(() => ""));
+      // Keep the timeout armed across the SSE body read: the fetch resolves on headers,
+      // so the body is consumed after — an abort here (timeout or caller) must cancel
+      // the reader and surface as MODEL_TIMEOUT / the original AbortError.
+      let streamed;
+      try {
+        streamed = await readDeepSeekStream(response.body, { onDelta: options.onDelta, signal: timeout.signal });
+      } catch (error) {
+        if (timeout.didTimeout()) throw modelTimeoutError(options.timeoutMs);
+        throw error;
+      }
+      const result = { ...streamed, model: request.body.model, channel: request.route.channel, latency_ms: latencyMs, tool_calls: normalizeToolCalls(streamed.tool_calls) };
+      usageTracker.recordUsage({ usage: result.usage, channel: request.route.channel, model: request.body.model, latency_ms: latencyMs });
+      return result;
     } finally {
       timeout.cleanup();
     }
-    const latencyMs = Date.now() - started;
-    if (!response.ok) throw createDeepSeekApiError(response.status, await response.text().catch(() => ""));
-    const streamed = await readDeepSeekStream(response.body, { onDelta: options.onDelta, signal: timeout.signal });
-    const result = { ...streamed, model: request.body.model, channel: request.route.channel, latency_ms: latencyMs, tool_calls: normalizeToolCalls(streamed.tool_calls) };
-    usageTracker.recordUsage({ usage: result.usage, channel: request.route.channel, model: request.body.model, latency_ms: latencyMs });
-    return result;
   }
 
   async function fimComplete(prefix, suffix = "", options = {}) {

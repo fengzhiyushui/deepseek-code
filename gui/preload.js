@@ -28,15 +28,6 @@ contextBridge.exposeInMainWorld("deepseek", {
   listTree: () => ipcRenderer.invoke("fs:tree"),
   readFile: (rel) => ipcRenderer.invoke("fs:read", rel),
   writeFile: (rel, content) => ipcRenderer.invoke("fs:write", rel, content),
-  ptyStart: (cols, rows) => ipcRenderer.invoke("pty:start", cols, rows),
-  ptyInput: (data) => ipcRenderer.invoke("pty:input", data),
-  ptyResize: (cols, rows) => ipcRenderer.invoke("pty:resize", cols, rows),
-  ptyKill: () => ipcRenderer.invoke("pty:kill"),
-  onPtyData: (callback) => {
-    const handler = (_event, data) => callback(data);
-    ipcRenderer.on("pty:data", handler);
-    return () => ipcRenderer.removeListener("pty:data", handler);
-  },
   getSettings: () => ipcRenderer.invoke("settings:get"),
   setConfig: (patch) => ipcRenderer.invoke("config:set", patch || {}),
   listApiProfiles: () => ipcRenderer.invoke("api:list"),

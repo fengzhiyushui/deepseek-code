@@ -318,9 +318,14 @@ export function createAgentRuntime({
       });
       await publishTurnResumed(record, approvalId);
       const resumeOptions = record.resume_state.options || {};
+      // 暂停时已消耗的预算续扣(executor-loop 在 resume_state.budget_spent 落盘),
+      // 避免审批暂停/续跑把已计 token/调用次数清零而实际超限。
+      const budgetSpent = record.resume_state.budget_spent || null;
       const budget = createCostBudget({
         maxTokens: resumeOptions.maxTurnTokens ?? maxTurnTokens,
-        maxModelCalls: resumeOptions.maxModelCalls ?? maxModelCalls
+        maxModelCalls: resumeOptions.maxModelCalls ?? maxModelCalls,
+        initialTokens: budgetSpent?.tokens || 0,
+        initialModelCalls: budgetSpent?.model_calls || 0
       });
       const loop = await runAfterClearingConsumedPause(approvalId, () => resumeExecutorLoop({
         resumeState: record.resume_state,
