@@ -9,9 +9,9 @@
 
 ---
 
-## [Unreleased]
+## v1.4.7 — 2026-08-07 · 前端重设计收官(feat/v1.4 → main)
 
-> 下一个补丁 / 小版本的变更在此累积;发布时移入带版本号的小节。
+> v1.4 系列(前端重设计)v1.4.0–v1.4.7 八个提交一次合入 main。以下为各阶段交付内容与品牌改名。
 
 - **品牌改名**:产品名 **DeepSeek Code → Inkstone(砚)**。显示品牌全面替换(CLI/TUI banner、GUI 窗口与页面标题、system prompt 产品自称、User-Agent、README/docs/设计稿);结构层同步(package/bin 命令 `inkstone` + 保留 `dsc` 别名、gui 包名 `inkstone-gui`、conda 环境名)。**功能契约全部保留**:`.deepseek-code` 存储目录、`DEEPSEEK_*` 环境变量、`api.deepseek.com` 端点与 `deepseek-v4-*` 等模型 id 均不改。方案见 [`plans/architecture/2026-07-31-inkstone-rebrand.md`](plans/architecture/2026-07-31-inkstone-rebrand.md)。
 - **v1.4.6 设计稿细节还原(feat/v1.4 分支)**:在 P0–P4 基础上对照 v4 设计稿逐项补齐 ——
