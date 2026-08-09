@@ -83,9 +83,22 @@ export function createDeepSeekGateway({ apiKey = process.env.DEEPSEEK_API_KEY ||
 
   async function fimComplete(prefix, suffix = "", options = {}) {
     const resolvedModels = options.models ?? models;
-    const result = await fimClient.complete({ prefix, suffix, model: options.model ?? resolvedModels?.fim, maxTokens: options.maxTokens, signal: options.signal });
-    usageTracker.recordUsage({ usage: result.usage, channel: "fim", model: result.model, latency_ms: result.latency_ms || 0 });
-    return result.content;
+    const timeout = withTimeout(options.signal, options.timeoutMs);
+    try {
+      // fim-client 的 fetch 拿到 timeout.signal,故超时同时约束请求与 body 解析,
+      // 与 invoke / stream 语义一致(不传 timeoutMs 则不设超时)。
+      let result;
+      try {
+        result = await fimClient.complete({ prefix, suffix, model: options.model ?? resolvedModels?.fim, maxTokens: options.maxTokens, signal: timeout.signal });
+      } catch (error) {
+        if (timeout.didTimeout()) throw modelTimeoutError(options.timeoutMs);
+        throw error;
+      }
+      usageTracker.recordUsage({ usage: result.usage, channel: "fim", model: result.model, latency_ms: result.latency_ms || 0 });
+      return result.content;
+    } finally {
+      timeout.cleanup();
+    }
   }
 
   async function reply({ message, classification, context, turn, options = {}, signal, onDelta } = {}) {

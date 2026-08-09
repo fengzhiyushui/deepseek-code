@@ -114,3 +114,38 @@ test("invoke without timeoutMs is unaffected (resolves normally)", async () => {
   const r = await gateway.invoke([{ role: "user", content: "hi" }], {});
   assert.equal(r.content, "ok");
 });
+
+// FIM 与 invoke/stream 同语义:超时经 timeoutMs 开启,抛 MODEL_TIMEOUT;不传则不设超时。
+test("fimComplete rejects with MODEL_TIMEOUT after timeoutMs", async () => {
+  const gateway = createDeepSeekGateway({ apiKey: "k", fetchImpl: hangingFetch() });
+  await assert.rejects(
+    () => gateway.fimComplete("const a =", "", { timeoutMs: 20 }),
+    (e) => e.code === "MODEL_TIMEOUT"
+  );
+});
+
+test("fimComplete rejects with MODEL_TIMEOUT when the response body parse hangs past timeoutMs", async () => {
+  const gateway = createDeepSeekGateway({ apiKey: "k", fetchImpl: hangingBodyFetch() });
+  await assert.rejects(
+    () => gateway.fimComplete("const a =", "", { timeoutMs: 20 }),
+    (e) => e.code === "MODEL_TIMEOUT"
+  );
+});
+
+test("fimComplete propagates caller abort (ABORT_ERR)", async () => {
+  const controller = new AbortController();
+  const gateway = createDeepSeekGateway({ apiKey: "k", fetchImpl: hangingFetch() });
+  const pending = gateway.fimComplete("const a =", "", { signal: controller.signal, timeoutMs: 10000 });
+  const assertion = assert.rejects(pending, (e) => e.code === "ABORT_ERR");
+  setTimeout(() => controller.abort(), 5);
+  await assertion;
+});
+
+test("fimComplete without timeoutMs is unaffected (resolves normally)", async () => {
+  const okFetch = async () => ({
+    ok: true,
+    json: async () => ({ choices: [{ text: "b = 1;" }], usage: { total_tokens: 4 } })
+  });
+  const gateway = createDeepSeekGateway({ apiKey: "k", fetchImpl: okFetch });
+  assert.equal(await gateway.fimComplete("const a =", "", {}), "b = 1;");
+});

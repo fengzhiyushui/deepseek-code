@@ -68,7 +68,7 @@ user:message
 - **SSE streaming**([`streaming.js`](../src/deepseek/streaming.js)):流式解析。
 - **tool-call 规范化 + 畸形重试**([`tool-call-repair.js`](../src/deepseek/tool-call-repair.js)):规范化模型吐出的 tool-call;参数非法 JSON 时按 `maxToolCallRepairs` 有界重试(发 `model:tool_call_repair`)。
 - **用量遥测**([`usage-tracker.js`](../src/deepseek/usage-tracker.js)):token、reasoning token、cache hit/miss、latency。
-- **超时**([`model-gateway.js`](../src/deepseek/model-gateway.js)):`invoke` / `stream` 支持 `timeoutMs`,超时抛 `MODEL_TIMEOUT`(与调用方 signal 合并)。
+- **超时**([`model-gateway.js`](../src/deepseek/model-gateway.js)):`invoke` / `stream` / `fimComplete` 支持 `timeoutMs`,超时抛 `MODEL_TIMEOUT`(与调用方 signal 合并)。定时器在 **body 读完之后**才解除,故 SSE 流读与 `response.json()` 悬挂同样受约束;不传 `timeoutMs` 则不设超时。
 
 ---
 

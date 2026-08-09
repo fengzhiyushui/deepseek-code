@@ -9,6 +9,25 @@
 
 ---
 
+## [Unreleased]
+
+> 下一个补丁 / 小版本的变更在此累积;发布时按[版本命名规则](README.md#版本命名规则)定级、移入带版本号的小节。
+
+---
+
+## v1.5.2 — 2026-08-09 · FIM 超时补齐 + 文档漂移修复 + release tag 补录
+
+> 本版由 v1.5.1 的提交审查产出:一处潜在挂起、三处文档/死代码遗留。不改功能面,属补丁级。
+
+- **`fimComplete` 补齐超时(v1.5.1 审查遗留)**:FIM 路径此前完全没有超时 —— `model-gateway.fimComplete` 只把 `options.signal` 透传给 `fim-client`,不接 `timeoutMs`,请求或 body 解析悬挂即永久挂起(该方法在 `src/` 内暂无调用点,故是潜在而非在线的洞)。现与 `invoke` / `stream` 同语义:`withTimeout` 包住整段并在 `finally` 解除,`timeout.signal` 传入 fim-client 的 fetch 故请求与 body 解析同受约束,超时抛 `MODEL_TIMEOUT`、调用方 abort 以 `ABORT_ERR` 传播;不传 `timeoutMs` 则行为逐字节不变(与 `invoke`/`stream` 一致,不内置默认值)。新增 4 条回归。
+- **文档漂移修复**:`docs/README.md` 的「当前版本」由 v1.2.0 更新为 v1.5.2 并补 tag 指引;补回 v1.4.8 发布时误删的 `[Unreleased]` 小节(维护规范仍引用它);补回 **v1.3.1 丢失的 CHANGELOG 标题**(其 5 条内容此前裸挂在 v1.3.2 小节下);`project-overview` §2 超时描述补 `fimComplete` 与「cleanup 在 body 读完之后」语义。
+- **补齐历史 release tag**:v1.0.0 / v1.1.0 / v1.2.0 / v1.3.1 / v1.3.2 / v1.4.8 / v1.5.1 七个带注解 tag,tagger 日期对齐各自提交 —— 此前项目严格走语义化版本却零 tag,回溯只能靠 commit message。
+- **GUI 死字符串清理(v1.5.1 遗留)**:`i18n/strings.js` 中英各删 4 个无引用的 `placeholder.*` 键(`badge`/`files`/`editor`/`terminal`)—— 属 v1.4.6 删除旧 IDE 组件后的残留,其中 `placeholder.terminal` 还写着「xterm 待接」。
+- **审查记录的既有缺口(本版未动,留档)**:`approve()` 的四条分支中仅「普通工具」持有预算对象,验证器审批与修复期审批走 `runRepairLoop`(不接 budget 参数),故 **repair 阶段的模型调用从不计入每回合预算** —— 属挂账 #10(`agent-runtime` 可维护性)辖区,需独立立项。
+- 版本同步为 `1.5.2`(`package.json` / `package-lock.json` / CLI-TUI banner / GUI App.jsx);全量回归 **1018 单测** + `npm run check` + renderer build 通过。
+
+---
+
 ## v1.5.1 — 2026-08-07 · 内核超时/预算修复 + GUI 死代码清理
 
 - **流式/响应超时真正生效(#深读核实)**:`model-gateway.stream` / `invoke` 原在 `fetch` resolve 后立刻 `timeout.cleanup()`(清定时器 + 摘 caller abort),但 SSE body 读取与 `response.json()` 都在其后——超时不再约束 body 读取、调用方 abort 也不传播。现把 cleanup 移到 body 读完后的最外层 `finally`:SSE 流读或 JSON 解析悬挂时按 `MODEL_TIMEOUT` 终止,调用方 abort 以 `ABORT_ERR` 传播;新增 4 条回归测试。
@@ -47,6 +66,10 @@
 - **删除 GUI 休眠渲染层(#9.6):** 整目录 `gui/renderer/`(app.js / event-adapter.js / workbench-state.js / index.html / style.css)已删除——消除问题 #5(事件→展示四份并行实现)的最后残留。`gui/main.js` 加载决策改为:dev URL → renderer-dist,两者皆无→`dialog.showErrorBox` + stderr 报错「请先运行 npm run build:renderer」+ 非零退出。删除 2 个对应单测;`npm run check` 移除了 `gui/renderer/*` 条目。
 - 版本同步为 `1.3.2`(`package.json` / `package-lock.json` / CLI-TUI banner);全量回归(978 项)与语法检查通过。
 - 本版范围说明:#7 命令策略已在 v1.3.1 发布;#9.3(明文变更记录)、#10(agent-runtime 重构)继续挂账。
+
+---
+
+## v1.3.1 — 2026-07-28 · shell 命令级安全策略
 
 - `shell`/`git` 子进程执行在权限档位之外新增**命令级分类**([`src/security/command-policy.js`](../src/security/command-policy.js),清单硬编码):`classifyCommand(argv)` 将命令分为 safe / dangerous / forbidden 三类,经工具 `resolveCategory` 映射进权限引擎——**forbidden**(format / mkfs* / diskpart / bcdedit / dd)映射到 `destructive`,在所有自治档位一律拒绝且审批缓存不可放行;**dangerous**(rm/del 等删除类、shutdown/reg/taskkill 等系统类、curl/wget、npm publish、git push 强制推送、bash/cmd/powershell 等包装 shell、node -e / python -c 等解释器执行参数)映射到 `execute_dangerous`,在 supervised / gated / auto / **full-auto** 四档一律要求人工确认(read-only 档拒绝,与其余 execute 一致);safe 命令行为不变。命令名归一化覆盖 basename、大小写、`.exe`/`.cmd`/`.bat`/`.com` 扩展名及 Win32 尾部点号变体。
 - `runProcess` 兜底:spawn 前对 forbidden 命令直接拒绝(不经审批层),防止绕过工具定义的路径;dangerous 不在此层拦截,保证 `test` 工具的 cmd.exe 嵌套回路不受影响。
