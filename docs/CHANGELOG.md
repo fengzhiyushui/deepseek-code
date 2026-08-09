@@ -15,6 +15,21 @@
 
 ---
 
+## v1.6.1 — 2026-08-09 · repair 阶段计入每回合预算
+
+> v1.6 挂账清零首片。本版由 v1.5.1 审查发现的「repair 阶段预算不计」修复产出,只改 runtime 护栏的**计数范围**,不改功能面。
+
+- **repair 阶段模型调用计入 `maxTurnTokens` / `maxModelCalls`(v1.5.1 审查遗留)**:`approve()` 四条分支中,此前只有「普通工具」那条持有预算对象;验证器审批与修复期审批走 `runRepairLoop`,而它参数表里根本没有 `budget` —— repair 期的模型调用(`repair-executor` 的 `modelGateway.invoke`)从不计入,`maxTurnTokens` 在最容易失控的路径上失效。现:
+  - `runRepairLoop` 接 `budget`,每轮 attempt 顶部查 `exceeded()` —— 命中优雅停止(`status:"stopped"`,reason 同工具循环),不抛错、不继续调模型;
+  - `repair-executor` 在 `invoke` 后 `recordModelResult`(与 executor-loop 同语义、同频次:调用后记、下一迭代顶截停);
+  - `verifyAndMaybeRepair` 把 `budget` 传给 send 与 approve 两条路径的 repair 入口;
+  - 验证器/修复期审批暂停时把 `budget.snapshot()` 写入 `resume_state.budget_spent`(与 executor-loop 的 `withBudgetSpent` 同形状),续跑按 spent 做种子,re-pause 链与 durable 恢复路径自动继承;
+  - `budget` 未注入时行为逐字节不变(不内置默认值)。
+  - 新增 3 条回归:runtime 层「repair 期调用计入预算、耗尽后不再调模型」+ repair-loop 直接层「不传 budget 照常、已耗尽预算先于模型调用停止」。
+- 版本同步为 `1.6.1`(`package.json` / `package-lock.json` / CLI-TUI banner / GUI App.jsx);全量回归 **1021 单测** + `npm run check` 通过。
+
+---
+
 ## v1.5.2 — 2026-08-09 · FIM 超时补齐 + 文档漂移修复 + release tag 补录
 
 > 本版由 v1.5.1 的提交审查产出:一处潜在挂起、三处文档/死代码遗留。不改功能面,属补丁级。

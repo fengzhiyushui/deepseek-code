@@ -22,7 +22,8 @@ export async function runRepairLoop({
   runVerifierImpl = runVerifier,
   runRepairExecutorImpl = runRepairExecutor,
   resumeAfterApproval = null,
-  context = null
+  context = null,
+  budget = null
 } = {}) {
   const attempts = resumeAfterApproval ? [...resumeAfterApproval.attempts] : [];
   let verification = resumeAfterApproval ? resumeAfterApproval.verification : initialVerification;
@@ -40,6 +41,19 @@ export async function runRepairLoop({
     : false;
 
   for (let attempt = startAttempt; attempt <= maxRepairAttempts; attempt += 1) {
+    // 每回合预算同样约束 repair 阶段:命中即优雅停止(与工具循环同语义),
+    // 不抛错、不继续调模型。budget 为 null 时该分支恒不触发,行为与此前一致。
+    const over = budget?.exceeded();
+    if (over) {
+      return {
+        status: "stopped",
+        reason: over,
+        content: `Stopped: cost budget exceeded (${over.reason}).`,
+        toolResults: allToolResults,
+        verification,
+        repair: { attempts: attempt - 1, status: "stopped", history: attempts }
+      };
+    }
     if (!skipToVerification) {
       eventBus?.publish?.("repair:attempt", { turn_id: turnId, attempt, verification_status: verification?.status });
       const messages = buildRepairMessages({
@@ -62,7 +76,8 @@ export async function runRepairLoop({
         signal,
         modelTimeoutMs,
         permissionContext,
-        options: { ...options, message: userMessage, classification, context }
+        options: { ...options, message: userMessage, classification, context },
+        budget
       });
       if (repairExec.status === "awaiting_approval") {
         return {
@@ -71,6 +86,7 @@ export async function runRepairLoop({
           verification,
           resume_state: {
             ...repairExec.resume_state,
+            ...(budget ? { budget_spent: budgetSpentOf(budget) } : {}),
             repair_context: {
               all_tool_results: allToolResults,
               verification,
@@ -110,21 +126,25 @@ export async function runRepairLoop({
         toolResults: allToolResults,
         verification,
         repair: { attempts: attempt, status: "awaiting_approval", history: attempts },
-        resume_state: verifierApprovalResumeState({
-          turnId,
-          userMessage,
-          classification,
-          verification,
-          allToolResults,
-          attempt,
-          attempts,
-          initialVerification,
-          initialToolResults,
-          maxRepairAttempts,
-          options,
-          permissionContext,
-          context
-        })
+        resume_state: {
+          ...verifierApprovalResumeState({
+            turnId,
+            userMessage,
+            classification,
+            verification,
+            allToolResults,
+            attempt,
+            attempts,
+            initialVerification,
+            initialToolResults,
+            maxRepairAttempts,
+            options,
+            permissionContext,
+            context
+          }),
+          // 续跑时按已耗预算做种子(与 executor-loop 的暂停点同语义)
+          ...(budget ? { budget_spent: budgetSpentOf(budget) } : {})
+        }
       };
     }
     const repairResult = {
@@ -156,6 +176,12 @@ export async function runRepairLoop({
     verification,
     repair: { attempts: maxRepairAttempts, status: "exhausted", history: attempts }
   };
+}
+
+// 只取「已耗」两项(不带 max),与 executor-loop 的 withBudgetSpent 保持同一形状。
+function budgetSpentOf(budget) {
+  const spent = budget.snapshot();
+  return { tokens: spent.tokens, model_calls: spent.model_calls };
 }
 
 function verifierApprovalResumeState({

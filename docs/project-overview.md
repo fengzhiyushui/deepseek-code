@@ -181,6 +181,8 @@ ToolCall
 | `maxModelCalls` | `null`(关) | 单个 turn 的模型调用次数上限 |
 | `maxToolCallRepairs` | `null`(关) | 模型吐出畸形 tool-call 时的有界重试次数 |
 
+> **v1.6.1:** `maxTurnTokens` / `maxModelCalls` 的计数范围含 **repair 阶段**——`runRepairLoop` 接入 `budget`,repair 期模型调用经 `recordModelResult` 计入;命中时 repair 优雅停止(`status:"stopped"`,reason 同工具循环),不抛错、不继续调模型。`budget` 未注入时行为与此前一致。
+
 **取值语义**(`toLimit`):省略 → 取默认;`null` → 关闭;`≤0` 或非法 → 关闭;否则取整。
 
 **覆盖方式**:① 编辑 `config.json` 的 `limits`;② 环境变量 `DEEPSEEK_TOOL_TIMEOUT_MS` / `DEEPSEEK_MODEL_TIMEOUT_MS`。`loadConfig` 对用户 `limits` 做 per-field 深合并。

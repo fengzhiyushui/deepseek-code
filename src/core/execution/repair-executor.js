@@ -12,7 +12,8 @@ export async function runRepairExecutor({
   signal = null,
   modelTimeoutMs = null,
   permissionContext = null,
-  options = {}
+  options = {},
+  budget = null
 } = {}) {
   if (!modelGateway || typeof modelGateway.invoke !== "function") {
     throw new Error("modelGateway.invoke is required for repair executor");
@@ -29,6 +30,8 @@ export async function runRepairExecutor({
     timeoutMs: modelTimeoutMs ?? options.timeoutMs,
     signal
   });
+  // repair 期的模型调用同样计入每回合预算(budget 为 null 时行为与此前一致)。
+  if (budget) budget.recordModelResult(modelResult);
   eventBus?.publish?.("model:response", {
     turn_id: turnId,
     purpose: "repair",

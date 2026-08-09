@@ -203,3 +203,60 @@ test("repair loop resumeAfterApproval verifies with original + resumed results t
   assert.equal(result.repair.attempts, 1);
   assert.equal(exhausted.length, 1);
 });
+
+test("repair loop without budget is unchanged (repair proceeds as before)", async () => {
+  let invokeCount = 0;
+  const result = await runRepairLoop({
+    turnId: "turn_repair_null_budget",
+    userMessage: "fix bug",
+    classification: { task_type: "edit" },
+    modelGateway: {
+      invoke: async () => {
+        invokeCount += 1;
+        return { content: "repaired", tool_calls: [], usage: { total_tokens: 10 } };
+      }
+    },
+    toolSchemas: [],
+    executeTool: async () => ({ call_id: "c", status: "success", content: [], metadata: { change_id: "chg" } }),
+    createPolicyContext: () => ({ autonomy: "gated" }),
+    verificationPolicy: { plan: () => ({ shouldVerify: true, testParams: { detect: false }, mode: "run" }) },
+    runVerifierImpl: async () => ({ status: "passed", reason: "ok" }),
+    initialVerification: { status: "failed", reason: "tests failed" },
+    initialToolResults: [],
+    maxRepairAttempts: 2
+  });
+
+  assert.equal(result.status, "complete");
+  assert.equal(invokeCount, 1, "不传 budget 时 repair 照常发起模型调用(逐字节不变)");
+});
+
+test("repair loop with an already-exceeded budget stops before any model call", async () => {
+  let invokeCount = 0;
+  const exceededBudget = {
+    exceeded: () => ({ reason: "max_model_calls" }),
+    snapshot: () => ({ tokens: 100, model_calls: 5 })
+  };
+  const result = await runRepairLoop({
+    turnId: "turn_repair_exceeded",
+    userMessage: "fix bug",
+    classification: { task_type: "edit" },
+    modelGateway: {
+      invoke: async () => {
+        invokeCount += 1;
+        return { content: "", tool_calls: [] };
+      }
+    },
+    toolSchemas: [],
+    executeTool: async () => ({ call_id: "c", status: "success", content: [], metadata: { change_id: "chg" } }),
+    createPolicyContext: () => ({ autonomy: "gated" }),
+    verificationPolicy: { plan: () => ({ shouldVerify: true, testParams: { detect: false }, mode: "run" }) },
+    runVerifierImpl: async () => ({ status: "passed", reason: "ok" }),
+    initialVerification: { status: "failed", reason: "tests failed" },
+    initialToolResults: [],
+    maxRepairAttempts: 2,
+    budget: exceededBudget
+  });
+
+  assert.equal(result.status, "stopped");
+  assert.equal(invokeCount, 0, "预算已耗尽时 repair 不应再调模型");
+});

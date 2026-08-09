@@ -190,10 +190,10 @@ export function createAgentRuntime({
     if (loop.status === "awaiting_approval") return loop;
     if (loop.status === "stopped") return loop;
 
-    return verifyAndMaybeRepair({ turn, message, classification, loop, options, signal, context, permissionContext });
+    return verifyAndMaybeRepair({ turn, message, classification, loop, options, signal, context, permissionContext, budget });
   }
 
-  async function verifyAndMaybeRepair({ turn, message, classification, loop, options, signal, context = null, permissionContext = null }) {
+  async function verifyAndMaybeRepair({ turn, message, classification, loop, options, signal, context = null, permissionContext = null, budget = null }) {
     lifecycle = transitionLifecycle(lifecycle, { to: "verify", reason: "tool loop complete", channel: "system" });
     const verificationPolicy = createVerificationPolicyFrom({ options, permissionContext });
     const verification = await runVerifier({
@@ -220,16 +220,20 @@ export function createAgentRuntime({
         toolResults: loop.toolResults,
         iterations: loop.iterations,
         verification,
-        resume_state: verifierApprovalResumeState({
-          turn,
-          message,
-          classification,
-          loop,
-          verification,
-          options,
-          permissionContext,
-          context
-        })
+        resume_state: {
+          ...verifierApprovalResumeState({
+            turn,
+            message,
+            classification,
+            loop,
+            verification,
+            options,
+            permissionContext,
+            context
+          }),
+          // 验证器审批暂停同样带上已耗预算,续跑按 spent 续扣
+          ...(budget ? { budget_spent: budgetSpentOf(budget) } : {})
+        }
       };
     }
     if (repair.decision === "repair") {
@@ -258,7 +262,8 @@ export function createAgentRuntime({
         modelTimeoutMs: options.modelTimeoutMs ?? modelTimeoutMs,
         options,
         permissionContext,
-        context
+        context,
+        budget
       });
       return repairLoop;
     }
@@ -402,7 +407,8 @@ export function createAgentRuntime({
             attempt: ctx.attempt,
             attempts: ctx.attempts,
             skip_to_verification: true
-          }
+          },
+          budget
         }));
 
         if (repairResult.status === "awaiting_approval") {
@@ -452,7 +458,8 @@ export function createAgentRuntime({
         options: record.resume_state.options || {},
         signal: currentAbortController.signal,
         context: record.resume_state.context || null,
-        permissionContext: recordPermissionContext
+        permissionContext: recordPermissionContext,
+        budget
       }));
       if (repaired.status === "awaiting_approval") {
         if (repaired.approval?.id && repaired.resume_state) {
@@ -625,7 +632,8 @@ export function createAgentRuntime({
         maxRepairAttempts: record.resume_state.options?.maxRepairAttempts || maxRepairAttempts,
         options: record.resume_state.options || {},
         permissionContext,
-        context: record.resume_state.context || ctx.context || null
+        context: record.resume_state.context || ctx.context || null,
+        budget
       }));
 
       if (repairLoop.status === "awaiting_approval" && repairLoop.approval?.id && repairLoop.resume_state) {
@@ -786,7 +794,8 @@ export function createAgentRuntime({
           attempt: ctx.attempt + 1,
           attempts,
           skip_to_verification: false
-        }
+        },
+        budget
       }));
       if (repairLoop.status === "awaiting_approval" && repairLoop.approval?.id && repairLoop.resume_state) {
         await savePausedRecord({
@@ -1138,6 +1147,13 @@ function normalizeApprovalDecision(decision) {
   if (value === "approve" || value === "allow" || value === "yes") return "approve";
   if (value === "deny" || value === "reject" || value === "no") return "deny";
   throw new Error(`unknown approval decision: ${decision}`);
+}
+
+// 与 executor-loop.withBudgetSpent 保持同一形状(只取已耗,不带 max):
+// 供验证器/修复期审批暂停把预算写进 resume_state,续跑按 spent 做种子。
+function budgetSpentOf(budget) {
+  const spent = budget.snapshot();
+  return { tokens: spent.tokens, model_calls: spent.model_calls };
 }
 
 function readPresent(object, key, fallback = undefined) {
