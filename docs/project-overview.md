@@ -249,7 +249,7 @@ ToolCall
 src/
   index.js        createKernel() 组合根
   core/
-    runtime/      agent-runtime · lifecycle · cost-budget
+    runtime/      agent-runtime(见 #10:阶段 1–2 刻画测试 + 边界分析已落,v1.6.3)· lifecycle · cost-budget
     execution/    executor-loop · repair-executor · tool-call-adapter · tool-result-router
     verification/ verifier · repair-loop · repair-decision · repair-prompt · verification-policy
     protocol/     agent-turn · agent-step · tool-call · tool-result · approval-request · artifact

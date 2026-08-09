@@ -147,7 +147,8 @@
 - **影响文件:** `src/core/runtime/agent-runtime.js` 及其测试;可能新增 `src/core/runtime/resume-strategies.js` 等。
 - **风险:** 高(内核核心、多恢复路径)。故列 P2、需独立 spec/plan、TDD 全程,不可顺手做。
 - **验证(不看行数):** 现有全部 runtime/approval/recovery 集成测试原样全绿;新增刻画测试通过;**边界清晰度**(每模块单一职责、可独立测)与**测试可独立性**为验收标准,而非文件行数下降。
-- **本轮不实现。**
+- **✅ 阶段 1–2 已在 v1.6.3 完成(2026-08-09)**:行为刻画测试(`tests/unit/core/runtime/agent-runtime-characterization.test.js` 7 条,含精确事件顺序、四分支续跑序列、错误语义 code/message;变异验证已实际执行确认测试有效)+ 职责/依赖边界分析([`2026-08-09-v1.6.3-agent-runtime-refactor-design.md`](2026-08-09-v1.6.3-agent-runtime-refactor-design.md))。**未改任何实现。**
+- **阶段 3–4(抽纯函数 / resume-strategies / 状态机拆分)未开工**,定级再议。
 
 ---
 
