@@ -21,11 +21,12 @@ export function createEditService({
   rollbackService = null,
   recoveryJournal = null,
   assertOwner = async () => {},
-  faults = null
+  faults = null,
+  edits = {}
 } = {}) {
   if (!projectRoot) throw new Error("projectRoot is required");
 
-  const store = changeStore || createChangeStore({ projectRoot });
+  const store = changeStore || createChangeStore({ projectRoot, edits });
   const rollback = rollbackService || createRollbackService({ projectRoot });
 
   async function preview({ diff } = {}) {

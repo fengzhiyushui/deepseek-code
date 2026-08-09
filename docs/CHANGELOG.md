@@ -15,6 +15,19 @@
 
 ---
 
+## v1.6.2 — 2026-08-09 · 变更记录后端卫生(#9.3)
+
+> v1.6 挂账清零第二片。#9.3(明文变更记录)的后端部分:展示层脱敏与「敏感文件独立红色提醒」需三端前端配合,单独立前端片。本片只做纯后端卫生,**存储内容一个字节不改**(回滚是硬约束)。
+
+- **大小上限 + 回滚清空洞修补**:`captureChangePlan` / `finalizeChange` 接 `maxCaptureBytes`(默认 1 MiB,`null` 关闭)——超过只存 `sha256` + 原始大小并标 `truncated: true`,不存全文。**同时堵洞**:旧 `rollbackChange` / `applyRollbackRecord` 写 `file.before ?? ""`,截断记录若不拦会把用户文件**清空**;现两处回滚路径都对 `truncated` 记录抛 `ROLLBACK_TRUNCATED`(先全部校验再动手),绝不静默写空。
+- **保留期 / 数量上限(此前完全真空)**:`listChanges` 只读不删,全仓无任何清理。现 `finalizeChange` 写新记录后按 `changeRetention = { maxRecords, maxAgeDays }` 确定性清理(新在前排序,超出者删);只删 `.deepseek-code/changes/*.json`,不碰工作区文件。
+- **目录限权**:`changes/` 以 `0o700` 创建(Windows 上 `fs.chmod` 基本无效,此条仅在类 Unix 生效,文档已如实说明)。
+- 配置入口:`createEditService({ edits })` / `createChangeStore({ edits })` 可覆盖 `maxCaptureBytes` 与 `changeRetention`;未配置用默认值。**刻意不加入 `DEFAULT_CONFIG`** —— 当前内核不把任意 config 透传进 editService,先加是死配置(重蹈 #8 `languages` 空转),留待前端片或明确接线时再说。
+- 新增 7 条测试:截断(捕获/落库/两条回滚路径守卫各 1)+ 保留期(maxRecords / maxAgeDays / 工作区不受影响)。
+- 版本同步为 `1.6.2`(四处);全量回归 **1028 单测** + `npm run check` 通过。
+
+---
+
 ## v1.6.1 — 2026-08-09 · repair 阶段计入每回合预算
 
 > v1.6 挂账清零首片。本版由 v1.5.1 审查发现的「repair 阶段预算不计」修复产出,只改 runtime 护栏的**计数范围**,不改功能面。

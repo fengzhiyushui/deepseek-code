@@ -120,6 +120,12 @@ ToolCall
 
 变更记录落在 `.deepseek-code/changes/<id>.json`,回滚记录落在 `.deepseek-code/rollbacks.jsonl`。
 
+> **v1.6.2 记录卫生(#9.3 后端部分):**
+> - **大小上限**:单文件超过 `maxCaptureBytes`(默认 1 MiB)时只存 `sha256` + 原始大小,不存全文(`before`/`after` 为 `null` 并标 `truncated: true`)。**回滚是硬约束**:`truncated` 记录缺 before 全文,`rollbackChange` 与 `applyRollbackRecord`(GUI/edit-service 路径)都会抛 `ROLLBACK_TRUNCATED`,**绝不写 `before ?? ""` 把文件清空**。经 `createEditService({ edits })` 可覆盖(`maxCaptureBytes: null` 关闭上限)。
+> - **保留期 / 数量上限**:`finalizeChange` 写新记录后按 `changeRetention = { maxRecords, maxAgeDays }` 做确定性清理(超出者删),只删 `.deepseek-code/changes/*.json`,不碰工作区文件。
+> - **目录限权**:`changes/` 目录以 `0o700` 创建;Windows 上 `fs.chmod` 基本无效,此条仅在类 Unix 生效。
+> - **展示层脱敏与敏感文件提醒**属前端片,另行立项。
+
 ---
 
 ## 5. 会话、分支与 rewind

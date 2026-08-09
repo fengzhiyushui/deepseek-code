@@ -160,6 +160,16 @@ export async function detectRollbackConflicts(projectRoot, record) {
 }
 
 export async function applyRollbackRecord(projectRoot, record) {
+  // 截断守卫(与 changes.js 的 rollbackChange 同语义):任何文件缺 before 全文
+  // 就无法安全回滚,绝不写 `before ?? ""` 把用户文件清空。
+  const truncated = (record.files || []).find((file) => file.truncated);
+  if (truncated) {
+    const error = new Error(
+      `change ${record.id} 的 ${truncated.path} 超过记录大小上限,未保存回滚所需的完整内容,无法安全回滚。`
+    );
+    error.code = "ROLLBACK_TRUNCATED";
+    throw error;
+  }
   const restored = [];
   for (const file of record.files || []) {
     const filePath = file.newPath === "/dev/null" ? file.oldPath : file.newPath;

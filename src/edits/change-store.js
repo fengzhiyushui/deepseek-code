@@ -8,15 +8,18 @@ import {
 } from "../changes.js";
 import { enhanceChangeRecord } from "./edit-transaction.js";
 
-export function createChangeStore({ projectRoot } = {}) {
+export function createChangeStore({ projectRoot, edits = {} } = {}) {
   if (!projectRoot) throw new Error("projectRoot is required");
 
   return {
     capture({ diff, prompt = "" } = {}) {
-      return captureChangePlan(projectRoot, diff, prompt);
+      return captureChangePlan(projectRoot, diff, prompt, { maxCaptureBytes: edits.maxCaptureBytes });
     },
     async finalize(plan, { transaction = null } = {}) {
-      const record = await finalizeChange(projectRoot, plan);
+      const record = await finalizeChange(projectRoot, plan, {
+        maxCaptureBytes: edits.maxCaptureBytes,
+        changeRetention: edits.changeRetention
+      });
       if (!transaction) return record;
       const enhanced = enhanceChangeRecord(record, { transaction_id: transaction.transaction_id });
       const target = path.join(projectRoot, ".deepseek-code", "changes", `${enhanced.id}.json`);

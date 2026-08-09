@@ -1,9 +1,14 @@
 import { promises as fs } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { resolveInsideRoot } from "./context.js";
 import { parseUnifiedDiff, summarizeDiff } from "./patch.js";
 
-export async function captureChangePlan(root, diff, prompt) {
+// #9.3 大小上限默认 1 MiB:超过只存 sha256 + 摘要,不存全文(回滚需全文 → 截断记录
+// 在 rollbackChange 抛 ROLLBACK_TRUNCATED,绝不静默写空)。传 maxCaptureBytes=null 关闭。
+const DEFAULT_MAX_CAPTURE_BYTES = 1024 * 1024;
+
+export async function captureChangePlan(root, diff, prompt, { maxCaptureBytes = DEFAULT_MAX_CAPTURE_BYTES } = {}) {
   const patches = parseUnifiedDiff(diff);
   const files = [];
 
@@ -14,12 +19,16 @@ export async function captureChangePlan(root, diff, prompt) {
     if (beforePath) {
       before = stripBom(await fs.readFile(resolveInsideRoot(root, beforePath), "utf8"));
     }
+    const captured = captureText(before, maxCaptureBytes);
     files.push({
       path: filePath,
       oldPath: patch.oldPath,
       newPath: patch.newPath,
       status: patch.oldPath === "/dev/null" ? "create" : patch.newPath === "/dev/null" ? "delete" : "modify",
-      before
+      before: captured.value,
+      ...(captured.sha256 ? { before_sha256: captured.sha256 } : {}),
+      ...(captured.size != null ? { before_size: captured.size } : {}),
+      ...(captured.truncated ? { truncated: true } : {})
     });
   }
 
@@ -33,7 +42,7 @@ export async function captureChangePlan(root, diff, prompt) {
   };
 }
 
-export async function finalizeChange(root, plan) {
+export async function finalizeChange(root, plan, { maxCaptureBytes = DEFAULT_MAX_CAPTURE_BYTES, changeRetention = null } = {}) {
   const files = [];
   for (const item of plan.files) {
     const currentPath = item.newPath === "/dev/null" ? item.oldPath : item.newPath;
@@ -41,13 +50,22 @@ export async function finalizeChange(root, plan) {
     if (item.newPath !== "/dev/null") {
       after = stripBom(await fs.readFile(resolveInsideRoot(root, currentPath), "utf8"));
     }
-    files.push({ ...item, after });
+    const captured = captureText(after, maxCaptureBytes);
+    files.push({
+      ...item,
+      after: captured.value,
+      ...(captured.sha256 ? { after_sha256: captured.sha256 } : {}),
+      ...(captured.size != null ? { after_size: captured.size } : {}),
+      // 只要任一侧被截断,记录即视为 truncated(回滚守卫依赖它)
+      ...(item.truncated || captured.truncated ? { truncated: true } : {})
+    });
   }
 
   const record = { ...plan, files };
   const target = changePath(root, record.id);
-  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
   await fs.writeFile(target, `${JSON.stringify(record, null, 2)}\n`, "utf8");
+  if (changeRetention) await pruneChangeRecords(root, changeRetention);
   return record;
 }
 
@@ -78,6 +96,16 @@ export async function describeChange(root, id) {
 
 export async function rollbackChange(root, id) {
   const record = await readChange(root, id || "latest");
+  // 截断守卫:任何文件缺 before 全文就无法安全回滚,先全部校验再动手,
+  // 绝不写 `before ?? ""` 把用户文件清空。
+  const truncated = record.files?.find((file) => file.truncated);
+  if (truncated) {
+    const error = new Error(
+      `change ${record.id} 的 ${truncated.path} 超过记录大小上限,未保存回滚所需的完整内容,无法安全回滚。`
+    );
+    error.code = "ROLLBACK_TRUNCATED";
+    throw error;
+  }
   for (const file of record.files) {
     const filePath = file.newPath === "/dev/null" ? file.oldPath : file.newPath;
     const target = resolveInsideRoot(root, filePath);
@@ -157,4 +185,75 @@ function translateStatus(status) {
 
 function stripBom(value) {
   return value.charCodeAt(0) === 0xFEFF ? value.slice(1) : value;
+}
+
+// #9.3:文本若超过 maxCaptureBytes(默认 1 MiB)只存 sha256 与原始大小,不存全文。
+// maxCaptureBytes=null → 永不截断(逐字节维持旧行为)。
+function captureText(value, maxCaptureBytes) {
+  if (value == null) return { value: null };
+  if (maxCaptureBytes == null) return { value };
+  const size = Buffer.byteLength(value, "utf8");
+  if (size <= maxCaptureBytes) return { value };
+  return {
+    value: null,
+    sha256: createHash("sha256").update(value).digest("hex"),
+    size,
+    truncated: true
+  };
+}
+
+// #9.3 保留期:finalize 写新记录后,按 maxRecords(数量上限)与 maxAgeDays(保留期)
+// 做确定性清理。只删 .deepseek-code/changes/*.json,绝不碰工作区文件。
+async function pruneChangeRecords(root, retention) {
+  if (!retention || (!retention.maxRecords && !retention.maxAgeDays)) return;
+  const dir = changesDir(root);
+  let entries;
+  try {
+    entries = await fs.readdir(dir);
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
+  const names = entries.filter((name) => name.endsWith(".json"));
+  if (names.length <= 1) return;
+
+  const records = [];
+  for (const name of names) {
+    const target = path.join(dir, name);
+    let time = "";
+    try {
+      time = JSON.parse(await fs.readFile(target, "utf8")).time || "";
+    } catch {
+      // 损坏记录:视为最旧,优先被清理
+    }
+    records.push({ name, time, ageDays: ageInDays(time) });
+  }
+  // 新的在前(与 listChanges 的排序一致)
+  records.sort((a, b) => b.time.localeCompare(a.time));
+
+  const keep = new Set(records.map((record) => record.name));
+  if (retention.maxRecords) {
+    const newest = new Set(records.slice(0, retention.maxRecords).map((record) => record.name));
+    for (const record of records) {
+      if (!newest.has(record.name)) keep.delete(record.name);
+    }
+  }
+  if (retention.maxAgeDays) {
+    for (const record of records) {
+      if (record.ageDays > retention.maxAgeDays) keep.delete(record.name);
+    }
+  }
+
+  for (const record of records) {
+    if (!keep.has(record.name)) {
+      await fs.rm(path.join(dir, record.name), { force: true });
+    }
+  }
+}
+
+function ageInDays(isoTime) {
+  if (!isoTime) return Infinity;
+  const timestamp = Date.parse(isoTime);
+  if (Number.isNaN(timestamp)) return Infinity;
+  return (Date.now() - timestamp) / 86400000;
 }
