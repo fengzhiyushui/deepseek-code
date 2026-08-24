@@ -25,7 +25,8 @@ const IPC_CHANNELS = [
   "gui:preferences-get", "gui:preferences-set",
   "config:get", "orchestrator:state",
   "projects:list", "projects:add", "projects:remove", "projects:switch", "sessions:list",
-  "projects:reveal", "projects:pick"
+  "projects:reveal", "projects:pick",
+  "sensitive:respond"
 ];
 
 if (process.env.DEEPSEEK_CODE_GUI_SMOKE === "1") {
@@ -240,6 +241,12 @@ function registerIpcHandlers() {
   });
   handle("agent:approve", async (_event, id, decision) => {
     try { return await host.approve(id, decision); }
+    catch (error) { return { error: error.message }; }
+  });
+  // #9.3 敏感文件提醒的回答通道。注意这**不是**审批通道:它不经权限引擎、
+  // 不进审批缓存,只解决主进程里那个挂起的 Promise。
+  handle("sensitive:respond", async (_event, requestId, allowed) => {
+    try { return { resolved: host.resolveSensitiveNotice(requestId, allowed === true) }; }
     catch (error) { return { error: error.message }; }
   });
   handle("agent:interrupt", () => {

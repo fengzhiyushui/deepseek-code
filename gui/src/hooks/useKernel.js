@@ -77,6 +77,8 @@ export function useKernel(dispatch) {
       available: Boolean(api),
       send: (message, opts) => api?.send?.(message, opts),
       approve: (id, decision) => api?.approve?.(id, decision),
+      // #9.3:敏感文件提醒的答复(非审批通道)
+      respondSensitive: (requestId, allowed) => api?.respondSensitive?.(requestId, allowed === true),
       interrupt: () => api?.interrupt?.(),
       setPreferences: (patch) => api?.setPreferences?.(patch),
 

@@ -15,6 +15,23 @@
 
 ---
 
+## v1.7.0 — 2026-08-09 · 敏感文件风险提醒 + 展示层脱敏(#9.3 收官)
+
+> #9.3(明文变更记录)的最后一片。后端卫生已在 v1.6.2 落地,本版补齐需要三端前端配合的两件事,**#9.3 至此完全闭环**,审计补账单 10 项全清。
+
+- **敏感文件独立风险提醒(三端)**:agent 改 `.env` / `*.pem` / `*.key` / `.npmrc` 等文件时,该文件的**完整原文**会被抄进 `.deepseek-code/changes/`(回滚必需,不可脱敏)。此前用户对此毫无感知,现在**在编辑真正发生之前**红色告知、由用户拍板;拒绝则该文件的改动不发生。
+  - **独立于所有权限档位之外**:权限矩阵管的是「agent 能不能做这个动作」,本提醒告知的是「这个动作会在磁盘留下一份你看不见的密钥副本」—— 属副作用告知,不是动作授权。走 `editService.apply` 预检的独立回调,**不经 `permission-engine`**、不进审批缓存。
+  - **所有档位一律提问,没有任何档位能跳过**(含 `full-auto`)。这与既有权限矩阵一致 —— `full-auto` 的 `read_secret` 与 `execute_dangerous` 本就是 `ask`,它从来不是「无人值守免打扰」档。策略由 `apps/sensitive-notice-contract.js` 统一,handler **在结构上就拿不到 autonomy**,从根上杜绝「按档位放行」(有测试锁住)。
+  - **不缓存选择**:走审批缓存等于把「独立于权限之外」又拉回权限体系;这类告知的价值就在于每次都让人看见。
+  - **判定收窄**:复用 `contextSkipReason` 但**只取 `secret-file` / `credential-file` 两类**。该函数对 `node_modules` / `dist` / `.vscode`(`ignored-directory` / `hidden-tool-dir`)也返回非 null,整个复用会让提醒在改 `dist/` 时也弹 —— 提醒一旦成噪音就等于没有。
+  - **三端各自呈现,均不复用审批卡片样式**:CLI 全红文本块 + 明写「this is NOT a permission prompt」;TUI 独立 `sensitiveNotice` 态(不复用 `approval` 态)+ 红色底部行 + y/n·Esc;GUI 红色全窗模态(`--err` token,十主题自适配),**拒绝按钮在前且为默认焦点** —— 危险操作不该是顺手可点的那个。
+  - **GUI 请求-应答桥**:内核在主进程,提问要到渲染层再回来。主进程 push 带 `request_id` 的事件、挂起 Promise,渲染层经新 IPC 通道 `sensitive:respond`(**已登记进 `IPC_CHANNELS` 白名单**)作答。未知 id 静默忽略(防伪造/重放挂死),`dispose` 把未决提问一律按拒绝收口。只有严格 `true` 才放行。
+- **展示层脱敏(三端)**:CLI `changes` / TUI 卡片经 `formatChange`、GUI 经 `changes:describe` 桥,显示前统一过 `redactor`。**存储保持原文** —— 回滚靠逐字节复原;有测试同时断言「显示已脱敏 + 磁盘仍是原文 + 回滚仍能精确复原」,防止有人图省事把 redactor 套到写盘路径上。这是密钥唯一能离开本机的路径(截图、贴 issue)。
+- 新增 **31 条测试**(判定层 8 / 共享契约 6 / CLI 6 / TUI 5 / GUI 桥 6 + reducer 5,含展示脱敏 4);`npm run check` 补上此前漏登记的两个新模块。
+- 版本同步为 `1.7.0`(四处);全量回归 **1075 单测** + `npm run check` + renderer build 通过。
+
+---
+
 ## v1.6.4 — 2026-08-09 · v1.6 收尾:文档漂移修复 + 前端片立项
 
 > 纯文档补丁,不改任何代码。清掉 v1.6 计划的收尾清单。

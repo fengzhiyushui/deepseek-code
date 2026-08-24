@@ -39,7 +39,11 @@ export function computeBottom(state, t, columns) {
 
   let inputLine;
   let cursorCol;
-  if (state.approval) {
+  if (state.sensitiveNotice) {
+    // 红色、且措辞明确区别于审批 —— 见 apps/sensitive-notice-contract.js 的策略
+    inputLine = ` ${color.red(t("input.sensitive"))}`;
+    cursorCol = 1;
+  } else if (state.approval) {
     inputLine = ` ${color.yellow(t("input.approval"))}`;
     cursorCol = 1;
   } else {

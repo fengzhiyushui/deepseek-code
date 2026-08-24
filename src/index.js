@@ -126,7 +126,11 @@ export async function createKernel(root, options = {}) {
     defaultToolTimeoutMs: options.limits?.toolTimeoutMs ?? null,
     editService: options.editService,
     toolRegistry: options.toolRegistry,
-    toolExecutor: options.toolExecutor
+    toolExecutor: options.toolExecutor,
+    // #9.3 敏感文件提醒:只接主区平面。并行 iso worker 写的是临时拷贝,其改动
+    // 最终经 mergeSubtask 走**主区** editService.apply 落记录,提醒在那里触发;
+    // 给 iso 平面接反而会让无人值守的隔离 worker 卡在提问上。
+    onSensitiveNotice: options.onSensitiveNotice || null
   });
   const editService = mainPlane.editService;
   const toolRegistry = mainPlane.toolRegistry;
@@ -480,9 +484,10 @@ export function buildToolPlane(root, {
   defaultToolTimeoutMs = null,
   editService = null,
   toolRegistry = null,
-  toolExecutor = null
+  toolExecutor = null,
+  onSensitiveNotice = null
 } = {}) {
-  const svc = editService || createEditService({ projectRoot: root, eventBus, recoveryJournal, assertOwner });
+  const svc = editService || createEditService({ projectRoot: root, eventBus, recoveryJournal, assertOwner, onSensitiveNotice });
   const registry = toolRegistry || createToolRegistry({ tools: createBuiltinTools({ editService: svc, webFetch }) });
   const executor = toolExecutor || createToolExecutor({
     registry,

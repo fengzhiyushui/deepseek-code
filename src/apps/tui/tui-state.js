@@ -15,6 +15,9 @@ export function initialTuiState({ lang = "zh", mode = "gated", theme = "sumi", s
     input: { text: "", cursor: 0, history: [], hi: -1, saved: "" },
     stream: "",
     approval: null,
+    // #9.3:敏感文件提醒**不复用** approval 态 —— 它不是权限审批,
+    // 混用会让渲染层无从区分,也容易被后人接进审批缓存。
+    sensitiveNotice: null,
     menu: null,
     overlay: null,
     pending: [],
@@ -75,6 +78,7 @@ export function reduce(state, action = {}) {
     case "busy": return { ...state, busy: Boolean(action.busy), hint: action.busy ? state.hint : "" };
     case "spin": return { ...state, spin: (state.spin + 1) % SPINNER.length };
     case "approval": return { ...state, approval: action.approval || null };
+    case "sensitive_notice": return { ...state, sensitiveNotice: action.notice || null };
     case "menu": return { ...state, menu: action.menu || null };
     case "menu_move": {
       if (!state.menu || !state.menu.items.length) return state;

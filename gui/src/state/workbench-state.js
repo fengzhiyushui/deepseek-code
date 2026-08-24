@@ -50,6 +50,7 @@ export function createInitialState() {
     degraded: false,
     errors: [],
     approval: null,
+    sensitiveNotice: null,
     fileTree: [],
     openFiles: [],
     activeFile: null,
@@ -84,6 +85,11 @@ export function applyWorkbenchAction(state, action) {
     if (event.type === "approval:requested") {
       patch.inspectorMode = "approval";
       patch.approval = event.approval || null;
+    }
+    // #9.3 敏感文件提醒:独立字段,**不写 approval / inspectorMode** —— 它不是
+    // 权限审批,以红色模态呈现,不进检查器的审批分区。
+    if (event.type === "gui:sensitive_notice") {
+      patch.sensitiveNotice = { requestId: event.request_id, descriptor: event.descriptor || null };
     }
     if (event.type === "agent:error" || event.type === "session:rewind_conflict" || event.type === "session:rewind_failed" || event.type === "session:rewind_recovery_failed") {
       patch.inspectorMode = "details";
@@ -266,6 +272,9 @@ export function applyWorkbenchAction(state, action) {
   }
   if (action.type === "approval_cleared") {
     return copy(current, { approval: null, inspectorMode: current.inspectorMode === "approval" ? "activity" : current.inspectorMode });
+  }
+  if (action.type === "sensitive_notice_cleared") {
+    return copy(current, { sensitiveNotice: null });
   }
   if (action.type === "error_reported") {
     var area = action.area || "runtime";

@@ -10,8 +10,9 @@ import HomeView from "./components/v4/HomeView.jsx";
 import ChatView from "./components/v4/ChatView.jsx";
 import { ProjectsView, ChangesView, McpView, PluginsView } from "./components/v4/SecondaryViews.jsx";
 import Settings from "./components/Settings/Settings.jsx";
+import SensitiveNoticeModal from "./components/v4/SensitiveNoticeModal.jsx";
 
-const VERSION = "1.6.4";
+const VERSION = "1.7.0";
 
 export default function App() {
   const [state, dispatch] = useWorkbench();
@@ -175,6 +176,16 @@ export default function App() {
           {view === "settings" && <Settings t={t} state={state} kernel={kernel} dispatch={dispatch} version={VERSION} onClose={closeSettings} />}
         </main>
       </div>
+      {/* #9.3:红色风险提醒。全窗模态,压在所有视图之上 —— 它不是审批,
+          不进检查器的审批分区。 */}
+      <SensitiveNoticeModal
+        notice={state.sensitiveNotice}
+        t={t}
+        onRespond={(allowed) => {
+          kernel.respondSensitive(state.sensitiveNotice.requestId, allowed);
+          dispatch({ type: "sensitive_notice_cleared" });
+        }}
+      />
     </div>
   );
 }

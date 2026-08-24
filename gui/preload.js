@@ -4,6 +4,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("deepseek", {
   send: (message, opts) => ipcRenderer.invoke("agent:send", message, opts),
   approve: (id, decision) => ipcRenderer.invoke("agent:approve", id, decision),
+  // #9.3:敏感文件提醒的回答(非审批 —— 不经权限引擎、不进审批缓存)
+  respondSensitive: (requestId, allowed) => ipcRenderer.invoke("sensitive:respond", requestId, allowed === true),
   interrupt: () => ipcRenderer.invoke("agent:interrupt"),
   getTimeline: (count) => ipcRenderer.invoke("session:timeline", count),
   onKernelEvent: (callback) => {

@@ -1,7 +1,8 @@
 import { createKernel } from "../../index.js";
 import { createToolCall } from "../../core/protocol/index.js";
 import { buildKernelOptions } from "../kernel-options.js";
-import { createEventRenderer, renderKernelResult } from "./render-events.js";
+import { createSensitiveNoticeHandler } from "../sensitive-notice-contract.js";
+import { createEventRenderer, formatSensitiveNotice, renderKernelResult } from "./render-events.js";
 
 export { buildKernelOptions } from "../kernel-options.js";
 
@@ -15,12 +16,13 @@ export async function runKernelAgentCommand({
   loadConfigImpl = null,
   sendOptions = {},
   promptApproval = defaultPromptApproval,
+  askSensitive = defaultAskSensitive,
   onSigint = defaultOnSigint
 } = {}) {
   const message = String(prompt || "").trim();
   if (!message) throw new Error("prompt is required");
 
-  const kernel = await createKernelForRunner({ root, createKernelImpl, createKernelOptions, loadConfigImpl });
+  const kernel = await createKernelForRunner({ root, createKernelImpl, createKernelOptions, loadConfigImpl, write, askSensitive });
   const renderEvent = createEventRenderer({ write });
   const subscription = kernel.session.subscribe(renderEvent);
   try {
@@ -46,9 +48,10 @@ export async function runKernelChatCommand({
   loadConfigImpl = null,
   sendOptions = {},
   promptApproval = defaultPromptApproval,
+  askSensitive = defaultAskSensitive,
   onSigint = defaultOnSigint
 } = {}) {
-  const kernel = await createKernelForRunner({ root, createKernelImpl, createKernelOptions, loadConfigImpl });
+  const kernel = await createKernelForRunner({ root, createKernelImpl, createKernelOptions, loadConfigImpl, write, askSensitive });
   const renderEvent = createEventRenderer({ write });
   const subscription = kernel.session.subscribe(renderEvent);
   try {
@@ -292,11 +295,28 @@ function appendHistory(history, user, assistant) {
   ].slice(-20);
 }
 
-async function createKernelForRunner({ root, createKernelImpl = createKernel, createKernelOptions = {}, loadConfigImpl = null } = {}) {
+async function createKernelForRunner({ root, createKernelImpl = createKernel, createKernelOptions = {}, loadConfigImpl = null, write = console.log, askSensitive = defaultAskSensitive } = {}) {
   const kernelOptions = createKernelImpl === createKernel
     ? await buildKernelOptions(root, createKernelOptions, loadConfigImpl || undefined)
     : createKernelOptions;
-  return createKernelImpl(root, kernelOptions);
+  // #9.3:注入敏感文件提醒。策略(一律问、不缓存、不按档位放行)在共享契约里,
+  // 这里只提供 CLI 的「怎么问」。已显式传入者优先(测试可注入)。
+  const withNotice = kernelOptions?.onSensitiveNotice
+    ? kernelOptions
+    : { ...kernelOptions, onSensitiveNotice: createSensitiveNoticeHandler((descriptor) => askSensitive(descriptor, write)) };
+  return createKernelImpl(root, withNotice);
+}
+
+async function defaultAskSensitive(descriptor, write = console.log) {
+  for (const line of formatSensitiveNotice(descriptor)) write(line);
+  const { createInterface } = await import("node:readline/promises");
+  const { stdin, stdout } = await import("node:process");
+  const rl = createInterface({ input: stdin, output: stdout });
+  try {
+    return isApprovalYes(await rl.question("> "));
+  } finally {
+    rl.close();
+  }
 }
 
 async function defaultQuestion(prompt) {

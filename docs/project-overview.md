@@ -125,6 +125,10 @@ ToolCall
 > - **保留期 / 数量上限**:`finalizeChange` 写新记录后按 `changeRetention = { maxRecords, maxAgeDays }` 做确定性清理(超出者删),只删 `.deepseek-code/changes/*.json`,不碰工作区文件。
 > - **目录限权**:`changes/` 目录以 `0o700` 创建;Windows 上 `fs.chmod` 基本无效,此条仅在类 Unix 生效。
 > - **展示层脱敏与敏感文件提醒**属前端片,另行立项。
+>
+> **v1.7.0(#9.3 收官):**
+> - **敏感文件独立风险提醒**:改 `.env` / `*.pem` / `*.key` / `.npmrc` 等文件前,三端红色告知「完整原文会写入变更记录」并由用户拍板;拒绝则该文件不改动(`SENSITIVE_EDIT_DECLINED`)。走 [`edits/sensitive-notice.js`](../src/edits/sensitive-notice.js) 判定 + `editService.apply` 预检的独立回调,**不经 permission-engine、不进审批缓存、所有档位一律提问**(策略见 [`apps/sensitive-notice-contract.js`](../src/apps/sensitive-notice-contract.js))。判定只取 `secret-file` / `credential-file`,不含 `ignored-directory` / `hidden-tool-dir`。
+> - **展示层脱敏**:CLI/TUI 经 `formatChange`、GUI 经 `changes:describe` 桥,显示前过 `redactor`;**存储保持原文供回滚**。
 
 ---
 
@@ -210,6 +214,7 @@ ToolCall
 - `web_fetch` 阻断 localhost / 私网 / link-local / CGNAT / benchmark / 文档保留 / 组播等保留网段与 IPv4-mapped IPv6 / IPv6 literal;校验**全部 DNS A 记录**,每跳 redirect 重新校验;默认网络层固定到已验证 IP 直连(原 hostname 保留作 Host/SNI),避免 DNS rebinding/TOCTOU([`security/ssrf.js`](../src/security/ssrf.js))。
 - 输出中的密钥会被脱敏([`security/redactor.js`](../src/security/redactor.js)):Bearer/常见 key/token/secret/password 赋值、AWS/GitHub/sk- 确定性 token 前缀与多行私钥块;不做易误伤 hash/base64/源码常量的通用高熵猜测。
 - GUI 采用 `nodeIntegration:false` + `contextIsolation:true` + `sandbox:true` + IPC 白名单(强制生效:`IPC_CHANNELS` 唯一权威清单,未登记 channel 的 handle 注册即抛错)。
+- **敏感文件写入前的独立风险提醒(v1.7.0)**:agent 改 `.env` / `*.pem` / `*.key` / `.npmrc` 等文件时,因回滚需要,其**完整原文**会落进 `.deepseek-code/changes/`(不可脱敏)。此事在**编辑发生之前**红色告知用户并由其拍板。**该提醒独立于权限矩阵之外** —— 不经 `permission-engine`、不进审批缓存、**没有任何自治档位能跳过**(含 `full-auto`,与其 `read_secret`/`execute_dangerous` 恒为 `ask` 的既有立场一致)。
 
 ---
 

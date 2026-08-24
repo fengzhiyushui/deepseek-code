@@ -2,6 +2,7 @@
 // 唯一的副作用汇聚点;所有依赖可注入,node:test 直接驱动。
 import { createKernel } from "../../index.js";
 import { buildKernelOptions } from "../kernel-options.js";
+import { createSensitiveNoticeHandler } from "../sensitive-notice-contract.js";
 import { loadConfig } from "../../config.js";
 import { tc as color } from "./theme.js";
 import { VERSION } from "../../theme.js";
@@ -55,6 +56,7 @@ export function createTuiApp({
   let spinTimer = null;
   let paintQueued = null;
   let approvalResolve = null;
+  let sensitiveResolve = null;
   let finishResolve = null;
   let modalHandler = null; // T13:config 等全接管视图的按键处理器
   const painter = createPainter({ write: (s) => output.write(s) });
@@ -168,6 +170,26 @@ export function createTuiApp({
     });
   }
 
+  // #9.3 敏感文件提醒:独立于审批的行内提问。命中时把描述符渲染成红色卡片进
+  // 滚动区,底部输入行换成红色提示,y 允许 / n·Esc 拒绝。不缓存、不按档位放行。
+  function waitSensitiveNotice(descriptor) {
+    const lines = [
+      ` ${color.red(T("sensitive.title"))}`,
+      ...descriptor.paths.map((item) => ` ${color.red(`   ${item.path}  (${T(item.reasonKey)})`)}`),
+      ` ${color.red(`   ${T("sensitive.body")} ${descriptor.recordDir}/`)}`,
+      ""
+    ];
+    pushLines(lines);
+    return new Promise((resolve) => {
+      sensitiveResolve = (allowed) => {
+        sensitiveResolve = null;
+        dispatch({ type: "sensitive_notice", notice: null });
+        resolve(allowed);
+      };
+      dispatch({ type: "sensitive_notice", notice: descriptor });
+    });
+  }
+
   async function sendTurn(text) {
     dispatch({ type: "submit_local", line: ` ${color.cyan("❯")} ${text}` });
     if (!kernel) { pushLines([` ${color.yellow(T("banner.offline"))}`, ""]); return; }
@@ -228,7 +250,7 @@ export function createTuiApp({
       subscription?.unsubscribe?.();
       if (ownKernel && kernel?.dispose) await kernel.dispose().catch(() => {});
       try {
-        kernel = await createKernelImpl(root, await buildKernelOptionsImpl(root));
+        kernel = await createKernelImpl(root, { ...(await buildKernelOptionsImpl(root)), onSensitiveNotice: createSensitiveNoticeHandler(waitSensitiveNotice) });
         ownKernel = true;
       } catch { kernel = null; }
       subscribeKernel();
@@ -443,6 +465,12 @@ export function createTuiApp({
       return;
     }
     if (modalHandler) { modalHandler(ev); return; }
+    // 敏感文件提醒优先于审批处理:两者不会同时出现,但顺序固定避免歧义
+    if (state.sensitiveNotice) {
+      if (ev.type === "char" && /^y$/i.test(ev.text)) sensitiveResolve?.(true);
+      else if ((ev.type === "char" && /^n$/i.test(ev.text)) || ev.type === "esc") sensitiveResolve?.(false);
+      return;
+    }
     if (state.approval) {
       if (ev.type === "char" && /^y$/i.test(ev.text)) approvalResolve?.("approve");
       else if ((ev.type === "char" && /^n$/i.test(ev.text)) || ev.type === "esc") approvalResolve?.("deny");
@@ -500,7 +528,7 @@ export function createTuiApp({
     if (SHELLS.includes(prefs.shell)) apply({ type: "shell_set", shell: prefs.shell });
     if (!kernel) {
       try {
-        kernel = await createKernelImpl(root, await buildKernelOptionsImpl(root));
+        kernel = await createKernelImpl(root, { ...(await buildKernelOptionsImpl(root)), onSensitiveNotice: createSensitiveNoticeHandler(waitSensitiveNotice) });
         ownKernel = true;
       } catch { kernel = null; }
     }

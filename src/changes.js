@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { resolveInsideRoot } from "./context.js";
 import { parseUnifiedDiff, summarizeDiff } from "./patch.js";
+import { redactSecrets } from "./security/redactor.js";
 
 // #9.3 大小上限默认 1 MiB:超过只存 sha256 + 摘要,不存全文(回滚需全文 → 截断记录
 // 在 rollbackChange 抛 ROLLBACK_TRUNCATED,绝不静默写空)。传 maxCaptureBytes=null 关闭。
@@ -123,11 +124,14 @@ export async function rollbackChange(root, id) {
   return record;
 }
 
+// #9.3 展示层脱敏:这是**显示**函数(CLI `changes` / TUI 卡片都用它),不是存储。
+// 落盘记录必须保持原文 —— 回滚靠逐字节复原;但打到屏幕上的内容会被截图、
+// 贴进 issue,是密钥唯一能离开本机的路径,故在此处过 redactor。
 export function formatChange(record) {
   const lines = [
     `变更 ID：${record.id}`,
     `时间：${record.time}`,
-    `需求：${record.prompt}`,
+    `需求：${redactSecrets(record.prompt ?? "")}`,
     "",
     "文件："
   ];
@@ -136,7 +140,7 @@ export function formatChange(record) {
   }
   lines.push("");
   lines.push("补丁：");
-  lines.push(record.diff);
+  lines.push(redactSecrets(record.diff ?? ""));
   return lines.join("\n");
 }
 

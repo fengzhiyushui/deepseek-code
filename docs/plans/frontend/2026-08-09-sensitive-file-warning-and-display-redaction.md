@@ -1,6 +1,7 @@
 # 敏感文件风险提醒 + 展示层脱敏(#9.3 前端片)实施方案
 
 > 完成状态以 [CHANGELOG](../../CHANGELOG.md) 为准。
+> **状态:v1.7.0 已发布(2026-08-09),本方案全部完成。**
 > **目标版本:v1.7.0**(minor —— 三端各新增一类展示能力 + 一档配置,属「一次前端对齐」,不重构核心)。分支 `feat/v1.7`。
 
 **来源:** [agent 审计补救计划](../../specs/backend/2026-07-12-agent-findings-remediation.md) #9.3 的剩余部分。后端卫生(大小上限 / 回滚守卫 / 保留期 / 目录限权)已在 **v1.6.2** 完成;本片做需要三端前端配合的两件事。
@@ -45,14 +46,14 @@ export function contextSkipReason(inputPath)   // → "secret-file" | "credentia
 
 ## ⚠ 开工前需拍板的两个细节
 
-### ① 无人值守(`full-auto`)怎么办?
+### ① 无人值守(`full-auto`)怎么办? — **已定:一律提问**
 
 若提醒在 `full-auto` 下也一律阻塞等待,无人值守的长任务会卡死。
 
 | 选项 | 后果 |
 |------|------|
 | (a) 一律阻塞 | 最安全,但无人值守场景会挂死 |
-| **(b) `full-auto` 下不阻塞,直接拒绝该文件的编辑并诚实上报**(建议) | 不卡死、不静默落盘;选择权留给下一次有人在场时 |
+| **(b) `full-auto` 下不阻塞,直接拒绝** | ~~建议~~ **已否决** —— 前提有误:权限矩阵里 `full-auto` 的 `read_secret` / `execute_dangerous` 本就是 `ask`,它从来不是「无人值守免打扰」档,故一律提问反而与既有立场一致 |
 
 ### ② 记不记住选择?
 
@@ -81,40 +82,40 @@ export function contextSkipReason(inputPath)   // → "secret-file" | "credentia
 - 产出:`createEditService({ onSensitiveNotice })` —— `onSensitiveNotice(payload) → Promise<boolean>`;**未注入时行为逐字节不变**(不提醒、不拦)
 
 **步骤**
-- [ ] 1. 失败测试:`buildSensitiveNotice([".env", "src/a.js"])` 只标 `.env`,`reason === "secret-file"`
-- [ ] 2. 跑到失败 → 实现 → 跑绿
-- [ ] 3. 失败测试:注入 `onSensitiveNotice` 返回 `false` 时 `apply` 抛 `SENSITIVE_EDIT_DECLINED`,且**工作区文件未被改动、无 change 记录落盘**
-- [ ] 4. 失败测试:返回 `true` 时正常应用并落记录
-- [ ] 5. 失败测试:**未注入回调时行为与今天逐字节一致**(不拦、不提醒)
-- [ ] 6. 跑到失败 → 实现 → 跑绿 + 全量回归
-- [ ] 7. 提交
+- [x] 1. 失败测试:`buildSensitiveNotice([".env", "src/a.js"])` 只标 `.env`,`reason === "secret-file"`
+- [x] 2. 跑到失败 → 实现 → 跑绿
+- [x] 3. 失败测试:注入 `onSensitiveNotice` 返回 `false` 时 `apply` 抛 `SENSITIVE_EDIT_DECLINED`,且**工作区文件未被改动、无 change 记录落盘**
+- [x] 4. 失败测试:返回 `true` 时正常应用并落记录
+- [x] 5. 失败测试:**未注入回调时行为与今天逐字节一致**(不拦、不提醒)
+- [x] 6. 跑到失败 → 实现 → 跑绿 + 全量回归
+- [x] 7. 提交
 
 ### 任务 2:CLI 红色提醒
 
 **文件**:`src/apps/cli/render-events.js`、`src/apps/cli/kernel-runner.js`;测试 `tests/unit/apps/cli-sensitive-notice.test.js`
 
-- [ ] 1. 失败测试:提醒渲染为红色块,含文件路径、原因、「记录会存完整原文」的说明,且**视觉上区别于普通审批卡片**
-- [ ] 2. 失败测试:`full-auto` 档按拍板结论(建议 (b))不阻塞、拒绝并上报
-- [ ] 3. 跑到失败 → 实现 → 跑绿 → 提交
+- [x] 1. 失败测试:提醒渲染为红色块,含文件路径、原因、「记录会存完整原文」的说明,且**视觉上区别于普通审批卡片**
+- [x] 2. 失败测试:`full-auto` 档按拍板结论(建议 (b))不阻塞、拒绝并上报
+- [x] 3. 跑到失败 → 实现 → 跑绿 → 提交
 
 ### 任务 3:TUI 红色提醒
 
 **文件**:`src/apps/tui/event-cards.js`、`src/apps/tui/tui-state.js`、`src/apps/tui/tui-app.js`、`src/apps/tui/tui-i18n.js`(中英各一条);测试 `tests/unit/apps/tui/sensitive-notice.test.js`
 
-- [ ] 1. 失败测试:reducer 收到 notice 进入独立态(**不复用** `approval` 态),y/n 行内答复
-- [ ] 2. 失败测试:渲染走红色 ANSI,CJK 宽度计算正确
-- [ ] 3. 失败测试:i18n key 集中英对齐
-- [ ] 4. 跑到失败 → 实现 → 跑绿 → 提交
+- [x] 1. 失败测试:reducer 收到 notice 进入独立态(**不复用** `approval` 态),y/n 行内答复
+- [x] 2. 失败测试:渲染走红色 ANSI,CJK 宽度计算正确
+- [x] 3. 失败测试:i18n key 集中英对齐
+- [x] 4. 跑到失败 → 实现 → 跑绿 → 提交
 
 ### 任务 4:GUI 红色提醒
 
 **文件**:`gui/src/components/v4/`(新组件)、`gui/src/state/workbench-state.js`、`gui/src/i18n/strings.js`、`gui/preload.js` + `gui/main.js`(新 IPC channel,**须登记进 `IPC_CHANNELS` 白名单**否则启动即抛错)、`gui/kernel-host.js`
 
-- [ ] 1. 失败测试:reducer 的 notice 态与 `approval` 态**互不干扰**
-- [ ] 2. 失败测试:`IPC_CHANNELS` 已登记新 channel
-- [ ] 3. 跑到失败 → 实现 → 跑绿
-- [ ] 4. 红色样式走 `tokens.css` 既有 danger 色,不新造色值;`vite build` + 门控 Electron smoke 截图留档
-- [ ] 5. 提交
+- [x] 1. 失败测试:reducer 的 notice 态与 `approval` 态**互不干扰**
+- [x] 2. 失败测试:`IPC_CHANNELS` 已登记新 channel
+- [x] 3. 跑到失败 → 实现 → 跑绿
+- [x] 4. 红色样式走 `tokens.css` 既有 danger 色,不新造色值;`vite build` + 门控 Electron smoke 截图留档
+- [x] 5. 提交
 
 ---
 
@@ -139,17 +140,17 @@ CLI `changes` / GUI `ChangeDiffView` 显示变更详情时,**密钥是原样打�
 - 测试:`tests/unit/gui/kernel-host-changes-redaction.test.js`、`tests/unit/apps/cli-changes-redaction.test.js`
 
 **步骤**
-- [ ] 1. 失败测试:`describeChange` 桥返回的 `before`/`after` 中 `sk-` 开头 token 被掩码,**而磁盘记录原文不变**(同时断言两侧)
-- [ ] 2. 失败测试:CLI `changes` 输出不含明文密钥
-- [ ] 3. 失败测试:回滚仍能用原文成功复原(**证明脱敏没污染存储**)
-- [ ] 4. 跑到失败 → 实现 → 跑绿 + 全量回归
-- [ ] 5. 提交
+- [x] 1. 失败测试:`describeChange` 桥返回的 `before`/`after` 中 `sk-` 开头 token 被掩码,**而磁盘记录原文不变**(同时断言两侧)
+- [x] 2. 失败测试:CLI `changes` 输出不含明文密钥
+- [x] 3. 失败测试:回滚仍能用原文成功复原(**证明脱敏没污染存储**)
+- [x] 4. 跑到失败 → 实现 → 跑绿 + 全量回归
+- [x] 5. 提交
 
 ---
 
 ## 收尾
 
-- [ ] 补救 spec [2026-07-12-agent-findings-remediation.md](../../specs/backend/2026-07-12-agent-findings-remediation.md) 头部状态行:#9.3 **完全闭环**
-- [ ] `project-overview` §4/§15/§16 补三端提醒与脱敏说明
-- [ ] `docs/README.md` 当前版本 → v1.7.0
-- [ ] CHANGELOG v1.7.0 小节;版本同步四处;合入 main 并打 tag
+- [x] 补救 spec [2026-07-12-agent-findings-remediation.md](../../specs/backend/2026-07-12-agent-findings-remediation.md) 头部状态行:#9.3 **完全闭环**
+- [x] `project-overview` §4/§15/§16 补三端提醒与脱敏说明
+- [x] `docs/README.md` 当前版本 → v1.7.0
+- [x] CHANGELOG v1.7.0 小节;版本同步四处;合入 main 并打 tag

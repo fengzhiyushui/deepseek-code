@@ -682,3 +682,42 @@
   .q-card, .cz-send { transition: none; }
   .q-card:hover, .cz-send:hover { transform: none; }
 }
+
+/* ── #9.3 敏感文件风险提醒(红色模态)──
+   刻意与审批卡片不同形:全屏遮罩 + --err 描边,让人无法把它当成普通审批。
+   色值全部走 tokens 的 --err,十套主题自动适配。 */
+.sn-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(2px);
+}
+.sn-card {
+  width: min(560px, calc(100vw - 48px));
+  background: var(--bg-1);
+  border: 1px solid var(--err);
+  border-left: 3px solid var(--err);
+  border-radius: 10px;
+  padding: 18px 20px;
+  box-shadow: 0 16px 48px color-mix(in srgb, var(--err) 18%, transparent);
+}
+.sn-head { display: flex; align-items: center; gap: 8px; color: var(--err); }
+.sn-title { font-weight: 600; font-size: 14px; }
+.sn-body { margin: 12px 0 8px; color: var(--fg-1); font-size: 13px; line-height: 1.6; }
+.sn-paths { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sn-paths li { display: flex; align-items: center; gap: 10px; }
+.sn-paths code {
+  color: var(--err); background: color-mix(in srgb, var(--err) 10%, transparent);
+  padding: 2px 7px; border-radius: 4px; font-size: 12px;
+}
+.sn-reason { color: var(--mut); font-size: 12px; }
+.sn-record { margin: 0 0 16px; color: var(--mut); font-size: 12px; }
+.sn-record code { color: var(--mut); }
+.sn-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.sn-btn {
+  padding: 7px 16px; border-radius: 6px; font-size: 13px; cursor: pointer;
+  border: 1px solid var(--bdr); background: var(--bg-2); color: var(--fg-1);
+}
+.sn-refuse { border-color: var(--err); color: var(--err); font-weight: 600; }
+.sn-refuse:hover { background: color-mix(in srgb, var(--err) 12%, transparent); }
+.sn-allow:hover { background: var(--bg-3); }

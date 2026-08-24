@@ -1,4 +1,5 @@
 import { describeEvent } from "../event-contract.js";
+import { color } from "../../theme.js";
 
 const QUIET_EVENTS = new Set(["model:request", "model:response", "agent:step", "agent:turn_started"]);
 
@@ -96,4 +97,30 @@ export function createEventRenderer({ write = console.log } = {}) {
 function clip(value, max = 120) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+}
+
+const SENSITIVE_REASON_LABELS = Object.freeze({
+  "sensitive.reason.secret": "secret file",
+  "sensitive.reason.credential": "credential file",
+  "sensitive.reason.other": "sensitive file"
+});
+
+// #9.3 敏感文件提醒的 CLI 呈现。刻意与 `renderKernelResult` 的审批提示**不同形**:
+// 全红 + 明确写「这不是权限审批」,避免用户按审批的肌肉记忆一路 y 下去。
+// 纯函数、返回行数组,便于测试;颜色经 theme.color(NO_COLOR / 非 TTY 自动降级)。
+export function formatSensitiveNotice(descriptor) {
+  if (!descriptor?.paths?.length) return [];
+  const lines = [
+    "",
+    color.red(color.bold("!! SENSITIVE FILE WRITE -- this is NOT a permission prompt"))
+  ];
+  for (const item of descriptor.paths) {
+    const label = SENSITIVE_REASON_LABELS[item.reasonKey] || SENSITIVE_REASON_LABELS["sensitive.reason.other"];
+    lines.push(color.red(`   ${item.path}  (${label})`));
+  }
+  lines.push(color.red(`   The full contents of ${descriptor.count === 1 ? "this file" : "these files"} will be copied into`));
+  lines.push(color.red(`   ${descriptor.recordDir}/ so the edit stays rollbackable.`));
+  lines.push(color.red("   That record is NOT redacted -- rollback needs the exact bytes."));
+  lines.push(color.red("   Allow this write? y/N"));
+  return lines;
 }

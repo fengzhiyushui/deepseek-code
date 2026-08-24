@@ -65,6 +65,11 @@ function loadPatchMod() {
   if (!patchModPromise) patchModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "patch.js")).href);
   return patchModPromise;
 }
+let redactorModPromise = null;
+function loadRedactorMod() {
+  if (!redactorModPromise) redactorModPromise = import(pathToFileURL(path.join(__dirname, "..", "src", "security", "redactor.js")).href);
+  return redactorModPromise;
+}
 
 function maskKeyStr(k) {
   if (!k) return "";
@@ -199,6 +204,35 @@ function createKernelHost({
   let guiEditService = editService;
   let registryDir = projectRegistryDir;
 
+  // #9.3 敏感文件提醒:内核跑在主进程,提问必须到渲染层再回来 —— 一条
+  // 请求-应答桥。主进程 push 一个带 request_id 的事件,渲染层作答后经
+  // `sensitive:respond` 回来解决这里挂起的 Promise。
+  const pendingSensitive = new Map();
+  let sensitiveSeq = 0;
+
+  function askSensitiveViaRenderer(descriptor) {
+    const requestId = `sn_${++sensitiveSeq}`;
+    return new Promise((resolve) => {
+      pendingSensitive.set(requestId, resolve);
+      pushEvent({ type: "gui:sensitive_notice", request_id: requestId, descriptor });
+    });
+  }
+
+  // 渲染层作答入口(经 IPC）。未知 id 静默忽略,避免伪造/重放挂死主进程。
+  function resolveSensitiveNotice(requestId, allowed) {
+    const resolve = pendingSensitive.get(requestId);
+    if (!resolve) return false;
+    pendingSensitive.delete(requestId);
+    resolve(allowed === true);
+    return true;
+  }
+
+  // 窗口关闭 / 重建时把未决提问一律按拒绝收口,绝不悬挂
+  function abortPendingSensitive() {
+    for (const [, resolve] of pendingSensitive) resolve(false);
+    pendingSensitive.clear();
+  }
+
   async function init() {
     if (!kernelFactory) {
       const kernelPath = path.join(__dirname, "..", "src", "index.js");
@@ -206,7 +240,13 @@ function createKernelHost({
       kernelFactory = mod.createKernel;
     }
     const options = await buildKernelOptions(projectRoot, kernelOptions, configLoader);
-    kernel = await kernelFactory(projectRoot, options);
+    const { createSensitiveNoticeHandler } = await import(
+      pathToFileURL(path.join(__dirname, "..", "src", "apps", "sensitive-notice-contract.js")).href
+    );
+    kernel = await kernelFactory(projectRoot, {
+      ...options,
+      onSensitiveNotice: options.onSensitiveNotice || createSensitiveNoticeHandler(askSensitiveViaRenderer)
+    });
     subscription = kernel.session.subscribe((event) => pushEvent(event));
     return kernel;
   }
@@ -404,6 +444,8 @@ function createKernelHost({
   async function describeChange(changeId, relPath) {
     const store = await getChangeStore();
     const { parseUnifiedDiff } = await loadPatchMod();
+    const { redactSecrets } = await loadRedactorMod();
+    const redactForDisplay = (text) => redactSecrets(text);
     const record = await store.describe({ change_id: changeId || "latest" });
     const files = record.files || [];
     const file = relPath ? files.find((f) => f.path === relPath) : files[0];
@@ -419,8 +461,10 @@ function createKernelHost({
       file: {
         path: file.path,
         status: file.status,
-        before: typeof file.before === "string" ? file.before : null,
-        after: typeof file.after === "string" ? file.after : null,
+        // #9.3 展示层脱敏:回渲染层前过 redactor。磁盘记录保持原文供回滚,
+        // 这里只挡住「密钥出现在界面/截图里」这条越界路径。
+        before: typeof file.before === "string" ? redactForDisplay(file.before) : null,
+        after: typeof file.after === "string" ? redactForDisplay(file.after) : null,
         language: languageForExt(file.path),
         added: s ? s.added : null,
         removed: s ? s.removed : null,
@@ -490,6 +534,8 @@ function createKernelHost({
   function dispose() {
     subscription?.unsubscribe?.();
     subscription = null;
+    // 未决的敏感文件提问一律按拒绝收口,绝不把主进程悬挂在等待上
+    abortPendingSensitive();
   }
 
   // v1.4.0 项目列表/会话列表(app 层;kernel 不感知)
@@ -555,7 +601,8 @@ function createKernelHost({
            listBranches, listCheckpoints, rewindPreview, rewindApply, getActiveBranch,
            getPreferences, setPreferences, listTree, readFile, writeFile, listChanges, describeChange,
            getSettings, setConfig, listApiProfiles, saveApiProfile, deleteApiProfile, activateApiProfile,
-           listModels, testConnection, activateBranch, listProjects, addProject, removeProject, switchProject, listSessions, dispose };
+           listModels, testConnection, activateBranch, listProjects, addProject, removeProject, switchProject, listSessions,
+           resolveSensitiveNotice, abortPendingSensitive, dispose };
 }
 
 module.exports = { createKernelHost, resolveProjectRoot, zeroUsage, buildKernelOptions,
