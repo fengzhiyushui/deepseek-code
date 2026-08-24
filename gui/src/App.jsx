@@ -11,7 +11,7 @@ import ChatView from "./components/v4/ChatView.jsx";
 import { ProjectsView, ChangesView, McpView, PluginsView } from "./components/v4/SecondaryViews.jsx";
 import Settings from "./components/Settings/Settings.jsx";
 
-const VERSION = "1.6.3";
+const VERSION = "1.6.4";
 
 export default function App() {
   const [state, dispatch] = useWorkbench();
